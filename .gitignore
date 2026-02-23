@@ -36,3 +36,9 @@
 /server/test-results
 /server/test-results-*/
 
+
+# Foundry
+contracts/cache/
+contracts/out/
+contracts/broadcast/
+

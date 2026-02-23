@@ -10,19 +10,21 @@ import {PriceFeedConsumer} from "../src/PriceFeedConsumer.sol";
 contract DeployTENANCY is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address deployer = vm.addr(deployerPrivateKey);
         
         vm.startBroadcast(deployerPrivateKey);
 
-        TENToken tenToken = new TENToken(msg.sender);
+        TENToken tenToken = new TENToken(deployer);
         console.log("TENToken deployed at:", address(tenToken));
 
-        address ethUsdPriceFeed = 0x694AA1769357215DE4FAC081bf1f309aDC325306;
+        // Base Sepolia ETH/USD Price Feed - using placeholder for now
+        address ethUsdPriceFeed = 0x0000000000000000000000000000000000000000;
         
-        PropertyRegistry propertyRegistry = new PropertyRegistry(msg.sender, ethUsdPriceFeed);
+        PropertyRegistry propertyRegistry = new PropertyRegistry(deployer, ethUsdPriceFeed);
         console.log("PropertyRegistry deployed at:", address(propertyRegistry));
 
         YieldDistributor yieldDistributor = new YieldDistributor(
-            msg.sender,
+            deployer,
             address(propertyRegistry),
             address(tenToken),
             ethUsdPriceFeed
@@ -35,8 +37,8 @@ contract DeployTENANCY is Script {
         );
         console.log("PriceFeedConsumer deployed at:", address(priceFeedConsumer));
 
-        propertyRegistry.setIssuer(msg.sender, true);
-        tenToken.setMinter(msg.sender, true);
+        propertyRegistry.setIssuer(deployer, true);
+        tenToken.setMinter(deployer, true);
 
         vm.stopBroadcast();
     }
