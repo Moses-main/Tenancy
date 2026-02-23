@@ -10,13 +10,14 @@ import { sepolia } from 'viem/chains';
 import Home from './src/pages/Home.tsx';
 import Issuer from './src/pages/Issuer.tsx';
 import Investor from './src/pages/Investor.tsx';
+import Marketplace from './src/pages/Marketplace.tsx';
 import NotFound from './src/pages/NotFound.tsx';
 import { AuthProvider } from './src/lib/AuthContext.tsx';
 
 const App: React.FC = () => {
   return (
     <PrivyProvider
-      appId="cm4g4l4s5001l501p9vq1g29h"
+      appId="cmlzow5lz004r0djm386ert5v"
       config={{
         loginMethods: ['email', 'wallet'],
         embeddedWallets: {
@@ -35,6 +36,7 @@ const App: React.FC = () => {
                 <Route path="/" element={<Home />} />
                 <Route path="/issuer" element={<Issuer />} />
                 <Route path="/investor" element={<Investor />} />
+                <Route path="/marketplace" element={<Marketplace />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
               <ToastContainer

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Building2, Wallet, Coins, BarChart3, Menu, X, ShieldCheck, Copy, ExternalLink, LogOut } from 'lucide-react';
+import { Building2, Wallet, Coins, BarChart3, Menu, X, ShieldCheck, Copy, ExternalLink, LogOut, Store } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 
 interface LayoutProps {
@@ -35,6 +35,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navItems = [
     { path: '/', label: 'Dashboard', icon: BarChart3 },
+    { path: '/marketplace', label: 'Marketplace', icon: Store },
     { path: '/issuer', label: 'Issuer Portal', icon: Building2 },
     { path: '/investor', label: 'Investor Portal', icon: Coins },
   ];
