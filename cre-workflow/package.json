@@ -1,0 +1,20 @@
+{
+  "name": "tenancy-cre-workflow",
+  "version": "1.0.0",
+  "description": "Chainlink CRE workflow for rental payment verification and yield distribution",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "simulate": "ts-node src/simulate.ts"
+  },
+  "dependencies": {
+    "ethers": "^6.11.0",
+    "dotenv": "^16.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2"
+  }
+}
