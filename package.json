@@ -10,15 +10,20 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@privy-io/react-auth": "^3.14.1",
+    "@privy-io/wagmi-connector": "^0.1.13",
     "@radix-ui/themes": "^3.2.1",
+    "clsx": "^2.1.1",
+    "ethers": "^6.16.0",
     "lucide-react": "^0.462.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^6.23.0",
     "react-toastify": "^11.0.5",
     "recharts": "^2.12.7",
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^2.3.0"
+    "tailwind-merge": "^2.3.0",
+    "viem": "^2.46.2",
+    "wagmi": "^3.5.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.2",

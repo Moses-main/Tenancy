@@ -4,39 +4,58 @@ import { Theme } from '@radix-ui/themes';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { PrivyProvider } from '@privy-io/react-auth';
+import { sepolia } from 'viem/chains';
 
 import Home from './src/pages/Home.tsx';
 import Issuer from './src/pages/Issuer.tsx';
 import Investor from './src/pages/Investor.tsx';
 import NotFound from './src/pages/NotFound.tsx';
+import { AuthProvider } from './src/lib/AuthContext.tsx';
 
 const App: React.FC = () => {
   return (
-    <Theme appearance="dark" radius="medium" scaling="100%">
-      <Router>
-        <div className="font-sans antialiased text-foreground bg-background selection:bg-primary/30">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/issuer" element={<Issuer />} />
-            <Route path="/investor" element={<Investor />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          <ToastContainer
-            position="bottom-right"
-            autoClose={4000}
-            hideProgressBar={false}
-            newestOnTop={false}
-            closeOnClick
-            rtl={false}
-            pauseOnFocusLoss
-            draggable
-            pauseOnHover
-            theme="dark"
-          />
-        </div>
-      </Router>
-    </Theme>
+    <PrivyProvider
+      appId="cm4g4l4s5001l501p9vq1g29h"
+      config={{
+        loginMethods: ['email', 'wallet'],
+        embeddedWallets: {
+          ethereum: {
+            createOnLogin: 'all-users',
+          },
+        },
+        defaultChain: sepolia,
+      }}
+    >
+      <AuthProvider>
+        <Theme appearance="dark" radius="medium" scaling="100%">
+          <Router>
+            <div className="font-sans antialiased text-foreground bg-background selection:bg-primary/30">
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/issuer" element={<Issuer />} />
+                <Route path="/investor" element={<Investor />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+              <ToastContainer
+                aria-label="Notifications"
+                position="bottom-right"
+                autoClose={4000}
+                hideProgressBar={false}
+                newestOnTop={false}
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+                theme="dark"
+              />
+            </div>
+          </Router>
+        </Theme>
+      </AuthProvider>
+    </PrivyProvider>
   );
-}
+};
 
 export default App;
