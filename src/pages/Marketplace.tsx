@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
-import { Building, DollarSign, TrendingUp, Users, Search, Filter, ArrowUpDown, Clock, CheckCircle, XCircle, ExternalLink, Wallet } from 'lucide-react';
+import { Building, DollarSign, TrendingUp, Users, Search, Filter, ArrowUpDown, Clock, CheckCircle, XCircle, ExternalLink, Wallet, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { useContracts } from '../lib/useContracts';
+import { useAuth } from '../lib/AuthContext';
+import { formatUnits, parseUnits } from 'ethers';
 
 interface Listing {
-  id: string;
+  id: number;
   propertyId: number;
   propertyName: string;
+  propertyUri: string;
   seller: string;
   amount: number;
   pricePerToken: number;
@@ -16,55 +20,53 @@ interface Listing {
   createdAt: number;
 }
 
-const mockListings: Listing[] = [
-  {
-    id: '1',
-    propertyId: 1,
-    propertyName: 'Downtown Loft NYC',
-    seller: '0x71C...9B2F',
-    amount: 500,
-    pricePerToken: 1.08,
-    totalPrice: 540,
-    status: 'active',
-    createdAt: Date.now() - 3600000,
-  },
-  {
-    id: '2',
-    propertyId: 2,
-    propertyName: 'Beach House Miami',
-    seller: '0x3A...4C8D',
-    amount: 250,
-    pricePerToken: 1.12,
-    totalPrice: 280,
-    status: 'active',
-    createdAt: Date.now() - 7200000,
-  },
-  {
-    id: '3',
-    propertyId: 3,
-    propertyName: 'Urban Condo SF',
-    seller: '0x9B...7E2A',
-    amount: 1000,
-    pricePerToken: 1.05,
-    totalPrice: 1050,
-    status: 'active',
-    createdAt: Date.now() - 10800000,
-  },
-];
-
 export default function Marketplace() {
-  const [listings, setListings] = useState<Listing[]>(mockListings);
+  const { isAuthenticated, address, isCorrectNetwork } = useAuth();
+  const { getAllProperties, buyTokens, chainId } = useContracts();
+  
+  const [listings, setListings] = useState<Listing[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'sold'>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'price-low' | 'price-high'>('newest');
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCreateListing, setShowCreateListing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [newListing, setNewListing] = useState({
     propertyId: '1',
     amount: '',
     pricePerToken: '',
   });
+
+  useEffect(() => {
+    const fetchListings = async () => {
+      if (!isAuthenticated || !isCorrectNetwork) {
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const props = await getAllProperties();
+        const listingsData: Listing[] = props.map((p: any, index: number) => ({
+          id: index,
+          propertyId: Number(p.id),
+          propertyName: p.uri || `Property #${Number(p.id)}`,
+          propertyUri: p.uri,
+          seller: p.owner,
+          amount: parseFloat(formatUnits(p.totalSupply, 18)),
+          pricePerToken: 1.05,
+          totalPrice: parseFloat(formatUnits(p.totalSupply, 18)) * 1.05,
+          status: p.isActive ? 'active' : 'cancelled',
+          createdAt: Date.now() - (index * 3600000),
+        }));
+        setListings(listingsData);
+      } catch (err) {
+        console.error('Error fetching listings:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchListings();
+  }, [isAuthenticated, isCorrectNetwork, chainId]);
 
   const filteredListings = listings
     .filter(l => {
@@ -78,20 +80,29 @@ export default function Marketplace() {
       return b.totalPrice - a.totalPrice;
     });
 
-  const handleBuy = (listing: Listing) => {
+  const handleBuy = async (listing: Listing) => {
     setIsProcessing(true);
     const toastId = toast.loading("Processing purchase...");
     
-    setTimeout(() => {
+    try {
+      await buyTokens(listing.seller, (listing.amount / 1000).toString());
       toast.update(toastId, {
-        render: `Successfully purchased ${listing.amount} tokens for ${listing.totalPrice} USDC!`,
+        render: `Successfully purchased ${listing.amount} tokens for ${listing.totalPrice.toFixed(2)} USDC!`,
         type: "success",
         isLoading: false,
         autoClose: 3000
       });
-      setIsProcessing(false);
       setSelectedListing(null);
-    }, 2000);
+    } catch (err: any) {
+      toast.update(toastId, {
+        render: err.message || "Transaction failed",
+        type: "error",
+        isLoading: false,
+        autoClose: 4000
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleCreateListing = (e: React.FormEvent) => {
@@ -99,10 +110,11 @@ export default function Marketplace() {
     if (!newListing.amount || !newListing.pricePerToken) return;
 
     const listing: Listing = {
-      id: Date.now().toString(),
+      id: Date.now(),
       propertyId: parseInt(newListing.propertyId),
       propertyName: `Property ${newListing.propertyId}`,
-      seller: '0xYou...ABC1',
+      propertyUri: '',
+      seller: address || '0xYou...ABC1',
       amount: parseInt(newListing.amount),
       pricePerToken: parseFloat(newListing.pricePerToken),
       totalPrice: parseInt(newListing.amount) * parseFloat(newListing.pricePerToken),
@@ -117,7 +129,7 @@ export default function Marketplace() {
     toast.success("Listing created successfully!");
   };
 
-  const handleCancelListing = (id: string) => {
+  const handleCancelListing = (id: number) => {
     setListings(listings.map(l => 
       l.id === id ? { ...l, status: 'cancelled' as const } : l
     ));
@@ -125,7 +137,7 @@ export default function Marketplace() {
   };
 
   const formatAddress = (addr: string) => {
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+    return `${addr?.slice(0, 6)}...${addr?.slice(-4)}`;
   };
 
   const formatTime = (timestamp: number) => {
@@ -134,6 +146,28 @@ export default function Marketplace() {
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
     return `${Math.floor(diff / 86400000)}d ago`;
   };
+
+  if (!isCorrectNetwork) {
+    return (
+      <Layout>
+        <div className="space-y-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Token Marketplace</h1>
+              <p className="text-muted-foreground mt-1">
+                Buy and sell property token positions on the secondary market.
+              </p>
+            </div>
+          </div>
+          <div className="rounded-xl border-yellow-500/50 bg-yellow-500/10 p-6 text-center">
+            <p className="text-yellow-500">
+              Please switch to <strong>Base Sepolia</strong> network to use this feature.
+            </p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -282,7 +316,7 @@ export default function Marketplace() {
                     >
                       Buy Now
                     </button>
-                    {listing.seller === '0xYou...ABC1' && (
+                    {listing.seller.toLowerCase() === address?.toLowerCase() && (
                       <button
                         onClick={() => handleCancelListing(listing.id)}
                         className="px-4 rounded-lg text-sm font-medium border border-border hover:bg-muted h-10"

@@ -16,6 +16,8 @@ interface AuthContextType {
   isWalletModalOpen: boolean;
   setWalletModalOpen: (open: boolean) => void;
   connectWallet: () => void;
+  switchNetwork: (chainId: number) => Promise<void>;
+  switchAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -87,6 +89,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const switchNetwork = async (targetChainId: number) => {
+    if (!wallets[0]) return;
+    try {
+      const ethProvider = await wallets[0].getEthereumProvider();
+      if (ethProvider) {
+        await ethProvider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: `0x${targetChainId.toString(16)}` }],
+        });
+      }
+    } catch (error) {
+      console.error('Error switching network:', error);
+      throw error;
+    }
+  };
+
+  const switchAccount = async () => {
+    if (!wallets[0]) return;
+    try {
+      const ethProvider = await wallets[0].getEthereumProvider();
+      if (ethProvider) {
+        await ethProvider.request({
+          method: 'wallet_requestAccounts',
+        });
+      }
+    } catch (error) {
+      console.error('Error switching account:', error);
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -103,6 +136,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isWalletModalOpen,
         setWalletModalOpen,
         connectWallet,
+        switchNetwork,
+        switchAccount,
       }}
     >
       {children}

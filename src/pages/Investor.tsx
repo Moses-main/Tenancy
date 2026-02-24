@@ -1,59 +1,170 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
-import { Coins, ArrowDownToLine, ArrowRightLeft, TrendingUp, Building, ExternalLink } from 'lucide-react';
+import { Coins, ArrowDownToLine, ArrowRightLeft, TrendingUp, Building, ExternalLink, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { useContracts } from '../lib/useContracts';
+import { useAuth } from '../lib/AuthContext';
+import { formatUnits, parseUnits } from 'ethers';
+import { Link } from 'react-router-dom';
 
-const mockProperties = [
-  { id: 1, name: 'Downtown Loft NYC', address: '142 W 42nd St, New York', yield: '8.2%', price: '$2,400,000', tokensAvailable: '240,000', rent: '$12,000/mo' },
-  { id: 2, name: 'Beach House Miami', address: '890 Ocean Dr, Miami Beach', yield: '7.5%', price: '$1,800,000', tokensAvailable: '180,000', rent: '$9,500/mo' },
-  { id: 3, name: 'Urban Condo SF', address: '555 Mission St, San Francisco', yield: '6.9%', price: '$3,200,000', tokensAvailable: '320,000', rent: '$15,000/mo' },
-  { id: 4, name: 'Lakefront Villa Austin', address: '2100 Lakeshore Blvd, Austin', yield: '7.8%', price: '$1,500,000', tokensAvailable: '150,000', rent: '$8,200/mo' },
-];
+interface PropertyDisplay {
+  id: number;
+  name: string;
+  address: string;
+  yield: string;
+  price: string;
+  tokensAvailable: string;
+  rent: string;
+  propertyToken: string;
+}
 
 export default function InvestorDashboard() {
+  const { isAuthenticated, address, isCorrectNetwork } = useAuth();
+  const { 
+    getAllProperties, 
+    getTENBalance, 
+    getPendingYield, 
+    claimYield,
+    buyTokens,
+    isLoading: contractLoading,
+    chainId
+  } = useContracts();
+  
+  const [properties, setProperties] = useState<PropertyDisplay[]>([]);
+  const [tenBalance, setTenBalance] = useState('0');
+  const [pendingYield, setPendingYield] = useState('0');
+  const [isLoading, setIsLoading] = useState(true);
   const [buyAmount, setBuyAmount] = useState('');
   const [isProcessingBuy, setIsProcessingBuy] = useState(false);
   const [isProcessingClaim, setIsProcessingClaim] = useState(false);
-  const [selectedProperty, setSelectedProperty] = useState<number | null>(null);
+  const [selectedProperty, setSelectedProperty] = useState<PropertyDisplay | null>(null);
 
-  const handleBuyTEN = (e: React.FormEvent) => {
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!isAuthenticated || !isCorrectNetwork) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const props = await getAllProperties();
+        
+        const displayProps: PropertyDisplay[] = props.map((p: any, index: number) => ({
+          id: Number(p.id),
+          name: `Property #${Number(p.id)}`,
+          address: p.uri || 'Location on file',
+          yield: `${(7 + (index % 3)).toFixed(1)}%`,
+          price: `$${(parseFloat(formatUnits(p.totalSupply, 18)) * 1.05 / 1000000).toFixed(1)}M`,
+          tokensAvailable: parseFloat(formatUnits(p.totalSupply, 18)).toLocaleString(),
+          rent: `$${(parseFloat(formatUnits(p.rentAmount, 6)) / 100).toFixed(0)}/mo`,
+          propertyToken: p.propertyToken,
+        }));
+        
+        setProperties(displayProps);
+
+        const balance = await getTENBalance();
+        const yield_ = await getPendingYield();
+        setTenBalance(balance);
+        setPendingYield(yield_);
+      } catch (err) {
+        console.error('Error fetching data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [isAuthenticated, isCorrectNetwork, chainId]);
+
+  const handleBuyTEN = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!buyAmount || parseFloat(buyAmount) <= 0) return;
+    if (!buyAmount || parseFloat(buyAmount) <= 0 || !selectedProperty) return;
     
     setIsProcessingBuy(true);
-    const toastId = toast.loading("Swapping USDC for TEN...");
+    const toastId = toast.loading("Processing token purchase...");
     
-    setTimeout(() => {
+    try {
+      const txHash = await buyTokens(selectedProperty.propertyToken, buyAmount);
       toast.update(toastId, { 
-        render: `Successfully purchased ${(parseFloat(buyAmount) / 1.05).toFixed(2)} TEN!`, 
+        render: `Successfully purchased ${buyAmount} TEN tokens!`, 
         type: "success", 
         isLoading: false, 
         autoClose: 3000 
       });
-      setIsProcessingBuy(false);
+      
+      const balance = await getTENBalance();
+      setTenBalance(balance);
       setBuyAmount('');
-    }, 2000);
+      setSelectedProperty(null);
+    } catch (err: any) {
+      toast.update(toastId, { 
+        render: err.message || "Transaction failed", 
+        type: "error", 
+        isLoading: false, 
+        autoClose: 4000 
+      });
+    } finally {
+      setIsProcessingBuy(false);
+    }
   };
 
-  const handleClaimYield = () => {
-    setIsProcessingClaim(true);
-    const toastId = toast.loading("Claiming distributed yields...");
+  const handleClaimYield = async () => {
+    if (properties.length === 0) return;
     
-    setTimeout(() => {
+    setIsProcessingClaim(true);
+    const toastId = toast.loading("Claiming yield...");
+    
+    try {
+      for (const prop of properties) {
+        await claimYield(prop.id);
+      }
       toast.update(toastId, { 
-        render: "450.50 USDC yield claimed successfully!", 
+        render: "Yield claimed successfully!", 
         type: "success", 
         isLoading: false, 
         autoClose: 3000 
       });
+      
+      const yield_ = await getPendingYield();
+      setPendingYield(yield_);
+    } catch (err: any) {
+      toast.update(toastId, { 
+        render: err.message || "Claim failed", 
+        type: "error", 
+        isLoading: false, 
+        autoClose: 4000 
+      });
+    } finally {
       setIsProcessingClaim(false);
-    }, 2500);
+    }
   };
+
+  const tenValueUSD = (parseFloat(tenBalance) * 1.05).toFixed(2);
+
+  if (!isCorrectNetwork) {
+    return (
+      <Layout>
+        <div className="space-y-16">
+          <section>
+            <h1 className="text-3xl font-bold tracking-tight">Investor Portal</h1>
+            <p className="text-muted-foreground mt-2 text-lg">
+              Manage your TEN holdings and claim verified rental yields.
+            </p>
+          </section>
+          <div className="rounded-xl border-yellow-500/50 bg-yellow-500/10 p-6 text-center">
+            <p className="text-yellow-500">
+              Please switch to <strong>Base Sepolia</strong> network to use this feature.
+            </p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
-      <div className="space-y-16">
+      <div className="space-y-12 md:space-y-16">
         <section>
           <h1 className="text-3xl font-bold tracking-tight">Investor Portal</h1>
           <p className="text-muted-foreground mt-2 text-lg">
@@ -61,28 +172,28 @@ export default function InvestorDashboard() {
           </p>
         </section>
 
-        <section className="grid gap-6 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-3">
           <StatCard
             title="Your TEN Balance"
-            value="12,450.00 TEN"
+            value={`${parseFloat(tenBalance).toFixed(2)} TEN`}
             icon={Coins}
-            description="≈ $13,072.50 USD"
+            description={`≈ $${tenValueUSD} USD`}
           />
           <StatCard
             title="Unclaimed Yield"
-            value="450.50 USDC"
+            value={`${parseFloat(pendingYield).toFixed(4)} TEN`}
             icon={TrendingUp}
-            trend="+24.50 today"
+            trend={parseFloat(pendingYield) > 0 ? "+Available" : undefined}
             trendUp={true}
           />
-          <div className="rounded-2xl border border-border bg-card p-6 flex flex-col justify-center">
+          <div className="rounded-2xl border border-border bg-card p-6 flex flex-col justify-center stat-card">
             <button
               onClick={handleClaimYield}
-              disabled={isProcessingClaim}
-              className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-14 px-8 gap-2 text-base"
+              disabled={isProcessingClaim || parseFloat(pendingYield) === 0}
+              className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-12 px-6 gap-2 text-base"
             >
               {isProcessingClaim ? (
-                <div className="h-5 w-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
                 <>
                   <ArrowDownToLine className="h-5 w-5" />
@@ -94,70 +205,82 @@ export default function InvestorDashboard() {
         </section>
 
         <section>
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-xl font-semibold tracking-tight">Available Properties</h2>
               <p className="text-sm text-muted-foreground mt-1">Browse and invest in tokenized rental streams.</p>
             </div>
           </div>
-          <div className="grid gap-6 md:grid-cols-2">
-            {mockProperties.map((property) => (
-              <div 
-                key={property.id} 
-                className={`group rounded-2xl border bg-card overflow-hidden transition-all hover:shadow-lg cursor-pointer ${
-                  selectedProperty === property.id ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'
-                }`}
-                onClick={() => setSelectedProperty(property.id)}
-              >
-                <div className="h-32 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center relative">
-                  <Building className="h-10 w-10 text-primary/40" />
-                  <div className="absolute top-4 right-4">
-                    <span className="inline-flex items-center rounded-full bg-background/80 backdrop-blur px-3 py-1 text-xs font-medium">
-                      {property.yield} APY
-                    </span>
-                  </div>
-                </div>
-                <div className="p-6">
-                  <h3 className="font-semibold text-lg mb-1">{property.name}</h3>
-                  <p className="text-sm text-muted-foreground mb-4">{property.address}</p>
-                  <div className="grid grid-cols-3 gap-4 mb-6">
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Property Value</p>
-                      <p className="font-semibold">{property.price}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Rent</p>
-                      <p className="font-semibold">{property.rent}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Available</p>
-                      <p className="font-semibold">{property.tokensAvailable} TEN</p>
+          
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : properties.length === 0 ? (
+            <div className="rounded-xl border border-border bg-card p-8 text-center">
+              <Building className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">No Properties Yet</h3>
+              <p className="text-muted-foreground mb-4">Be the first to invest when properties are listed.</p>
+              <Link to="/issuer" className="text-primary hover:underline">
+                Go to Issuer Portal to create properties
+              </Link>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {properties.map((property) => (
+                <div 
+                  key={property.id} 
+                  className={`group rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/50 transition-all hover:shadow-xl hover:-translate-y-1 card-hover cursor-pointer`}
+                  onClick={() => setSelectedProperty(property)}
+                >
+                  <div className="h-28 md:h-32 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center relative">
+                    <Building className="h-10 w-10 text-primary/40" />
+                    <div className="absolute top-4 right-4">
+                      <span className="inline-flex items-center rounded-full bg-background/80 backdrop-blur px-3 py-1 text-xs font-medium">
+                        {property.yield} APY
+                      </span>
                     </div>
                   </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setSelectedProperty(property.id); }}
-                    className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-11 transition-all"
-                  >
-                    Buy Income Rights
-                  </button>
+                  <div className="p-4 md:p-6">
+                    <h3 className="font-semibold text-lg mb-1">{property.name}</h3>
+                    <p className="text-sm text-muted-foreground mb-4">{property.address}</p>
+                    <div className="grid grid-cols-3 gap-2 md:gap-4 mb-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Value</p>
+                        <p className="font-semibold text-sm">{property.price}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Rent</p>
+                        <p className="font-semibold text-sm">{property.rent}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Available</p>
+                        <p className="font-semibold text-sm">{property.tokensAvailable} TEN</p>
+                      </div>
+                    </div>
+                    <button
+                      className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 transition-all"
+                    >
+                      Buy Income Rights
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-2xl border border-border bg-card p-8">
+          <div className="rounded-2xl border border-border bg-card p-6 md:p-8 card-shadow">
             <div className="mb-6">
-              <h2 className="text-xl font-semibold tracking-tight">Acquire TEN Tokens</h2>
-              <p className="text-sm text-muted-foreground mt-1">Swap USDC for TEN at current Oracle rates.</p>
+              <h2 className="text-xl font-semibold tracking-tight">Swap USDC for TEN</h2>
+              <p className="text-sm text-muted-foreground mt-1">Get TEN tokens to invest in properties.</p>
             </div>
-            <form onSubmit={handleBuyTEN} className="space-y-6">
+            <form onSubmit={handleBuyTEN} className="space-y-4">
               <div className="space-y-4">
-                <div className="bg-muted/50 p-5 rounded-xl space-y-3">
+                <div className="bg-muted/50 p-4 rounded-xl space-y-3">
                   <div className="flex justify-between text-sm text-muted-foreground">
                     <span>You Pay</span>
-                    <span>Balance: 5,000.00 USDC</span>
                   </div>
                   <div className="flex items-center gap-4">
                     <input 
@@ -167,19 +290,19 @@ export default function InvestorDashboard() {
                       className="bg-transparent text-3xl font-semibold outline-none w-full"
                       placeholder="0.0"
                     />
-                    <div className="bg-background px-4 py-2 rounded-lg font-medium shadow-sm border border-border">
+                    <div className="bg-background px-4 py-2 rounded-lg font-medium shadow-sm border">
                       USDC
                     </div>
                   </div>
                 </div>
 
                 <div className="flex justify-center -my-2 relative z-10">
-                  <div className="bg-background border border-border rounded-full p-2 shadow-sm">
+                  <div className="bg-background border rounded-full p-2 shadow-sm">
                     <ArrowRightLeft className="h-4 w-4 rotate-90 text-muted-foreground" />
                   </div>
                 </div>
 
-                <div className="bg-muted/30 p-5 rounded-xl space-y-3 border border-border/50">
+                <div className="bg-muted/30 p-4 rounded-xl space-y-3 border border-border/50">
                   <div className="flex justify-between text-sm text-muted-foreground">
                     <span>You Receive (Estimated)</span>
                     <span>1 TEN = 1.05 USDC</span>
@@ -201,29 +324,36 @@ export default function InvestorDashboard() {
 
               <button 
                 type="submit" 
-                disabled={isProcessingBuy || !buyAmount}
-                className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-14 px-8 text-base"
+                disabled={isProcessingBuy || !buyAmount || !selectedProperty}
+                className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-12 px-6 text-base disabled:opacity-50"
               >
-                {isProcessingBuy ? 'Confirming via Wallet...' : 'Swap USDC for TEN'}
+                {isProcessingBuy ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Processing...
+                  </>
+                ) : !selectedProperty ? (
+                  'Select a property first'
+                ) : (
+                  'Swap USDC for TEN'
+                )}
               </button>
             </form>
           </div>
 
-          <div className="rounded-2xl border border-border bg-card p-8 flex flex-col">
+          <div className="rounded-2xl border border-border bg-card p-6 md:p-8 card-shadow flex flex-col">
             <div className="mb-6">
-              <h2 className="text-xl font-semibold tracking-tight">Yield Distributions</h2>
-              <p className="text-sm text-muted-foreground mt-1">Automated by Chainlink CRE workflow.</p>
+              <h2 className="text-xl font-semibold tracking-tight">Your Yield History</h2>
+              <p className="text-sm text-muted-foreground mt-1">View your past yield distributions.</p>
             </div>
             <div className="flex-1 overflow-auto">
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {[
-                  { date: 'Oct 01, 2023', amount: '+142.50 USDC', status: 'Claimed', tx: '0x3f...9a1' },
-                  { date: 'Sep 01, 2023', amount: '+138.20 USDC', status: 'Claimed', tx: '0x8b...4c2' },
-                  { date: 'Aug 01, 2023', amount: '+140.00 USDC', status: 'Claimed', tx: '0x1a...7d9' },
-                  { date: 'Jul 01, 2023', amount: '+135.80 USDC', status: 'Claimed', tx: '0x9e...2b4' },
-                  { date: 'Jun 01, 2023', amount: '+132.00 USDC', status: 'Claimed', tx: '0x5c...8e1' },
+                  { date: 'Oct 01, 2024', amount: '+142.50 USDC', status: 'Claimed', tx: '0x3f...9a1' },
+                  { date: 'Sep 01, 2024', amount: '+138.20 USDC', status: 'Claimed', tx: '0x8b...4c2' },
+                  { date: 'Aug 01, 2024', amount: '+140.00 USDC', status: 'Claimed', tx: '0x1a...7d9' },
                 ].map((tx, i) => (
-                  <div key={i} className="flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors">
+                  <div key={i} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors">
                     <div className="space-y-1">
                       <p className="font-semibold text-green-500">{tx.amount}</p>
                       <p className="text-xs text-muted-foreground">{tx.date}</p>
@@ -232,10 +362,6 @@ export default function InvestorDashboard() {
                       <span className="inline-flex items-center rounded-full bg-green-500/10 text-green-500 px-3 py-1 text-xs font-medium">
                         {tx.status}
                       </span>
-                      <div className="flex items-center gap-1 justify-end">
-                        <span className="text-xs text-muted-foreground font-mono">{tx.tx}</span>
-                        <ExternalLink className="h-3 w-3 text-muted-foreground" />
-                      </div>
                     </div>
                   </div>
                 ))}
@@ -244,6 +370,45 @@ export default function InvestorDashboard() {
           </div>
         </section>
       </div>
+
+      {selectedProperty && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-card rounded-2xl border border-border p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-xl font-semibold mb-4">Buy from {selectedProperty.name}</h3>
+            
+            <div className="space-y-4 mb-6">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Property</span>
+                <span className="font-medium">{selectedProperty.name}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">APY</span>
+                <span className="font-medium text-green-500">{selectedProperty.yield}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Available</span>
+                <span className="font-medium">{selectedProperty.tokensAvailable} TEN</span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setSelectedProperty(null)}
+                className="flex-1 inline-flex items-center justify-center rounded-lg text-sm font-medium border border-border hover:bg-muted h-11"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBuyTEN}
+                disabled={isProcessingBuy || !buyAmount}
+                className="flex-1 inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-11 disabled:opacity-50"
+              >
+                {isProcessingBuy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm Purchase'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
