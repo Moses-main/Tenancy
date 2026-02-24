@@ -1,17 +1,3 @@
-import { http, createConfig } from 'wagmi';
-import { mainnet, sepolia, baseSepolia } from 'wagmi/chains';
-import { injected } from 'wagmi/connectors';
-
-export const config = createConfig({
-  chains: [baseSepolia, sepolia, mainnet],
-  transports: {
-    [baseSepolia.id]: http(),
-    [sepolia.id]: http(),
-    [mainnet.id]: http(),
-  },
-  connectors: [injected()],
-});
-
 export const CONTRACT_ADDRESSES = {
   baseSepolia: {
     propertyRegistry: '0x00185866B2eb4dEB6000e82840E436CCE375BcF2',
@@ -36,9 +22,15 @@ export const CONTRACT_ADDRESSES = {
   },
 };
 
+export const CHAIN_IDS = {
+  baseSepolia: 84532,
+  sepolia: 11155111,
+  mainnet: 1,
+};
+
 export const getChainConfig = (chainId: number) => {
-  if (chainId === baseSepolia.id) return CONTRACT_ADDRESSES.baseSepolia;
-  if (chainId === sepolia.id) return CONTRACT_ADDRESSES.sepolia;
-  if (chainId === mainnet.id) return CONTRACT_ADDRESSES.mainnet;
+  if (chainId === CHAIN_IDS.baseSepolia) return CONTRACT_ADDRESSES.baseSepolia;
+  if (chainId === CHAIN_IDS.sepolia) return CONTRACT_ADDRESSES.sepolia;
+  if (chainId === CHAIN_IDS.mainnet) return CONTRACT_ADDRESSES.mainnet;
   return CONTRACT_ADDRESSES.baseSepolia;
 };
