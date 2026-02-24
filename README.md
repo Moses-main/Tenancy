@@ -470,19 +470,44 @@ We use Chainlink Price Feeds for:
 - **Yield Calculation**: Calculate yields in USD terms
 - **Token Pricing**: Display token values in USD
 
-**Sepolia ETH/USD**: `0x694580A4e26D2b2e2dEk42D32D8d5f0F27C3B92`
+**Sepolia ETH/USD**: `0x694AA1769357215DE4FAC081bf1f309aDC325306`
+
+#### Files Using Chainlink Price Feeds:
+
+| File | Description |
+|------|-------------|
+| [`contracts/src/YieldDistributor.sol`](contracts/src/YieldDistributor.sol) | ETH/USD price feed integration, USD/ETH conversion |
+| [`contracts/src/PriceFeedConsumer.sol`](contracts/src/PriceFeedConsumer.sol) | Price feed consumer for property valuation |
+| [`contracts/src/PropertyRegistry.sol`](contracts/src/PropertyRegistry.sol) | Uses price feed for property valuation |
+| [`contracts/script/DeployTENANCY.s.sol`](contracts/script/DeployTENANCY.s.sol) | Deployment with price feed addresses |
 
 ### CRE Workflow
 
 The Chainlink Runtime Environment (CRE) workflow handles:
 
 1. **Trigger**: Cron schedule or EVM event
-2. **Fetch**: HTTP request to payment API
+2. **Fetch**: HTTP request to payment API (Confidential HTTP)
 3. **Verify**: Validate payment status
 4. **Consensus**: Multiple node verification
 5. **Execute**: Call smart contract to distribute yield
 
-See `cre-workflow/README.md` for detailed CRE setup.
+#### CRE Workflow Files:
+
+| File | Description |
+|------|-------------|
+| [`cre-workflow/src/index.ts`](cre-workflow/src/index.ts) | Main CRE workflow with payment verification |
+| [`cre-workflow/src/simulate.ts`](cre-workflow/src/simulate.ts) | Local simulation for testing |
+| [`cre-workflow/README.md`](cre-workflow/README.md) | Detailed CRE setup guide |
+
+#### Confidential HTTP
+
+The CRE workflow uses Confidential HTTP to protect sensitive data:
+
+- API credentials never exposed in logs
+- Base64-encoded authorization headers
+- Request IDs for tracking without exposing user data
+
+See [`cre-workflow/src/index.ts`](cre-workflow/src/index.ts) for implementation.
 
 ---
 

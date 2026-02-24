@@ -29,7 +29,19 @@ const MOCK_PAYMENTS = [
   },
 ];
 
-async function simulateCREWorkflow() {
+interface WorkflowResult {
+  propertyId: number;
+  success: boolean;
+  yieldDistributed?: string;
+  txHash?: string;
+  error?: string;
+}
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function simulateCREWorkflow(): Promise<void> {
   console.log('╔════════════════════════════════════════════════════════════╗');
   console.log('║     TENANCY CRE Workflow - Local Simulation              ║');
   console.log('╚════════════════════════════════════════════════════════════╝\n');
@@ -38,15 +50,19 @@ async function simulateCREWorkflow() {
   console.log('│ STEP 1: Trigger Workflow                                   │');
   console.log('│   Trigger: Cron (daily 00:00 UTC) OR Event (PaymentMade)  │');
   console.log('└────────────────────────────────────────────────────────────┘\n');
+  await sleep(800);
 
   console.log('┌────────────────────────────────────────────────────────────┐');
-  console.log('│ STEP 2: Fetch Payment Status (HTTP Request)                │');
-  console.log('│   GET /api/payments/{propertyId}                          │');
+  console.log('│ STEP 2: Confidential HTTP - Fetch Payment Status          │');
+  console.log('│   Method: GET /api/payments/{propertyId}                  │');
+  console.log('│   Headers: Authorization: Bearer <encrypted_token>        │');
+  console.log('│   Sensitive data NEVER exposed in logs                    │');
   console.log('└────────────────────────────────────────────────────────────┘\n');
 
   for (const payment of MOCK_PAYMENTS) {
     console.log(`   → Property ${payment.propertyId}: ${payment.amount} ${payment.currency} [${payment.status}]`);
   }
+  await sleep(800);
 
   console.log('\n┌────────────────────────────────────────────────────────────┐');
   console.log('│ STEP 3: Verify Payment (Consensus)                         │');
@@ -59,38 +75,60 @@ async function simulateCREWorkflow() {
     const verified = payment.status === 'verified';
     console.log(`   ${verified ? '✓' : '✗'} Property ${payment.propertyId}: ${verified ? 'VERIFIED' : 'FAILED'}`);
   }
+  await sleep(800);
 
   console.log('\n┌────────────────────────────────────────────────────────────┐');
   console.log('│ STEP 4: On-Chain Yield Distribution                        │');
-  console.log('│   Calling: YieldDistributor.depositYield()                │');
-  console.log('│   Calling: YieldDistributor.distributeYield()             │');
+  console.log('│   Calling: YieldDistributor.createDistribution()          │');
+  console.log('│   Calling: YieldDistributor.startDistribution()           │');
   console.log('└────────────────────────────────────────────────────────────┘\n');
 
-  console.log('   Simulating smart contract calls...\n');
+  const results: WorkflowResult[] = [];
 
   for (const payment of MOCK_PAYMENTS) {
     if (payment.status === 'verified') {
       const yieldAmount = (parseFloat(payment.amount) * 0.05).toFixed(4);
-      console.log(`   ✓ Property ${payment.propertyId}: Distributing ${yieldAmount} TEN to token holders`);
-      console.log(`     Tx: 0x${Math.random().toString(16).slice(2, 66)}`);
+      console.log(`   ✓ Property ${payment.propertyId}: Creating distribution of ${yieldAmount} ETH`);
+      await sleep(300);
+      console.log(`     Tx: 0x${Math.random().toString(16).slice(2, 66)}...`);
+      await sleep(200);
+      results.push({
+        propertyId: payment.propertyId,
+        success: true,
+        yieldDistributed: yieldAmount,
+        txHash: `0x${Math.random().toString(16).slice(2, 66)}`,
+      });
+    } else {
+      results.push({
+        propertyId: payment.propertyId,
+        success: false,
+        error: 'Payment pending',
+      });
     }
   }
 
+  await sleep(800);
+
   console.log('\n┌────────────────────────────────────────────────────────────┐');
-  console.log('│ STEP 5: Update State & Emit Events                          │');
-  console.log('│   - Update pending yield mappings                          │');
-  console.log('│   - Emit YieldDistributed event                           │');
+  console.log('│ STEP 5: Update State & Emit Events                        │');
+  console.log('│   - Update pending yield mappings                         │');
+  console.log('│   - Emit YieldDistributed event                          │');
+  console.log('│   - Emit PaymentVerified event                           │');
   console.log('└────────────────────────────────────────────────────────────┘\n');
 
   console.log('   ✓ State updated');
   console.log('   ✓ Events emitted\n');
+  await sleep(500);
+
+  const successCount = results.filter(r => r.success).length;
+  const totalYield = results.reduce((sum, r) => sum + (parseFloat(r.yieldDistributed || '0')), 0);
 
   console.log('╔════════════════════════════════════════════════════════════╗');
   console.log('║                    WORKFLOW COMPLETE                       ║');
   console.log('╠════════════════════════════════════════════════════════════╣');
-  console.log('║  Verified: 2/3 properties                                 ║');
-  console.log('║  Yield Distributed: 2 transactions                        ║');
-  console.log('║  Total Yield: 0.255 TEN                                   ║');
+  console.log(`║  Verified: ${successCount}/${MOCK_PAYMENTS.length} properties                              ║`);
+  console.log(`║  Yield Distributed: ${results.filter(r => r.success).length} transactions                        ║`);
+  console.log(`║  Total Yield: ${totalYield.toFixed(4)} ETH                                  ║`);
   console.log('╚════════════════════════════════════════════════════════════╝\n');
 
   console.log('CRE Workflow Architecture:');
@@ -100,6 +138,17 @@ async function simulateCREWorkflow() {
   console.log('│   Event)    │    │  Consensus  │    │  Distribute │');
   console.log('└─────────────┘    └─────────────┘    └─────────────┘');
   console.log('');
+
+  console.log('Chainlink Integration Points:');
+  console.log('  • Price Feeds: ETH/USD for yield conversion');
+  console.log('  • Confidential HTTP: Protected API credentials');
+  console.log('  • Events: Payment verification triggers on-chain');
+  console.log('');
 }
 
-simulateCREWorkflow().catch(console.error);
+simulateCREWorkflow()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error('Workflow failed:', error);
+    process.exit(1);
+  });
