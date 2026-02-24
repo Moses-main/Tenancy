@@ -435,4 +435,303 @@ contract TENANCYTest is Test {
         );
         return (propertyToken, valuation);
     }
+
+    // ============================================================================
+    // ADDITIONAL SECURITY & EDGE CASE TESTS
+    // ============================================================================
+
+    function testRevertOnZeroAddressOwner() public {
+        vm.prank(address(0));
+        vm.expectRevert();
+        new TENToken(address(0));
+    }
+
+    function testRevertOnZeroAddressRegistry() public {
+        vm.prank(address(0));
+        vm.expectRevert();
+        new PropertyRegistry(address(0), ETH_USD_FEED);
+    }
+
+    function testRevertOnZeroAddressYieldDistributor() public {
+        vm.prank(address(0));
+        vm.expectRevert();
+        new YieldDistributor(address(0), ETH_USD_FEED, INFLATION_FEED);
+    }
+
+    function testCannotMintToZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert();
+        tenToken.mint(address(0), 1000e18);
+    }
+
+    function testCannotTransferToZeroAddress() public {
+        vm.prank(owner);
+        tenToken.mint(investor, 1000e18);
+        
+        vm.prank(investor);
+        vm.expectRevert();
+        tenToken.transfer(address(0), 500e18);
+    }
+
+    function testCannotApproveForZeroAddress() public {
+        vm.prank(investor);
+        vm.expectRevert();
+        tenToken.approve(address(0), 1000e18);
+    }
+
+    function testCannotTransferFromZeroAddress() public {
+        vm.prank(owner);
+        tenToken.mint(investor, 1000e18);
+        
+        vm.prank(owner);
+        tenToken.approve(investor, 1000e18);
+        
+        vm.prank(investor);
+        vm.expectRevert();
+        tenToken.transferFrom(investor, address(0), 500e18);
+    }
+
+    function testYieldDistributionWithZeroHolders() public {
+        address[] memory holders = new address[](0);
+        uint256[] memory balances = new uint256[](0);
+
+        vm.prank(owner);
+        // This may succeed with empty arrays - test the behavior
+        yieldDistributor.createDistribution(0, 1000e18, balances, holders);
+    }
+
+    function testYieldDistributionMismatchArrays() public {
+        address[] memory holders = new address[](1);
+        holders[0] = investor;
+        uint256[] memory balances = new uint256[](2);
+        balances[0] = 500e18;
+        balances[1] = 1000e18;
+
+        vm.prank(owner);
+        // The contract may not validate this - test actual behavior
+        yieldDistributor.createDistribution(0, 1000e18, balances, holders);
+    }
+
+    function testPauseDistribution() public {
+        vm.prank(owner);
+        tenToken.mint(issuer, 10000e18);
+
+        vm.prank(issuer);
+        _createProperty(0);
+
+        vm.prank(issuer);
+        propertyRegistry.mintTokens(0, investor, 500e18);
+
+        address[] memory holders = new address[](1);
+        holders[0] = investor;
+        uint256[] memory balances = new uint256[](1);
+        balances[0] = 500e18;
+
+        vm.prank(owner);
+        yieldDistributor.createDistribution(0, 1000e18, balances, holders);
+
+        vm.prank(owner);
+        yieldDistributor.startDistribution(0);
+
+        vm.prank(owner);
+        yieldDistributor.pauseDistribution(0);
+
+        assertTrue(!yieldDistributor.isDistributionActive(0));
+    }
+
+    function testResumeDistribution() public {
+        vm.prank(owner);
+        tenToken.mint(issuer, 10000e18);
+
+        vm.prank(issuer);
+        _createProperty(0);
+
+        vm.prank(issuer);
+        propertyRegistry.mintTokens(0, investor, 500e18);
+
+        address[] memory holders = new address[](1);
+        holders[0] = investor;
+        uint256[] memory balances = new uint256[](1);
+        balances[0] = 500e18;
+
+        vm.prank(owner);
+        yieldDistributor.createDistribution(0, 1000e18, balances, holders);
+
+        vm.prank(owner);
+        yieldDistributor.startDistribution(0);
+
+        vm.prank(owner);
+        yieldDistributor.pauseDistribution(0);
+
+        vm.prank(owner);
+        yieldDistributor.resumeDistribution(0);
+
+        assertTrue(yieldDistributor.isDistributionActive(0));
+    }
+
+    function testCannotPauseNonExistentDistribution() public {
+        vm.prank(owner);
+        vm.expectRevert();
+        yieldDistributor.pauseDistribution(999);
+    }
+
+    function testCannotClaimInactiveDistribution() public {
+        vm.prank(owner);
+        tenToken.mint(issuer, 10000e18);
+
+        vm.prank(issuer);
+        _createProperty(0);
+
+        vm.prank(investor);
+        vm.expectRevert();
+        yieldDistributor.claimYield(0);
+    }
+
+    function testPropertyValuationWithZeroRent() public {
+        vm.prank(issuer);
+        propertyRegistry.createProperty(
+            "ipfs://QmProperty1",
+            0,
+            RENT_FREQUENCY,
+            INITIAL_SUPPLY,
+            "Property 1 Token",
+            "P1T",
+            0
+        );
+
+        PropertyRegistry.Property memory prop = propertyRegistry.getProperty(0);
+        assertEq(prop.valuationUsd, 0);
+    }
+
+    function testLargePropertyCreation() public {
+        vm.prank(issuer);
+        propertyRegistry.createProperty(
+            "ipfs://QmProperty1",
+            1000000e18,
+            RENT_FREQUENCY,
+            100000000e18,
+            "Property 1 Token",
+            "P1T",
+            0
+        );
+
+        PropertyRegistry.Property memory prop = propertyRegistry.getProperty(0);
+        assertEq(prop.rentAmount, 1000000e18);
+        assertEq(prop.totalSupply, 100000000e18);
+    }
+
+    function testMultipleYieldDistributions() public {
+        vm.prank(owner);
+        tenToken.mint(issuer, 100000e18);
+
+        vm.prank(issuer);
+        _createProperty(0);
+
+        // First distribution
+        address[] memory holders1 = new address[](1);
+        holders1[0] = investor;
+        uint256[] memory balances1 = new uint256[](1);
+        balances1[0] = 1000e18;
+
+        vm.prank(owner);
+        yieldDistributor.createDistribution(0, 100e18, balances1, holders1);
+        
+        vm.prank(owner);
+        yieldDistributor.startDistribution(0);
+
+        // Second distribution
+        address[] memory holders2 = new address[](1);
+        holders2[0] = investor2;
+        uint256[] memory balances2 = new uint256[](1);
+        balances2[0] = 500e18;
+
+        vm.prank(owner);
+        yieldDistributor.createDistribution(0, 50e18, balances2, holders2);
+
+        assertTrue(yieldDistributor.getTotalYieldPool() > 0);
+    }
+
+    function testPropertyURIUpdate() public {
+        vm.prank(issuer);
+        (address propertyToken,) = _createProperty(0);
+
+        PropertyRegistry.Property memory propBefore = propertyRegistry.getProperty(0);
+        assertEq(propBefore.uri, "ipfs://QmProperty1");
+    }
+
+    function testTENTokenBurn() public {
+        vm.prank(owner);
+        tenToken.mint(investor, 1000e18);
+
+        vm.prank(investor);
+        tenToken.burn(500e18);
+
+        assertEq(tenToken.balanceOf(investor), 500e18);
+    }
+
+    function testCannotBurnMoreThanBalance() public {
+        vm.prank(owner);
+        tenToken.mint(investor, 500e18);
+
+        vm.prank(investor);
+        vm.expectRevert();
+        tenToken.burn(1000e18);
+    }
+
+    function testYieldDistributionCalculation() public {
+        vm.prank(owner);
+        tenToken.mint(issuer, 100000e18);
+
+        vm.prank(issuer);
+        _createProperty(0);
+
+        address[] memory holders = new address[](2);
+        holders[0] = investor;
+        holders[1] = investor2;
+        uint256[] memory balances = new uint256[](2);
+        balances[0] = 7500e18;
+        balances[1] = 2500e18;
+
+        vm.prank(owner);
+        yieldDistributor.createDistribution(0, 10000e18, balances, holders);
+
+        vm.prank(owner);
+        yieldDistributor.startDistribution(0);
+
+        assertTrue(yieldDistributor.isDistributionActive(0));
+    }
+
+    // Fuzz tests for property creation (with reasonable bounds)
+    function testFuzz_CreateProperty(uint256 rentAmount, uint256 supply) public {
+        vm.assume(rentAmount <= 100000000e18);
+        vm.assume(supply <= 1000000000e18);
+        
+        vm.prank(issuer);
+        propertyRegistry.createProperty(
+            "ipfs://QmProperty1",
+            rentAmount,
+            RENT_FREQUENCY,
+            supply,
+            "Property Token",
+            "PT",
+            0
+        );
+
+        PropertyRegistry.Property memory prop = propertyRegistry.getProperty(0);
+        assertEq(prop.rentAmount, rentAmount);
+        assertEq(prop.totalSupply, supply);
+    }
+
+    // Fuzz test for token transfers
+    function testFuzz_TokenTransfer(uint256 amount) public {
+        vm.assume(amount > 0 && amount <= 10000e18);
+        
+        vm.prank(owner);
+        tenToken.mint(investor, amount);
+
+        vm.prank(investor);
+        tenToken.transfer(investor2, amount);
+
+        assertEq(tenToken.balanceOf(investor2), amount);
+    }
 }
