@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { analyzePropertyWithAI, batchAnalyzeProperties, determineDistributionStrategy, PropertyData, AIAnalysisResult } from './ai-service';
 
 interface PaymentRecord {
   propertyId: number;
@@ -205,6 +206,48 @@ async function runWorkflow() {
   console.log('');
 
   const properties = [0, 1, 2];
+
+  console.log('\n=== AI Analysis Phase ===');
+  const propertyData: PropertyData[] = [
+    {
+      propertyId: 0,
+      currentRent: 2.5,
+      occupancyRate: 95,
+      marketRate: 2.8,
+      location: 'New York',
+      propertyType: 'Apartment',
+      yieldHistory: [2.1, 2.3, 2.4, 2.5],
+      tenantCount: 10,
+    },
+    {
+      propertyId: 1,
+      currentRent: 3.5,
+      occupancyRate: 75,
+      marketRate: 3.2,
+      location: 'Austin',
+      propertyType: 'House',
+      yieldHistory: [3.0, 3.2, 2.8, 3.1],
+      tenantCount: 5,
+    },
+    {
+      propertyId: 2,
+      currentRent: 1.8,
+      occupancyRate: 45,
+      marketRate: 2.0,
+      location: 'Detroit',
+      propertyType: 'Condo',
+      yieldHistory: [1.5, 1.2, 0.9, 0.7],
+      tenantCount: 3,
+    },
+  ];
+
+  const aiResults = await batchAnalyzeProperties(propertyData);
+  const strategy = determineDistributionStrategy(aiResults);
+  
+  console.log('\n[CRE] AI Distribution Strategy:');
+  console.log(`  High Priority: Property ${strategy.highPriority.join(', ') || 'none'}`);
+  console.log(`  Medium Priority: Property ${strategy.mediumPriority.join(', ') || 'none'}`);
+  console.log(`  Low Priority: Property ${strategy.lowPriority.join(', ') || 'none'}`);
   const results: Array<{ propertyId: number; success: boolean; txHash?: string; error?: string }> = [];
 
   for (const propertyId of properties) {

@@ -78,7 +78,38 @@ async function simulateCREWorkflow(): Promise<void> {
   await sleep(800);
 
   console.log('\n┌────────────────────────────────────────────────────────────┐');
-  console.log('│ STEP 4: On-Chain Yield Distribution                        │');
+  console.log('│ STEP 4: AI Analysis (Groq LLM)                            │');
+  console.log('│   - Predict optimal yield distribution                    │');
+  console.log('│   - Forecast vacancy risk                                 │');
+  console.log('│   - Suggest rent adjustments                              │');
+  console.log('└────────────────────────────────────────────────────────────┘\n');
+
+  await sleep(600);
+  console.log('   → Analyzing Property 0: Apartment, NYC');
+  await sleep(400);
+  console.log('   ✓ Yield Prediction: 2.4 ETH/year (Confidence: 87%)');
+  console.log('   ✓ Vacancy Risk: LOW');
+  console.log('   ✓ Rent Adjustment: +5% recommended');
+  await sleep(500);
+
+  console.log('\n   → Analyzing Property 1: House, Austin');
+  await sleep(400);
+  console.log('   ✓ Yield Prediction: 3.1 ETH/year (Confidence: 82%)');
+  console.log('   ✓ Vacancy Risk: MEDIUM');
+  console.log('   ✓ Rent Adjustment: -3% recommended');
+  await sleep(500);
+
+  console.log('\n   → Analyzing Property 2: Condo, Detroit');
+  await sleep(400);
+  console.log('   ✓ Yield Prediction: 0.7 ETH/year (Confidence: 78%)');
+  console.log('   ✓ Vacancy Risk: HIGH');
+  console.log('   ✓ Rent Adjustment: -8% recommended');
+  await sleep(500);
+
+  console.log('\n   AI Strategy: High priority → Property 0, 1 | Low priority → Property 2');
+
+  console.log('\n┌────────────────────────────────────────────────────────────┐');
+  console.log('│ STEP 5: On-Chain Yield Distribution                        │');
   console.log('│   Calling: YieldDistributor.createDistribution()          │');
   console.log('│   Calling: YieldDistributor.startDistribution()           │');
   console.log('└────────────────────────────────────────────────────────────┘\n');
@@ -110,10 +141,10 @@ async function simulateCREWorkflow(): Promise<void> {
   await sleep(800);
 
   console.log('\n┌────────────────────────────────────────────────────────────┐');
-  console.log('│ STEP 5: Update State & Emit Events                        │');
+  console.log('│ STEP 6: Update State & Emit Events                        │');
   console.log('│   - Update pending yield mappings                         │');
   console.log('│   - Emit YieldDistributed event                          │');
-  console.log('│   - Emit PaymentVerified event                           │');
+  console.log('│   - Emit AIRecommendation event                          │');
   console.log('└────────────────────────────────────────────────────────────┘\n');
 
   console.log('   ✓ State updated');
