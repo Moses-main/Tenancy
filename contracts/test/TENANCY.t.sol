@@ -496,7 +496,7 @@ contract TENANCYTest is Test {
         uint256[] memory balances = new uint256[](0);
 
         vm.prank(owner);
-        // This may succeed with empty arrays - test the behavior
+        vm.expectRevert("Cannot create distribution with no holders");
         yieldDistributor.createDistribution(0, 1000e18, balances, holders);
     }
 
@@ -508,7 +508,7 @@ contract TENANCYTest is Test {
         balances[1] = 1000e18;
 
         vm.prank(owner);
-        // The contract may not validate this - test actual behavior
+        vm.expectRevert("Arrays length mismatch");
         yieldDistributor.createDistribution(0, 1000e18, balances, holders);
     }
 

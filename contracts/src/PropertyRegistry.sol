@@ -3,9 +3,11 @@ pragma solidity ^0.8.20;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
 
-contract PropertyToken is ERC20 {
+contract PropertyToken is ERC20, ReentrancyGuard {
     address public propertyRegistry;
 
     modifier onlyRegistry() {
@@ -30,7 +32,7 @@ contract PropertyToken is ERC20 {
     }
 }
 
-contract PropertyRegistry is Ownable {
+contract PropertyRegistry is Ownable, ReentrancyGuard, Pausable {
     struct Property {
         uint256 id;
         string uri;
@@ -107,7 +109,7 @@ contract PropertyRegistry is Ownable {
         string memory tokenName,
         string memory tokenSymbol,
         uint256 valuationUsd
-    ) external onlyIssuer returns (address) {
+    ) external onlyIssuer whenNotPaused nonReentrant returns (address) {
         uint256 propertyId = nextPropertyId++;
 
         PropertyToken propertyToken = new PropertyToken(
@@ -178,7 +180,7 @@ contract PropertyRegistry is Ownable {
         return (property.valuationUsd * 1e8) / price;
     }
 
-    function mintTokens(uint256 propertyId, address recipient, uint256 amount) external onlyIssuer {
+    function mintTokens(uint256 propertyId, address recipient, uint256 amount) external onlyIssuer whenNotPaused nonReentrant {
         Property storage property = properties[propertyId];
         require(property.isActive, "PropertyRegistry: property not active");
 
@@ -189,7 +191,7 @@ contract PropertyRegistry is Ownable {
         emit TokensMinted(propertyId, recipient, amount);
     }
 
-    function burnTokens(uint256 propertyId, address from, uint256 amount) external onlyIssuer {
+    function burnTokens(uint256 propertyId, address from, uint256 amount) external onlyIssuer whenNotPaused nonReentrant {
         Property storage property = properties[propertyId];
         require(property.isActive, "PropertyRegistry: property not active");
         require(userHoldings[propertyId][from] >= amount, "PropertyRegistry: insufficient balance");
@@ -213,5 +215,13 @@ contract PropertyRegistry is Ownable {
             allProperties[i] = properties[i];
         }
         return allProperties;
+    }
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 }
