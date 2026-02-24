@@ -507,6 +507,67 @@ The CRE workflow uses Confidential HTTP to protect sensitive data:
 - Base64-encoded authorization headers
 - Request IDs for tracking without exposing user data
 
+#### AI Integration (CRE & AI Track)
+
+The workflow integrates Groq LLM for AI-powered insights:
+
+| File | Description |
+|------|-------------|
+| [`cre-workflow/src/ai-service.ts`](cre-workflow/src/ai-service.ts) | Groq LLM integration for property analysis |
+| [`cre-workflow/src/index.ts`](cre-workflow/src/index.ts) | AI analysis in workflow pipeline |
+
+**AI Features:**
+- Yield prediction
+- Vacancy risk forecasting
+- Rent adjustment recommendations
+
+#### Risk & Compliance
+
+On-chain risk management with Proof-of-Reserve:
+
+| File | Description |
+|------|-------------|
+| [`contracts/src/YieldDistributor.sol`](contracts/src/YieldDistributor.sol) | Risk functions: checkReserveHealth, recordDefault, safeguard |
+| [`cre-workflow/src/risk-service.ts`](cre-workflow/src/risk-service.ts) | Risk assessment and monitoring |
+
+**Risk Features:**
+- Reserve health checks
+- Default threshold monitoring
+- Auto-triggered safeguard
+
+#### Privacy Layer
+
+Confidential computation and data masking:
+
+| File | Description |
+|------|-------------|
+| [`cre-workflow/src/privacy-service.ts`](cre-workflow/src/privacy-service.ts) | Encryption, data masking, privacy utilities |
+
+**Privacy Features:**
+- AES-256-CBC encryption
+- Address/amount/email masking
+- Off-chain yield calculations
+- Zero-knowledge verification concept
+
+#### World ID Integration
+
+Sybil resistance for yield claims:
+
+| File | Description |
+|------|-------------|
+| [`cre-workflow/src/worldid-service.ts`](cre-workflow/src/worldid-service.ts) | World ID verification for claims |
+
+---
+
+## 🎯 Hackathon Tracks
+
+TENANCY targets multiple Chainlink Convergence tracks:
+
+1. **DeFi & Tokenization** - RWA lifecycle (property onboarding → token mint → rent servicing → redemption)
+2. **CRE & AI** - LLM-powered yield optimization and vacancy forecasting
+3. **Risk & Compliance** - Real-time payment health, Proof-of-Reserve
+4. **Privacy** - Confidential HTTP, private computation
+
 See [`cre-workflow/src/index.ts`](cre-workflow/src/index.ts) for implementation.
 
 ---
