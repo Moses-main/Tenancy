@@ -1,19 +1,36 @@
 import { BrowserProvider, Contract, formatEther, formatUnits, parseEther, parseUnits } from 'ethers';
 
+const getEnv = (key: string, fallback: string = '') => {
+  return import.meta.env[key] || fallback;
+};
+
 export const CONTRACT_ADDRESSES = {
   baseSepolia: {
-    propertyRegistry: '0x00185866B2eb4dEB6000e82840E436CCE375BcF2',
-    tenToken: '0x4e9A9676b3E24E406a42710A06120561D5A9A045',
-    yieldDistributor: '0xd42992B93a9cD29D6d7Bfb6e1e84bc83C97F3302',
-    priceFeedConsumer: '0x0e36E870452C86c18ea7b494DD81eC026982b85F',
+    propertyRegistry: getEnv('VITE_PROPERTY_REGISTRY_BASE_SEPOLIA', '0x00185866B2eb4dEB6000e82840E436CCE375BcF2'),
+    tenToken: getEnv('VITE_TEN_TOKEN_BASE_SEPOLIA', '0x4e9A9676b3E24E406a42710A06120561D5A9A045'),
+    yieldDistributor: getEnv('VITE_YIELD_DISTRIBUTOR_BASE_SEPOLIA', '0xd42992B93a9cD29D6d7Bfb6e1e84bc83C97F3302'),
+    priceFeedConsumer: getEnv('VITE_PRICE_FEED_CONSUMER_BASE_SEPOLIA', '0x0e36E870452C86c18ea7b494DD81eC026982b85F'),
   },
   sepolia: {
-    propertyRegistry: '0x0000000000000000000000000000000000000000',
-    tenToken: '0x0000000000000000000000000000000000000000',
-    yieldDistributor: '0x0000000000000000000000000000000000000000',
-    priceFeedConsumer: '0x0000000000000000000000000000000000000000',
+    propertyRegistry: getEnv('VITE_PROPERTY_REGISTRY_SEPOLIA', '0x0000000000000000000000000000000000000000'),
+    tenToken: getEnv('VITE_TEN_TOKEN_SEPOLIA', '0x0000000000000000000000000000000000000000'),
+    yieldDistributor: getEnv('VITE_YIELD_DISTRIBUTOR_SEPOLIA', '0x0000000000000000000000000000000000000000'),
+    priceFeedConsumer: getEnv('VITE_PRICE_FEED_CONSUMER_SEPOLIA', '0x0000000000000000000000000000000000000000'),
+  },
+  mainnet: {
+    propertyRegistry: getEnv('VITE_PROPERTY_REGISTRY_MAINNET', '0x0000000000000000000000000000000000000000'),
+    tenToken: getEnv('VITE_TEN_TOKEN_MAINNET', '0x0000000000000000000000000000000000000000'),
+    yieldDistributor: getEnv('VITE_YIELD_DISTRIBUTOR_MAINNET', '0x0000000000000000000000000000000000000000'),
+    priceFeedConsumer: getEnv('VITE_PRICE_FEED_CONSUMER_MAINNET', '0x0000000000000000000000000000000000000000'),
   },
 };
+
+export const CHAIN_CONFIG = {
+  84532: { name: 'Base Sepolia', network: 'baseSepolia', color: '#0052FF' },
+  11155111: { name: 'Sepolia', network: 'sepolia', color: '#627EEA' },
+  1: { name: 'Ethereum', network: 'mainnet', color: '#627EEA' },
+  8453: { name: 'Base', network: 'mainnet', color: '#0052FF' },
+} as const;
 
 export const ABIS = {
   propertyRegistry: [
@@ -38,12 +55,20 @@ export const ABIS = {
     "function burn(address from, uint256 amount)",
   ],
   yieldDistributor: [
-    "function depositYield(uint256 propertyId, uint256 amount)",
-    "function distributeYield(uint256 distributionId)",
-    "function claimYield(uint256 propertyId)",
-    "function getPendingYield(address user, uint256 propertyId) view returns (uint256)",
-    "function getUserTotalPendingYield(address user) view returns (uint256)",
-    "function getDistribution(uint256 distributionId) view returns (tuple(uint256 id, uint256 propertyId, uint256 totalAmount, uint256 timestamp, bool distributed))",
+    "function createDistribution(uint256 propertyId, uint256 totalYield, uint256[] holderBalances, address[] holders) returns (uint256)",
+    "function startDistribution(uint256 distributionId)",
+    "function pauseDistribution(uint256 distributionId)",
+    "function resumeDistribution(uint256 distributionId)",
+    "function claimYield(uint256 distributionId)",
+    "function getTotalYieldPool() view returns (uint256)",
+    "function getTotalDistributedYield() view returns (uint256)",
+    "function isDistributionActive(uint256 distributionId) view returns (bool)",
+    "function getDistributionInfo(uint256 distributionId) view returns (tuple(uint256 propertyId, uint256 totalYield, uint256 distributedYield, uint256 status, uint256 distributionTimestamp, uint256[] holderBalances))",
+    "function checkReserveHealth() view returns (bool isHealthy, uint256 totalReserve, uint256 requiredReserve)",
+    "function isSystemHealthy() view returns (bool)",
+    "function getRiskMetrics() view returns (uint256 totalDefaults, uint256 defaultRatio, uint256 reserveRatio, bool safeguardActive, uint256 lastRiskCheck)",
+    "function getEthUsdPrice() view returns (uint256)",
+    "function getYieldDistributionUsd(uint256 distributionId) view returns (uint256)",
   ],
   priceFeed: [
     "function getLatestPrice() view returns (int256)",
@@ -52,15 +77,21 @@ export const ABIS = {
 };
 
 export const getContracts = async (provider: BrowserProvider, chainId: number) => {
-  const isBaseSepolia = chainId === 84532;
-  const addresses = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
+  const config = CHAIN_CONFIG[chainId as keyof typeof CHAIN_CONFIG];
+  const addresses = config ? CONTRACT_ADDRESSES[config.network] : CONTRACT_ADDRESSES.baseSepolia;
 
   return {
     propertyRegistry: new Contract(addresses.propertyRegistry, ABIS.propertyRegistry, provider),
     tenToken: new Contract(addresses.tenToken, ABIS.erc20, provider),
     yieldDistributor: new Contract(addresses.yieldDistributor, ABIS.yieldDistributor, provider),
+    priceFeedConsumer: new Contract(addresses.priceFeedConsumer, ABIS.priceFeed, provider),
     addresses,
+    chainConfig: config || CHAIN_CONFIG[84532],
   };
+};
+
+export const getChainConfig = (chainId: number) => {
+  return CHAIN_CONFIG[chainId as keyof typeof CHAIN_CONFIG] || { name: 'Unknown', network: 'unknown', color: '#888888' };
 };
 
 export const formatTokenAmount = (amount: bigint, decimals: number = 18) => {

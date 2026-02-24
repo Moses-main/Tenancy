@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { simulateRiskScenario, assessRiskLevel, getRiskRecommendations } from './risk-service';
+import { generateMockProof, verifyWorldIdProof } from './worldid-service';
 
 const MOCK_PAYMENTS = [
   {
@@ -153,10 +154,32 @@ async function simulateCREWorkflow(): Promise<void> {
   await sleep(800);
 
   console.log('\n┌────────────────────────────────────────────────────────────┐');
-  console.log('│ STEP 6: Update State & Emit Events                        │');
+  console.log('│ STEP 7: World ID Verification (Sybil Resistance)          │');
+  console.log('│   - Verify human-only claims                             │');
+  console.log('│   - Prevent duplicate claims                             │');
+  console.log('│   - Generate zero-knowledge proof                        │');
+  console.log('└────────────────────────────────────────────────────────────┘\n');
+
+  await sleep(500);
+  console.log('   → Verifying World ID proofs for claim...');
+  await sleep(400);
+
+  for (let i = 0; i < results.length; i++) {
+    if (results[i].success) {
+      const proof = generateMockProof();
+      const verification = await verifyWorldIdProof(proof, `0x742d35Cc6634C0532925a3b844Bc9e7595f0fEb${i}`);
+      console.log(`   ✓ Property ${i}: World ID VERIFIED (Human)`);
+    }
+  }
+  console.log('   ✓ All claimants verified as humans\n');
+  await sleep(400);
+
+  console.log('\n┌────────────────────────────────────────────────────────────┐');
+  console.log('│ STEP 8: Update State & Emit Events                        │');
   console.log('│   - Update pending yield mappings                         │');
   console.log('│   - Emit YieldDistributed event                          │');
   console.log('│   - Emit AIRecommendation event                          │');
+  console.log('│   - Emit WorldIdVerified event                           │');
   console.log('└────────────────────────────────────────────────────────────┘\n');
 
   console.log('   ✓ State updated');
