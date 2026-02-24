@@ -1,0 +1,87 @@
+groups:
+  - name: tenancy_alerts
+    interval: 30s
+    rules:
+      # Critical Alerts
+      - alert: ContractPaused
+        expr: tenancy_contract_paused == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "TENANCY Contract Paused"
+          description: "The {{ $labels.contract }} contract has been paused"
+
+      - alert: PriceFeedStale
+        expr: (time() - tenancy_price_feed_updated) > 3600
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Chainlink Price Feed Stale"
+          description: "ETH/USD price feed has not been updated for over 1 hour"
+
+      - alert: YieldDistributionFailed
+        expr: increase(tenancy_yield_distribution_failed_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Yield Distribution Failed"
+          description: "Yield distribution failed for property {{ $labels.property_id }}"
+
+      - alert: SafeguardActive
+        expr: tenancy_safeguard_active == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Risk Safeguard Triggered"
+          description: "Risk safeguard activated: {{ $labels.reason }}"
+
+      # Warning Alerts
+      - alert: HighGasPrice
+        expr: eth_gas_price > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Gas Price"
+          description: "Gas price is {{ $value }} gwei, above 100 gwei threshold"
+
+      - alert: LowYieldPool
+        expr: tenancy_yield_pool < 1000000000000000000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low Yield Pool"
+          description: "Yield pool is below 1 ETH"
+
+      - alert: NoActiveProperties
+        expr: tenancy_active_properties == 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "No Active Properties"
+          description: "No active properties on the platform"
+
+      - alert: LowInvestorActivity
+        expr: increase(tenancy_transactions_total[24h]) < 10
+        for: 24h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low Investor Activity"
+          description: "Less than 10 transactions in the last 24 hours"
+
+      # Info Alerts
+      - alert: NewPropertyRegistered
+        expr: increase(tenancy_properties_total[1h]) > 0
+        for: 1m
+        labels:
+          severity: info
+        annotations:
+          summary: "New Property Registered"
+          description: "New property registered: {{ $labels.property_id }}"
