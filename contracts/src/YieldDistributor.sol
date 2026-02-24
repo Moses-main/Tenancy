@@ -2,6 +2,8 @@
 pragma solidity ^0.8.20;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 interface IPFSInterface {
     function store(string memory data) external returns (string memory ipfsHash);
@@ -19,7 +21,7 @@ interface AggregatorV3Interface {
     function decimals() external view returns (uint8);
 }
 
-contract YieldDistributor is Ownable {
+contract YieldDistributor is Ownable, ReentrancyGuard, Pausable {
     enum DistributionStatus { PENDING, DISTRIBUTING, COMPLETED, PAUSED }
     
     struct Distribution {
@@ -85,7 +87,10 @@ contract YieldDistributor is Ownable {
         uint256 totalYield,
         uint256[] calldata holderBalances,
         address[] calldata holders
-    ) external onlyOwner returns (uint256 distributionId) {
+    ) external onlyOwner whenNotPaused returns (uint256 distributionId) {
+        require(holderBalances.length > 0, "Cannot create distribution with no holders");
+        require(holderBalances.length == holders.length, "Arrays length mismatch");
+        require(totalYield > 0, "Total yield must be greater than 0");
         distributionId = _distributionCount++;
         
         Distribution memory newDistribution = Distribution({
@@ -129,7 +134,7 @@ contract YieldDistributor is Ownable {
         emit DistributionResumed(distributionId, distribution.propertyId);
     }
     
-    function claimYield(uint256 distributionId) external {
+    function claimYield(uint256 distributionId) external nonReentrant whenNotPaused {
         Distribution storage distribution = _distributions[distributionId];
         require(distribution.status == DistributionStatus.DISTRIBUTING, "Distribution not active");
         
@@ -360,7 +365,15 @@ contract YieldDistributor is Ownable {
         safeguardActive = false;
         emit RiskAlert(2, "Safeguard deactivated", 0);
     }
-    
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
     function setMinReserveRatio(uint256 _ratio) external onlyOwner {
         require(_ratio >= 1000 && _ratio <= 10000, "Ratio must be 10-100%");
         minReserveRatio = _ratio;
@@ -381,16 +394,16 @@ contract YieldDistributor is Ownable {
     
     function getRiskMetrics() external view returns (
         uint256 _totalDefaults,
-        uint256 _defaultRatio,
-        uint256 _reserveRatio,
+        uint256 _defaultRatioVal,
+        uint256 _reserveRatioVal,
         bool _safeguardActive,
         uint256 _lastRiskCheck
     ) {
-        uint256 _defaultRatio = totalYieldPool > 0 ? (totalDefaults * 10000) / totalYieldPool : 0;
-        uint256 _reserveRatio = totalDistributedYield > 0 
+        uint256 defaultRatioVal = totalYieldPool > 0 ? (totalDefaults * 10000) / totalYieldPool : 0;
+        uint256 reserveRatioVal = totalDistributedYield > 0 
             ? (totalYieldPool * 10000) / totalDistributedYield 
             : 0;
         
-        return (totalDefaults, _defaultRatio, _reserveRatio, safeguardActive, lastRiskCheck);
+        return (totalDefaults, defaultRatioVal, reserveRatioVal, safeguardActive, lastRiskCheck);
     }
 }
