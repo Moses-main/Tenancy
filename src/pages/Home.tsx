@@ -19,8 +19,8 @@ const mockYieldData = [
 ];
 
 export default function Home() {
-  const { isAuthenticated, address } = useAuth();
-  const { getAllProperties, getTENBalance, getPendingYield, chainId, isCorrectNetwork } = useContracts();
+  const { isAuthenticated, address, isCorrectNetwork } = useAuth();
+  const { getAllProperties, getTENBalance, getPendingYield, chainId } = useContracts();
   const [properties, setProperties] = useState<any[]>([]);
   const [tenBalance, setTenBalance] = useState('0');
   const [pendingYield, setPendingYield] = useState('0');

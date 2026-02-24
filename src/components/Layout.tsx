@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Building2, Wallet, Coins, BarChart3, Menu, X, ShieldCheck, Copy, ExternalLink, LogOut, Store, Sun, Moon } from 'lucide-react';
+import { Building2, Wallet, Coins, BarChart3, Menu, X, ShieldCheck, Copy, ExternalLink, LogOut, Store, Sun, Moon, RefreshCw, Layers } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { useTheme } from '../lib/ThemeContext';
 
@@ -21,7 +21,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     address, 
     balance, 
     chainId, 
-    chainName 
+    chainName,
+    switchNetwork,
+    switchAccount,
+    isCorrectNetwork
   } = useAuth();
 
   const formatAddress = (addr: string | null) => {
@@ -159,6 +162,31 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                           <span className="text-xs font-mono text-muted-foreground">{chainId || '—'}</span>
                         </div>
                       </div>
+                    </div>
+                    <div className="p-3 border-t border-border space-y-2">
+                      <button
+                        onClick={() => switchNetwork(84532)}
+                        disabled={chainId === 84532}
+                        className="w-full flex items-center justify-center gap-2 rounded-lg text-xs font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 h-9 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Layers className="h-3.5 w-3.5" />
+                        {chainId === 84532 ? 'On Base Sepolia' : 'Switch to Base Sepolia'}
+                      </button>
+                      <button
+                        onClick={() => switchNetwork(11155111)}
+                        disabled={chainId === 11155111}
+                        className="w-full flex items-center justify-center gap-2 rounded-lg text-xs font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 h-9 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Layers className="h-3.5 w-3.5" />
+                        {chainId === 11155111 ? 'On Sepolia' : 'Switch to Sepolia'}
+                      </button>
+                      <button
+                        onClick={() => switchAccount()}
+                        className="w-full flex items-center justify-center gap-2 rounded-lg text-xs font-medium border border-border hover:bg-muted h-9"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Switch Account
+                      </button>
                     </div>
                     <div className="p-2 lg:p-3 bg-muted/50 rounded-b-xl">
                       <p className="text-xs text-muted-foreground text-center">

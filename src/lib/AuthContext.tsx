@@ -18,6 +18,7 @@ interface AuthContextType {
   connectWallet: () => void;
   switchNetwork: (chainId: number) => Promise<void>;
   switchAccount: () => Promise<void>;
+  isCorrectNetwork: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -120,6 +121,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const isCorrectNetwork = chainId === 84532 || chainId === 11155111;
+
   return (
     <AuthContext.Provider
       value={{
@@ -138,6 +141,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         connectWallet,
         switchNetwork,
         switchAccount,
+        isCorrectNetwork,
       }}
     >
       {children}
