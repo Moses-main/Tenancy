@@ -12,6 +12,7 @@ interface AuthContextType {
   balance: string | null;
   chainId: number | null;
   chainName: string | null;
+  provider: BrowserProvider | null;
   isWalletModalOpen: boolean;
   setWalletModalOpen: (open: boolean) => void;
   connectWallet: () => void;
@@ -39,6 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [balance, setBalance] = useState<string | null>(null);
   const [chainId, setChainId] = useState<number | null>(null);
   const [chainName, setChainName] = useState<string | null>(null);
+  const [provider, setProvider] = useState<BrowserProvider | null>(null);
   const [isWalletModalOpen, setWalletModalOpen] = useState(false);
 
   const address = wallets[0]?.address || null;
@@ -49,13 +51,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setBalance(null);
         setChainId(null);
         setChainName(null);
+        setProvider(null);
         return;
       }
 
       try {
-        const provider = await wallets[0].getEthereumProvider();
-        if (provider) {
-          const ethersProvider = new BrowserProvider(provider);
+        const ethProvider = await wallets[0].getEthereumProvider();
+        if (ethProvider) {
+          const ethersProvider = new BrowserProvider(ethProvider);
+          setProvider(ethersProvider);
+          
           const balanceWei = await ethersProvider.getBalance(wallets[0].address);
           const balanceEth = ethers.formatEther(balanceWei);
           setBalance(parseFloat(balanceEth).toFixed(4));
@@ -94,6 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         balance,
         chainId,
         chainName,
+        provider,
         isWalletModalOpen,
         setWalletModalOpen,
         connectWallet,
