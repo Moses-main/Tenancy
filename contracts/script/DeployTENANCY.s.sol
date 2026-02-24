@@ -6,6 +6,7 @@ import {TENToken} from "../src/TENToken.sol";
 import {PropertyRegistry} from "../src/PropertyRegistry.sol";
 import {YieldDistributor} from "../src/YieldDistributor.sol";
 import {PriceFeedConsumer} from "../src/PriceFeedConsumer.sol";
+import {RentalToken} from "../src/RentalToken.sol";
 
 contract DeployTENANCY is Script {
     function run() external {
@@ -23,12 +24,7 @@ contract DeployTENANCY is Script {
         PropertyRegistry propertyRegistry = new PropertyRegistry(deployer, ethUsdPriceFeed);
         console.log("PropertyRegistry deployed at:", address(propertyRegistry));
 
-        YieldDistributor yieldDistributor = new YieldDistributor(
-            deployer,
-            address(propertyRegistry),
-            address(tenToken),
-            ethUsdPriceFeed
-        );
+        YieldDistributor yieldDistributor = new YieldDistributor(deployer);
         console.log("YieldDistributor deployed at:", address(yieldDistributor));
 
         PriceFeedConsumer priceFeedConsumer = new PriceFeedConsumer(
@@ -36,6 +32,9 @@ contract DeployTENANCY is Script {
             ethUsdPriceFeed
         );
         console.log("PriceFeedConsumer deployed at:", address(priceFeedConsumer));
+
+        RentalToken rentalToken = new RentalToken(deployer);
+        console.log("RentalToken deployed at:", address(rentalToken));
 
         propertyRegistry.setIssuer(deployer, true);
         tenToken.setMinter(deployer, true);

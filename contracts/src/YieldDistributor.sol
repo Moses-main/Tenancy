@@ -1,168 +1,208 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {PropertyRegistry} from "./PropertyRegistry.sol";
-import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+
+interface IPFSInterface {
+    function store(string memory data) external returns (string memory ipfsHash);
+    function retrieve(string memory ipfsHash) external returns (string memory data);
+}
+
+interface IPriceFeed {
+    function latestRoundData() external view returns (
+        uint80 roundId,
+        int256 answer,
+        uint256 startedAt,
+        uint256 updatedAt,
+        uint80 answeredInRound
+    );
+}
 
 contract YieldDistributor is Ownable {
-    PropertyRegistry public propertyRegistry;
-    IERC20 public tenToken;
-    AggregatorV3Interface public ethUsdPriceFeed;
-
+    enum DistributionStatus { PENDING, DISTRIBUTING, COMPLETED, PAUSED }
+    
     struct Distribution {
         uint256 propertyId;
-        uint256 totalAmount;
-        uint256 timestamp;
-        bool executed;
+        uint256 totalYield;
+        uint256 distributedYield;
+        DistributionStatus status;
+        uint256 distributionTimestamp;
+        uint256[] holderBalances;
+        address[] holders;
     }
-
-    uint256 public nextDistributionId;
-    mapping(uint256 => Distribution) public distributions;
-    mapping(uint256 => mapping(address => uint256)) public pendingYield;
-
-    event YieldDeposited(uint256 indexed distributionId, uint256 amount, address indexed from);
-    event YieldDistributed(uint256 indexed distributionId, uint256 propertyId, uint256 totalAmount);
-    event YieldClaimed(address indexed user, uint256 propertyId, uint256 amount);
-
-    modifier onlyPropertyOwner(uint256 propertyId) {
-        require(
-            propertyRegistry.getProperty(propertyId).owner == msg.sender,
-            "YieldDistributor: not property owner"
+    
+    mapping(uint256 => Distribution) private _distributions;
+    mapping(uint256 => uint256) private _propertyYieldRates;
+    uint256 private _distributionCount;
+    
+    uint256 public totalYieldPool;
+    uint256 public totalDistributedYield;
+    uint256 public lastDistributionTimestamp;
+    uint256 public distributionInterval = 86400; // 24 hours
+    
+    uint256 public defaultYieldRate = 1000; // base yield rate
+    
+    event DistributionStarted(uint256 distributionId, uint256 propertyId, uint256 totalYield);
+    event DistributionCompleted(uint256 distributionId, uint256 propertyId, uint256 distributedYield);
+    event DistributionPaused(uint256 distributionId, uint256 propertyId);
+    event DistributionResumed(uint256 distributionId, uint256 propertyId);
+    event YieldClaimed(address indexed claimant, uint256 amount);
+    event YieldPoolUpdated(uint256 newTotal, uint256 change);
+    
+    constructor(address initialOwner) Ownable(initialOwner) {
+        _distributionCount = 0;
+    }
+    
+    function createDistribution(
+        uint256 propertyId,
+        uint256 totalYield,
+        uint256[] calldata holderBalances,
+        address[] calldata holders
+    ) external onlyOwner returns (uint256 distributionId) {
+        distributionId = _distributionCount++;
+        
+        Distribution memory newDistribution = Distribution({
+            propertyId: propertyId,
+            totalYield: totalYield,
+            distributedYield: 0,
+            status: DistributionStatus.PENDING,
+            distributionTimestamp: block.timestamp,
+            holderBalances: holderBalances,
+            holders: holders
+        });
+        
+        _distributions[distributionId] = newDistribution;
+        totalYieldPool += totalYield;
+        
+        emit DistributionStarted(distributionId, propertyId, totalYield);
+    }
+    
+    function startDistribution(uint256 distributionId) external onlyOwner {
+        Distribution storage distribution = _distributions[distributionId];
+        require(distribution.status == DistributionStatus.PENDING, "Distribution not pending");
+        require(distribution.totalYield > 0, "No yield to distribute");
+        
+        distribution.status = DistributionStatus.DISTRIBUTING;
+        lastDistributionTimestamp = block.timestamp;
+    }
+    
+    function pauseDistribution(uint256 distributionId) external onlyOwner {
+        Distribution storage distribution = _distributions[distributionId];
+        require(distribution.status == DistributionStatus.DISTRIBUTING, "Distribution not active");
+        
+        distribution.status = DistributionStatus.PAUSED;
+        emit DistributionPaused(distributionId, distribution.propertyId);
+    }
+    
+    function resumeDistribution(uint256 distributionId) external onlyOwner {
+        Distribution storage distribution = _distributions[distributionId];
+        require(distribution.status == DistributionStatus.PAUSED, "Distribution not paused");
+        
+        distribution.status = DistributionStatus.DISTRIBUTING;
+        emit DistributionResumed(distributionId, distribution.propertyId);
+    }
+    
+    function claimYield(uint256 distributionId) external {
+        Distribution storage distribution = _distributions[distributionId];
+        require(distribution.status == DistributionStatus.DISTRIBUTING, "Distribution not active");
+        
+        uint256 holderIndex = findHolderIndex(msg.sender, distribution.holders);
+        require(holderIndex != type(uint256).max, "Holder not found");
+        
+        uint256 holderYield = distribution.holderBalances[holderIndex];
+        require(holderYield > 0, "No yield to claim");
+        
+        // Transfer yield to holder (simplified - would need proper token transfer)
+        distribution.holderBalances[holderIndex] = 0;
+        distribution.distributedYield += holderYield;
+        
+        emit YieldClaimed(msg.sender, holderYield);
+        
+        // Check if distribution is complete
+        if (distribution.distributedYield >= distribution.totalYield) {
+            distribution.status = DistributionStatus.COMPLETED;
+            emit DistributionCompleted(distributionId, distribution.propertyId, distribution.distributedYield);
+        }
+    }
+    
+    function calculateProRataDistribution(
+        uint256 totalYield,
+        uint256[] calldata holderBalances
+    ) internal pure returns (uint256[] memory) {
+        uint256 totalBalance = 0;
+        for (uint256 i = 0; i < holderBalances.length; i++) {
+            totalBalance += holderBalances[i];
+        }
+        
+        uint256[] memory distributions = new uint256[](holderBalances.length);
+        for (uint256 i = 0; i < holderBalances.length; i++) {
+            distributions[i] = (holderBalances[i] * totalYield) / totalBalance;
+        }
+        
+        return distributions;
+    }
+    
+    function findHolderIndex(address holder, address[] storage holders) internal view returns (uint256) {
+        for (uint256 i = 0; i < holders.length; i++) {
+            if (holders[i] == holder) {
+                return i;
+            }
+        }
+        return type(uint256).max;
+    }
+    
+    function updateYieldPool(uint256 amount) external onlyOwner {
+        require(amount > 0, "Amount must be positive");
+        totalYieldPool += amount;
+        emit YieldPoolUpdated(totalYieldPool, amount);
+    }
+    
+    function withdrawYieldPool(uint256 amount) external onlyOwner {
+        require(amount > 0, "Amount must be positive");
+        require(totalYieldPool >= amount, "Insufficient yield pool");
+        totalYieldPool -= amount;
+        payable(msg.sender).transfer(amount);
+        emit YieldPoolUpdated(totalYieldPool, amount);
+    }
+    
+    function setDistributionInterval(uint256 newInterval) external onlyOwner {
+        distributionInterval = newInterval;
+    }
+    
+    function setDefaultYieldRate(uint256 newRate) external onlyOwner {
+        defaultYieldRate = newRate;
+    }
+    
+    function getTotalYieldPool() external view returns (uint256) {
+        return totalYieldPool;
+    }
+    
+    function getTotalDistributedYield() external view returns (uint256) {
+        return totalDistributedYield;
+    }
+    
+    function getDistributionInfo(uint256 distributionId) external view returns (
+        uint256 propertyId,
+        uint256 totalYield,
+        uint256 distributedYield,
+        uint256 status,
+        uint256 distributionTimestamp,
+        uint256[] memory holderBalances
+    ) {
+        Distribution storage distribution = _distributions[distributionId];
+        return (
+            distribution.propertyId,
+            distribution.totalYield,
+            distribution.distributedYield,
+            uint256(distribution.status),
+            distribution.distributionTimestamp,
+            distribution.holderBalances
         );
-        _;
     }
-
-    constructor(address initialOwner, address _propertyRegistry, address _tenToken, address _ethUsdPriceFeed) 
-        Ownable(initialOwner) 
-    {
-        propertyRegistry = PropertyRegistry(_propertyRegistry);
-        tenToken = IERC20(_tenToken);
-        if (_ethUsdPriceFeed != address(0)) {
-            ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
-        }
-    }
-
-    function setPriceFeed(address _ethUsdPriceFeed) external onlyOwner {
-        require(_ethUsdPriceFeed != address(0), "Invalid price feed");
-        ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
-    }
-
-    function getEthUsdPrice() public view returns (uint256) {
-        require(address(ethUsdPriceFeed) != address(0), "Price feed not set");
-        (, int256 price,,,) = ethUsdPriceFeed.latestRoundData();
-        require(price > 0, "Invalid price");
-        return uint256(price);
-    }
-
-    function depositYield(uint256 propertyId, uint256 amount) external onlyPropertyOwner(propertyId) {
-        require(amount > 0, "YieldDistributor: amount must be > 0");
-        require(tenToken.transferFrom(msg.sender, address(this), amount), "YieldDistributor: transfer failed");
-
-        uint256 distributionId = nextDistributionId++;
-        distributions[distributionId] = Distribution({
-            propertyId: propertyId,
-            totalAmount: amount,
-            timestamp: block.timestamp,
-            executed: false
-        });
-
-        emit YieldDeposited(distributionId, amount, msg.sender);
-    }
-
-    function depositYieldEth(uint256 propertyId) external payable onlyPropertyOwner(propertyId) {
-        require(msg.value > 0, "YieldDistributor: must send ETH");
-        
-        uint256 distributionId = nextDistributionId++;
-        distributions[distributionId] = Distribution({
-            propertyId: propertyId,
-            totalAmount: msg.value,
-            timestamp: block.timestamp,
-            executed: false
-        });
-
-        emit YieldDeposited(distributionId, msg.value, msg.sender);
-    }
-
-    function distributeYield(uint256 distributionId) external onlyOwner {
-        Distribution storage distribution = distributions[distributionId];
-        require(!distribution.executed, "YieldDistributor: already distributed");
-        require(distribution.totalAmount > 0, "YieldDistributor: no yield to distribute");
-
-        distribution.executed = true;
-
-        emit YieldDistributed(distributionId, distribution.propertyId, distribution.totalAmount);
-    }
-
-    function calculateYield(uint256 propertyId, address user) public view returns (uint256) {
-        uint256 userBalance = propertyRegistry.getUserBalance(propertyId, user);
-        uint256 totalSupply = propertyRegistry.getProperty(propertyId).totalSupply;
-
-        if (totalSupply == 0 || userBalance == 0) {
-            return 0;
-        }
-
-        return userBalance;
-    }
-
-    function calculateYieldUsd(uint256 propertyId, address user) external view returns (uint256) {
-        uint256 userBalance = propertyRegistry.getUserBalance(propertyId, user);
-        uint256 totalSupply = propertyRegistry.getProperty(propertyId).totalSupply;
-        
-        if (totalSupply == 0 || userBalance == 0) {
-            return 0;
-        }
-
-        uint256 totalPending = 0;
-        for (uint256 i = 0; i < nextDistributionId; i++) {
-            Distribution storage dist = distributions[i];
-            if (dist.propertyId == propertyId && dist.executed) {
-                uint256 userShare = (dist.totalAmount * userBalance) / totalSupply;
-                totalPending += userShare;
-            }
-        }
-
-        uint256 price = getEthUsdPrice();
-        return (totalPending * price) / 1e8;
-    }
-
-    function claimYield(uint256 propertyId) external {
-        uint256 userBalance = propertyRegistry.getUserBalance(propertyId, msg.sender);
-        require(userBalance > 0, "YieldDistributor: no holdings");
-
-        uint256 totalPending = 0;
-        for (uint256 i = 0; i < nextDistributionId; i++) {
-            Distribution storage dist = distributions[i];
-            if (dist.propertyId == propertyId && dist.executed) {
-                uint256 userShare = (dist.totalAmount * userBalance) / propertyRegistry.getProperty(propertyId).totalSupply;
-                totalPending += userShare;
-            }
-        }
-
-        require(totalPending > 0, "YieldDistributor: no yield to claim");
-        
-        tenToken.transfer(msg.sender, totalPending);
-        emit YieldClaimed(msg.sender, propertyId, totalPending);
-    }
-
-    function getPendingYield(uint256 propertyId, address user) external view returns (uint256) {
-        uint256 userBalance = propertyRegistry.getUserBalance(propertyId, user);
-        uint256 totalSupply = propertyRegistry.getProperty(propertyId).totalSupply;
-        
-        if (totalSupply == 0 || userBalance == 0) {
-            return 0;
-        }
-
-        uint256 totalPending = 0;
-        for (uint256 i = 0; i < nextDistributionId; i++) {
-            Distribution storage dist = distributions[i];
-            if (dist.propertyId == propertyId && dist.executed) {
-                uint256 userShare = (dist.totalAmount * userBalance) / totalSupply;
-                totalPending += userShare;
-            }
-        }
-
-        return totalPending;
+    
+    function isDistributionActive(uint256 distributionId) external view returns (bool) {
+        Distribution storage distribution = _distributions[distributionId];
+        return distribution.status == DistributionStatus.DISTRIBUTING;
     }
 }
