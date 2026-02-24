@@ -480,6 +480,49 @@ We use Chainlink Price Feeds for:
 | [`contracts/src/PriceFeedConsumer.sol`](contracts/src/PriceFeedConsumer.sol) | Price feed consumer for property valuation |
 | [`contracts/src/PropertyRegistry.sol`](contracts/src/PropertyRegistry.sol) | Uses price feed for property valuation |
 | [`contracts/script/DeployTENANCY.s.sol`](contracts/script/DeployTENANCY.s.sol) | Deployment with price feed addresses |
+| [`scripts/thirdweb-deploy.ts`](scripts/thirdweb-deploy.ts) | Thirdweb deployment with price feeds |
+| [`scripts/tenderly-deploy.ts`](scripts/tenderly-deploy.ts) | Tenderly Virtual TestNet deployment |
+
+### Deployment Scripts
+
+#### Thirdweb Deployment
+
+Deploy contracts using Thirdweb SDK for simplified deployment and management:
+
+```bash
+# Install dependencies
+npm install
+
+# Deploy to Sepolia
+npm run deploy:thirdweb
+
+# Deploy to Base Sepolia
+NETWORK=base-sepolia npm run deploy:thirdweb
+```
+
+**Configuration:**
+- Set `PRIVATE_KEY` in `.env`
+- Set `NETWORK=sepolia` or `NETWORK=base-sepolia`
+
+#### Tenderly Virtual TestNet
+
+Deploy to Tenderly Virtual TestNet for testing with fork state:
+
+```bash
+# Set up Tenderly credentials in .env
+TENDERLY_API_KEY=your_api_key
+TENDERLY_ACCOUNT_ID=your_account_id
+
+# Deploy to Virtual TestNet
+npm run deploy:tenderly
+
+# Test on Virtual TestNet
+npm run test:tenderly
+```
+
+**Files:**
+- [`scripts/thirdweb-deploy.ts`](scripts/thirdweb-deploy.ts) - Thirdweb deployment script
+- [`scripts/tenderly-deploy.ts`](scripts/tenderly-deploy.ts) - Tenderly Virtual TestNet deployment
 
 ### CRE Workflow
 
@@ -593,9 +636,41 @@ See [`cre-workflow/src/index.ts`](cre-workflow/src/index.ts) for implementation.
 
 ---
 
-## 🖥 Backend (Mock)
+## 🖥 Backend (Real Payment Integration)
 
-The mock backend simulates off-chain verification:
+The backend integrates with real payment systems and Chainlink Price Feeds:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/price-feed` | GET | Real-time ETH/USD from Chainlink |
+| `/payments` | GET | List all rental payments |
+| `/payments/:propertyId` | GET | Get payments for a property |
+| `/verify-payment` | POST | Request payment verification |
+| `/webhook/payment` | POST | Payment webhook (protected) |
+| `/trigger-chainlink` | POST | Trigger Chainlink job (protected) |
+
+### Configuration
+
+Create `server/.env` from `server/.env.example`:
+
+```env
+# Chainlink Price Feed (Sepolia)
+CHAINLINK_ETH_USD_FEED=0x694AA1769357215DE4FAC081bf1f309aDC325306
+
+# Use real prices from Chainlink
+USE_REAL_PRICES=true
+
+# API Key
+API_KEY=your_api_key
+```
+
+### Key Features:
+
+- **Chainlink Price Feeds**: Fetches real ETH/USD prices for yield calculation
+- **Payment Verification**: Simulates real banking API integration
+- **Chainlink ANY API Ready**: Architecture prepared for real Chainlink external adapter
+- **Confidential HTTP**: Sensitive data never exposed in logs
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|

@@ -10,6 +10,7 @@ import { sepolia } from 'viem/chains';
 import Home from './src/pages/Home.tsx';
 import Issuer from './src/pages/Issuer.tsx';
 import Investor from './src/pages/Investor.tsx';
+import Tenant from './src/pages/Tenant.tsx';
 import Marketplace from './src/pages/Marketplace.tsx';
 import NotFound from './src/pages/NotFound.tsx';
 import { AuthProvider } from './src/lib/AuthContext.tsx';
@@ -26,6 +27,7 @@ const AppContent: React.FC = () => {
             <Route path="/" element={<Home />} />
             <Route path="/issuer" element={<Issuer />} />
             <Route path="/investor" element={<Investor />} />
+            <Route path="/tenant" element={<Tenant />} />
             <Route path="/marketplace" element={<Marketplace />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

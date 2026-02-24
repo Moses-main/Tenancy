@@ -7,12 +7,17 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy:thirdweb": "npx ts-node scripts/thirdweb-deploy.ts",
+    "deploy:tenderly": "npx ts-node scripts/tenderly-deploy.ts",
+    "test:tenderly": "npx ts-node scripts/tenderly-test.ts"
   },
   "dependencies": {
     "@privy-io/react-auth": "^3.14.1",
     "@radix-ui/themes": "^3.2.1",
+    "@thirdweb-dev/sdk": "^4.1.0",
     "clsx": "^2.1.1",
+    "dotenv": "^16.4.5",
     "ethers": "^6.16.0",
     "lucide-react": "^0.462.0",
     "react": "^19.1.1",
@@ -24,11 +29,14 @@
     "viem": "^2.46.2"
   },
   "devDependencies": {
+    "@types/node": "^20.11.0",
     "@vitejs/plugin-react": "^5.1.4",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
     "vite": "^7.3.1"
   },
   "overrides": {
