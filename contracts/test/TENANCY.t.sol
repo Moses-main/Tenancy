@@ -23,6 +23,7 @@ contract TENANCYTest is Test {
     uint256 constant INITIAL_SUPPLY = 10000e18;
 
     address constant ETH_USD_FEED = address(0);
+    address constant INFLATION_FEED = address(0);
 
     event PropertyCreated(
         uint256 indexed propertyId,
@@ -41,7 +42,7 @@ contract TENANCYTest is Test {
 
         tenToken = new TENToken(owner);
         propertyRegistry = new PropertyRegistry(owner, ETH_USD_FEED);
-        yieldDistributor = new YieldDistributor(owner);
+        yieldDistributor = new YieldDistributor(owner, ETH_USD_FEED, INFLATION_FEED);
         priceFeedConsumer = new PriceFeedConsumer(ETH_USD_FEED, ETH_USD_FEED);
 
         propertyRegistry.setIssuer(issuer, true);

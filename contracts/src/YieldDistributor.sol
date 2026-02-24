@@ -2,14 +2,13 @@
 pragma solidity ^0.8.20;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 interface IPFSInterface {
     function store(string memory data) external returns (string memory ipfsHash);
     function retrieve(string memory ipfsHash) external returns (string memory data);
 }
 
-interface IPriceFeed {
+interface AggregatorV3Interface {
     function latestRoundData() external view returns (
         uint80 roundId,
         int256 answer,
@@ -17,6 +16,7 @@ interface IPriceFeed {
         uint256 updatedAt,
         uint80 answeredInRound
     );
+    function decimals() external view returns (uint8);
 }
 
 contract YieldDistributor is Ownable {
@@ -36,12 +36,19 @@ contract YieldDistributor is Ownable {
     mapping(uint256 => uint256) private _propertyYieldRates;
     uint256 private _distributionCount;
     
+    AggregatorV3Interface public ethUsdPriceFeed;
+    AggregatorV3Interface public inflationIndexFeed;
+    
     uint256 public totalYieldPool;
     uint256 public totalDistributedYield;
     uint256 public lastDistributionTimestamp;
-    uint256 public distributionInterval = 86400; // 24 hours
+    uint256 public distributionInterval = 86400;
     
-    uint256 public defaultYieldRate = 1000; // base yield rate
+    uint256 public defaultYieldRate = 1000;
+    
+    uint256 public lastEthUsdPrice;
+    uint256 public lastInflationIndex;
+    uint256 public priceFeedUpdateTime;
     
     event DistributionStarted(uint256 distributionId, uint256 propertyId, uint256 totalYield);
     event DistributionCompleted(uint256 distributionId, uint256 propertyId, uint256 distributedYield);
@@ -49,9 +56,16 @@ contract YieldDistributor is Ownable {
     event DistributionResumed(uint256 distributionId, uint256 propertyId);
     event YieldClaimed(address indexed claimant, uint256 amount);
     event YieldPoolUpdated(uint256 newTotal, uint256 change);
+    event PriceFeedUpdated(uint256 ethUsdPrice, uint256 inflationIndex, uint256 timestamp);
     
-    constructor(address initialOwner) Ownable(initialOwner) {
+    constructor(address initialOwner, address _ethUsdPriceFeed, address _inflationIndexFeed) Ownable(initialOwner) {
         _distributionCount = 0;
+        if (_ethUsdPriceFeed != address(0)) {
+            ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
+        }
+        if (_inflationIndexFeed != address(0)) {
+            inflationIndexFeed = AggregatorV3Interface(_inflationIndexFeed);
+        }
     }
     
     function createDistribution(
@@ -204,5 +218,85 @@ contract YieldDistributor is Ownable {
     function isDistributionActive(uint256 distributionId) external view returns (bool) {
         Distribution storage distribution = _distributions[distributionId];
         return distribution.status == DistributionStatus.DISTRIBUTING;
+    }
+    
+    function setPriceFeeds(address _ethUsdPriceFeed, address _inflationIndexFeed) external onlyOwner {
+        if (_ethUsdPriceFeed != address(0)) {
+            ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
+        }
+        if (_inflationIndexFeed != address(0)) {
+            inflationIndexFeed = AggregatorV3Interface(_inflationIndexFeed);
+        }
+    }
+    
+    function updatePriceFeeds() external returns (uint256, uint256) {
+        if (address(ethUsdPriceFeed) != address(0)) {
+            (, int256 price,,,) = ethUsdPriceFeed.latestRoundData();
+            require(price > 0, "Invalid ETH/USD price");
+            lastEthUsdPrice = uint256(price);
+        }
+        
+        if (address(inflationIndexFeed) != address(0)) {
+            (, int256 index,,,) = inflationIndexFeed.latestRoundData();
+            require(index > 0, "Invalid inflation index");
+            lastInflationIndex = uint256(index);
+        }
+        
+        priceFeedUpdateTime = block.timestamp;
+        emit PriceFeedUpdated(lastEthUsdPrice, lastInflationIndex, priceFeedUpdateTime);
+        
+        return (lastEthUsdPrice, lastInflationIndex);
+    }
+    
+    function getEthUsdPrice() external view returns (uint256) {
+        require(address(ethUsdPriceFeed) != address(0), "Price feed not set");
+        (, int256 price,,,) = ethUsdPriceFeed.latestRoundData();
+        require(price > 0, "Invalid ETH/USD price");
+        return uint256(price);
+    }
+    
+    function getInflationIndex() external view returns (uint256) {
+        require(address(inflationIndexFeed) != address(0), "Inflation feed not set");
+        (, int256 index,,,) = inflationIndexFeed.latestRoundData();
+        require(index > 0, "Invalid inflation index");
+        return uint256(index);
+    }
+    
+    function calculateYieldInUsd(uint256 yieldAmountEth) external view returns (uint256) {
+        uint256 price = lastEthUsdPrice;
+        if (price == 0) {
+            (, int256 currentPrice,,,) = ethUsdPriceFeed.latestRoundData();
+            price = uint256(currentPrice);
+        }
+        return (yieldAmountEth * price) / 1e8;
+    }
+    
+    function calculateYieldInEth(uint256 yieldAmountUsd) external view returns (uint256) {
+        uint256 price = lastEthUsdPrice;
+        if (price == 0) {
+            (, int256 currentPrice,,,) = ethUsdPriceFeed.latestRoundData();
+            price = uint256(currentPrice);
+        }
+        return (yieldAmountUsd * 1e8) / price;
+    }
+    
+    function calculateInflationAdjustedYield(uint256 yieldAmount, uint256 months) external view returns (uint256) {
+        if (lastInflationIndex == 0) {
+            return yieldAmount;
+        }
+        uint256 inflationFactor = 10000 + (lastInflationIndex * months / 12);
+        return (yieldAmount * inflationFactor) / 10000;
+    }
+    
+    function getYieldDistributionUsd(uint256 distributionId) external view returns (uint256) {
+        Distribution storage distribution = _distributions[distributionId];
+        if (address(ethUsdPriceFeed) == address(0)) {
+            return 0;
+        }
+        (, int256 price,,,) = ethUsdPriceFeed.latestRoundData();
+        if (price <= 0) {
+            return 0;
+        }
+        return (distribution.totalYield * uint256(price)) / 1e8;
     }
 }

@@ -18,18 +18,26 @@ contract DeployTENANCY is Script {
         TENToken tenToken = new TENToken(deployer);
         console.log("TENToken deployed at:", address(tenToken));
 
-        // Base Sepolia ETH/USD Price Feed - using placeholder for now
-        address ethUsdPriceFeed = 0x0000000000000000000000000000000000000000;
+        // Sepolia Chainlink Price Feeds (ETH/USD)
+        // https://docs.chain.link/data-feeds/price-feeds/addresses?network=ethereum
+        address ethUsdPriceFeed = 0x694AA1769357215DE4FAC081bf1f309aDC325306;
+        
+        // Inflation Index (custom/mock) - placeholder address
+        address inflationIndexFeed = 0x0000000000000000000000000000000000000001;
         
         PropertyRegistry propertyRegistry = new PropertyRegistry(deployer, ethUsdPriceFeed);
         console.log("PropertyRegistry deployed at:", address(propertyRegistry));
 
-        YieldDistributor yieldDistributor = new YieldDistributor(deployer);
+        YieldDistributor yieldDistributor = new YieldDistributor(
+            deployer,
+            ethUsdPriceFeed,
+            inflationIndexFeed
+        );
         console.log("YieldDistributor deployed at:", address(yieldDistributor));
 
         PriceFeedConsumer priceFeedConsumer = new PriceFeedConsumer(
             ethUsdPriceFeed,
-            ethUsdPriceFeed
+            inflationIndexFeed
         );
         console.log("PriceFeedConsumer deployed at:", address(priceFeedConsumer));
 
