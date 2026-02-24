@@ -15,6 +15,7 @@ import Marketplace from './src/pages/Marketplace.tsx';
 import NotFound from './src/pages/NotFound.tsx';
 import { AuthProvider } from './src/lib/AuthContext.tsx';
 import { ThemeProvider, useTheme } from './src/lib/ThemeContext.tsx';
+import ErrorBoundary from './src/components/ErrorBoundary.tsx';
 
 const AppContent: React.FC = () => {
   const { theme } = useTheme();
@@ -52,24 +53,26 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <PrivyProvider
-      appId="cmlzow5lz004r0djm386ert5v"
-      config={{
-        loginMethods: ['email', 'wallet'],
-        embeddedWallets: {
-          ethereum: {
-            createOnLogin: 'all-users',
+    <ErrorBoundary>
+      <PrivyProvider
+        appId="cmlzow5lz004r0djm386ert5v"
+        config={{
+          loginMethods: ['email', 'wallet'],
+          embeddedWallets: {
+            ethereum: {
+              createOnLogin: 'all-users',
+            },
           },
-        },
-        defaultChain: sepolia,
-      }}
-    >
-      <AuthProvider>
-        <ThemeProvider>
-          <AppContent />
-        </ThemeProvider>
-      </AuthProvider>
-    </PrivyProvider>
+          defaultChain: sepolia,
+        }}
+      >
+        <AuthProvider>
+          <ThemeProvider>
+            <AppContent />
+          </ThemeProvider>
+        </AuthProvider>
+      </PrivyProvider>
+    </ErrorBoundary>
   );
 };
 
