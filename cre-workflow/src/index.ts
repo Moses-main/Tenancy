@@ -1,4 +1,9 @@
 import { ethers } from 'ethers';
+import { 
+  chainlinkAdapter, 
+  PaymentVerificationRequest, 
+  PaymentVerificationResponse 
+} from './chainlink-adapter';
 import { analyzePropertyWithAI, batchAnalyzeProperties, determineDistributionStrategy, PropertyData, AIAnalysisResult } from './ai-service';
 import { 
   logPrivacySafe, 
@@ -27,6 +32,7 @@ interface WorkflowConfig {
   confidentialApiUrl: string;
   confidentialApiKey: string;
   ethUsdPriceFeed: string;
+  network: 'sepolia' | 'baseSepolia' | 'mainnet' | 'base';
 }
 
 const config: WorkflowConfig = {
@@ -37,6 +43,7 @@ const config: WorkflowConfig = {
   confidentialApiUrl: process.env.CONFIDENTIAL_API_URL || 'https://api.tenancy.internal',
   confidentialApiKey: process.env.CONFIDENTIAL_API_KEY || '',
   ethUsdPriceFeed: process.env.ETH_USD_PRICE_FEED || '0x694AA1769357215DE4FAC081bf1f309aDC325306',
+  network: (process.env.NETWORK as WorkflowConfig['network']) || 'sepolia',
 };
 
 const YIELD_DISTRIBUTOR_ABI = [
@@ -130,6 +137,37 @@ function simulatePaymentVerification(propertyId: number): PaymentRecord {
   return mockPayments[propertyId] || null;
 }
 
+async function verifyPaymentWithChainlink(payment: PaymentRecord): Promise<{ verified: boolean; txHash?: string }> {
+  console.log(`[CRE] Verifying payment with Chainlink for property ${payment.propertyId}...`);
+  
+  const request: PaymentVerificationRequest = {
+    propertyId: payment.propertyId.toString(),
+    tenantAddress: payment.tenantAddress,
+    expectedAmount: payment.amount,
+    currency: payment.currency,
+  };
+
+  try {
+    const result = await chainlinkAdapter.verifyPayment(request);
+    
+    if (result.verified) {
+      logPrivacySafe('PaymentVerified', {
+        propertyId: payment.propertyId,
+        amount: maskAmount(payment.amount),
+        tenantAddress: maskAddress(payment.tenantAddress),
+        transactionHash: result.transactionHash,
+      });
+      
+      return { verified: true, txHash: result.transactionHash };
+    }
+    
+    return { verified: false };
+  } catch (error) {
+    console.log('[CRE] Chainlink verification failed, using fallback');
+    return { verified: payment.status === 'verified', txHash: payment.transactionHash };
+  }
+}
+
 async function verifyPayment(payment: PaymentRecord): Promise<boolean> {
   console.log(`[CRE] Verifying payment for property ${payment.propertyId}...`);
   
@@ -170,6 +208,11 @@ async function callSmartContract(
   holderAddress: string
 ): Promise<string> {
   console.log(`[CRE] Creating yield distribution for property ${propertyId}...`);
+  
+  if (!config.rpcUrl || !config.privateKey || !config.yieldDistributorAddress) {
+    console.log('[CRE] Demo mode - simulating transaction');
+    return `0x${Math.random().toString(16).slice(2, 66)}`;
+  }
   
   const provider = new ethers.JsonRpcProvider(config.rpcUrl);
   const wallet = new ethers.Wallet(config.privateKey, provider);
@@ -215,10 +258,16 @@ async function callSmartContract(
 async function runWorkflow() {
   console.log('=== TENANCY CRE Workflow Started ===');
   console.log(`[CRE] Timestamp: ${new Date().toISOString()}`);
+  console.log(`[CRE] Network: ${config.network}`);
   console.log(`[CRE] Property Registry: ${config.propertyRegistryAddress || '0x... (demo mode)'}`);
   console.log(`[CRE] Yield Distributor: ${config.yieldDistributorAddress || '0x... (demo mode)'}`);
   console.log(`[CRE] Price Feed: ${config.ethUsdPriceFeed}`);
+  console.log(`[CRE] Chainlink Adapter: ${chainlinkAdapter.isConfigured() ? 'Configured' : 'Demo Mode'}`);
   console.log('');
+
+  if (config.rpcUrl && config.privateKey) {
+    chainlinkAdapter.initialize(config.rpcUrl);
+  }
 
   const properties = [0, 1, 2];
 
@@ -273,7 +322,9 @@ async function runWorkflow() {
   logPrivacySafe('WorkflowStarted', {
     propertyCount: properties.length,
     timestamp: Date.now(),
+    network: config.network,
   });
+  
   const results: Array<{ propertyId: number; success: boolean; txHash?: string; error?: string }> = [];
 
   for (const propertyId of properties) {
@@ -288,15 +339,15 @@ async function runWorkflow() {
         continue;
       }
 
-      const isVerified = await verifyPayment(payment);
+      const chainlinkResult = await verifyPaymentWithChainlink(payment);
       
-      if (!isVerified) {
+      if (!chainlinkResult.verified) {
         results.push({ propertyId, success: false, error: 'Payment not verified' });
         continue;
       }
 
       const txHash = await callSmartContract(propertyId, payment.amount, payment.tenantAddress);
-      results.push({ propertyId, success: true, txHash });
+      results.push({ propertyId, success: true, txHash: chainlinkResult.txHash || txHash });
       
     } catch (error) {
       console.error(`[CRE] Error processing property ${propertyId}:`, error);
@@ -307,6 +358,12 @@ async function runWorkflow() {
   console.log('\n=== Workflow Results ===');
   const successCount = results.filter(r => r.success).length;
   console.log(`[CRE] Success: ${successCount}/${results.length} properties processed`);
+  
+  logPrivacySafe('WorkflowCompleted', {
+    successCount,
+    totalCount: results.length,
+    results: results.map(r => ({ propertyId: r.propertyId, success: r.success })),
+  });
 
   return results;
 }
@@ -328,6 +385,8 @@ export {
   runWorkflow, 
   fetchPaymentStatusWithConfidentialHttp, 
   verifyPayment, 
+  verifyPaymentWithChainlink,
   callSmartContract,
   getConfidentialHeaders,
+  config,
 };
