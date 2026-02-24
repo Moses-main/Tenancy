@@ -544,6 +544,70 @@ The mock backend simulates off-chain verification:
 
 ---
 
+## 🔄 Running the CRE Workflow
+
+### Quick Start
+
+```bash
+# Navigate to CRE workflow directory
+cd cre-workflow
+
+# Install dependencies (if not already)
+npm install
+
+# Run the simulation
+npm run simulate
+```
+
+### Configuration
+
+Create a `.env` file in `cre-workflow/`:
+
+```env
+# Ethereum Sepolia
+SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_INFURA_KEY
+PRIVATE_KEY=0x...
+
+# Contract Addresses (after deployment)
+PROPERTY_REGISTRY_ADDRESS=0x...
+YIELD_DISTRIBUTOR_ADDRESS=0x...
+
+# Confidential API (optional)
+CONFIDENTIAL_API_URL=https://api.tenancy.internal
+CONFIDENTIAL_API_KEY=your_api_key
+
+# Chainlink Price Feed
+ETH_USD_PRICE_FEED=0x694AA1769357215DE4FAC081bf1f309aDC325306
+```
+
+### Available Commands
+
+| Command | Description |
+|---------|-------------|
+| `npm run simulate` | Run local simulation (no blockchain needed) |
+| `npm run dev` | Run full workflow (requires deployed contracts) |
+| `npm run build` | Build TypeScript to JavaScript |
+
+### Workflow Output Example
+
+```
+╔════════════════════════════════════════════════════════════╗
+║     TENANCY CRE Workflow - Local Simulation              ║
+╚════════════════════════════════════════════════════════════╝
+
+✓ Property 0: VERIFIED
+✓ Property 1: VERIFIED
+✗ Property 2: FAILED (payment pending)
+
+╔════════════════════════════════════════════════════════════╗
+║  Verified: 2/3 properties                                 ║
+║  Yield Distributed: 2 transactions                        ║
+║  Total Yield: 0.3000 ETH                                  ║
+╚════════════════════════════════════════════════════════════╝
+```
+
+---
+
 ## 📦 Deployment
 
 ### Frontend (Vercel)
