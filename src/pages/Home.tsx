@@ -149,7 +149,7 @@ export default function Home() {
         </section>
 
         <section className="grid gap-6 lg:grid-cols-7">
-          <div className="lg:col-span-4 rounded-2xl border border-border bg-card p-6 md:p-8">
+          <div className="lg:col-span-4 rounded-2xl border border-border bg-card p-6 md:p-8 card-shadow">
             <div className="mb-6 md:mb-8">
               <h2 className="text-lg md:text-xl font-semibold tracking-tight">Platform Yield History</h2>
               <p className="text-sm text-muted-foreground mt-1">Historical APY from aggregated rental streams.</p>
@@ -176,7 +176,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="lg:col-span-3 rounded-2xl border border-border bg-card p-6 md:p-8">
+          <div className="lg:col-span-3 rounded-2xl border border-border bg-card p-6 md:p-8 card-shadow">
             <div className="mb-6 md:mb-8">
               <h2 className="text-lg md:text-xl font-semibold tracking-tight">Recent Verifications</h2>
               <p className="text-sm text-muted-foreground mt-1">Real-world payments verified on-chain.</p>
@@ -221,7 +221,7 @@ export default function Home() {
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {displayProperties.map((property: any) => (
-              <div key={property.id} className="group rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/50 transition-all hover:shadow-lg">
+              <div key={property.id} className="group rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/50 transition-all hover:shadow-xl hover:-translate-y-1 card-hover">
                 <div className="h-28 md:h-40 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
                   <Building className="h-10 md:h-12 w-10 md:w-12 text-primary/40" />
                 </div>

@@ -12,7 +12,7 @@ interface StatCardProps {
 
 const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, trend, trendUp, description }) => {
   return (
-    <div className="rounded-2xl border border-border bg-card text-card-foreground p-6 hover:border-primary/30 transition-colors">
+    <div className="rounded-2xl border border-border bg-card text-card-foreground p-6 hover:border-primary/30 transition-all hover:-translate-y-1 stat-card">
       <div className="flex items-start justify-between mb-4">
         <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
           <Icon className="h-6 w-6 text-primary" />

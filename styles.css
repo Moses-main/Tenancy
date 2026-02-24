@@ -49,14 +49,15 @@ All colors MUST be HSL.
     --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     --radius: 0.375rem;
-    --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-    --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-    --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-    --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-    --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
-    --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
-    --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
-    --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+    /* Light mode shadows - more prominent */
+    --shadow-2xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-xs: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow-sm: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-md: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+    --shadow-xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+    --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.35);
     --tracking-normal: 0em;
     --spacing: 0.25rem;
   }
@@ -133,5 +134,46 @@ All colors MUST be HSL.
       opacity: 1;
       transform: translateY(0);
     }
+  }
+
+  /* Light mode card enhancements */
+  .light .card-shadow {
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.15), 0 2px 10px -2px rgba(0, 0, 0, 0.1);
+  }
+
+  .light .card-hover:hover {
+    box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.2), 0 10px 20px -5px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Light mode specific overrides */
+  .light .bg-card {
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08), 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+  }
+
+  .light .rounded-xl, 
+  .light .rounded-2xl,
+  .light .rounded-lg {
+    box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.08), 0 1px 4px -2px rgba(0, 0, 0, 0.04);
+  }
+
+  .light .rounded-xl:hover, 
+  .light .rounded-2xl:hover,
+  .light .rounded-lg:hover {
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.15), 0 4px 12px -4px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Light mode header */
+  .light header {
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 1px 3px -1px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Light mode stat cards */
+  .light .stat-card {
+    box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.1), 0 2px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+
+  .light .stat-card:hover {
+    box-shadow: 0 8px 30px -8px rgba(0, 0, 0, 0.15), 0 4px 12px -4px rgba(0, 0, 0, 0.08);
   }
 }
