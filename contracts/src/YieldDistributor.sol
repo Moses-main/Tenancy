@@ -50,6 +50,14 @@ contract YieldDistributor is Ownable {
     uint256 public lastInflationIndex;
     uint256 public priceFeedUpdateTime;
     
+    uint256 public minReserveRatio = 1500;
+    uint256 public defaultThreshold = 1000;
+    uint256 public totalDefaults;
+    uint256 public lastRiskCheck;
+    bool public safeguardActive;
+    mapping(uint256 => uint256) public propertyDefaults;
+    mapping(address => bool) public authorizedRiskOracles;
+    
     event DistributionStarted(uint256 distributionId, uint256 propertyId, uint256 totalYield);
     event DistributionCompleted(uint256 distributionId, uint256 propertyId, uint256 distributedYield);
     event DistributionPaused(uint256 distributionId, uint256 propertyId);
@@ -57,6 +65,10 @@ contract YieldDistributor is Ownable {
     event YieldClaimed(address indexed claimant, uint256 amount);
     event YieldPoolUpdated(uint256 newTotal, uint256 change);
     event PriceFeedUpdated(uint256 ethUsdPrice, uint256 inflationIndex, uint256 timestamp);
+    event RiskAlert(uint256 alertType, string message, uint256 value);
+    event ReserveHealthCheck(uint256 totalReserve, uint256 requiredReserve, bool isHealthy);
+    event DefaultRecorded(uint256 propertyId, uint256 defaultAmount, uint256 timestamp);
+    event SafeguardTriggered(string reason, uint256 timestamp);
     
     constructor(address initialOwner, address _ethUsdPriceFeed, address _inflationIndexFeed) Ownable(initialOwner) {
         _distributionCount = 0;
@@ -298,5 +310,87 @@ contract YieldDistributor is Ownable {
             return 0;
         }
         return (distribution.totalYield * uint256(price)) / 1e8;
+    }
+    
+    function checkReserveHealth() external returns (bool isHealthy, uint256 totalReserve, uint256 requiredReserve) {
+        totalReserve = totalYieldPool;
+        uint256 totalPending = totalDistributedYield + totalYieldPool;
+        requiredReserve = (totalPending * minReserveRatio) / 10000;
+        
+        isHealthy = totalReserve >= requiredReserve;
+        
+        emit ReserveHealthCheck(totalReserve, requiredReserve, isHealthy);
+        
+        if (!isHealthy && !safeguardActive) {
+            _triggerSafeguard("Reserve ratio below minimum");
+        }
+        
+        lastRiskCheck = block.timestamp;
+        return (isHealthy, totalReserve, requiredReserve);
+    }
+    
+    function recordDefault(uint256 propertyId, uint256 defaultAmount) external onlyOwner {
+        propertyDefaults[propertyId] += defaultAmount;
+        totalDefaults += defaultAmount;
+        
+        emit DefaultRecorded(propertyId, defaultAmount, block.timestamp);
+        
+        uint256 defaultRatio = (totalDefaults * 10000) / (totalYieldPool + 1);
+        if (defaultRatio > defaultThreshold) {
+            _triggerSafeguard("Default threshold exceeded");
+        }
+    }
+    
+    function getDefaultRatio() external view returns (uint256) {
+        if (totalYieldPool == 0) return 0;
+        return (totalDefaults * 10000) / totalYieldPool;
+    }
+    
+    function _triggerSafeguard(string memory reason) internal {
+        safeguardActive = true;
+        emit SafeguardTriggered(reason, block.timestamp);
+        emit RiskAlert(1, reason, totalDefaults);
+    }
+    
+    function activateSafeguard(string memory reason) external onlyOwner {
+        _triggerSafeguard(reason);
+    }
+    
+    function deactivateSafeguard() external onlyOwner {
+        safeguardActive = false;
+        emit RiskAlert(2, "Safeguard deactivated", 0);
+    }
+    
+    function setMinReserveRatio(uint256 _ratio) external onlyOwner {
+        require(_ratio >= 1000 && _ratio <= 10000, "Ratio must be 10-100%");
+        minReserveRatio = _ratio;
+    }
+    
+    function setDefaultThreshold(uint256 _threshold) external onlyOwner {
+        require(_threshold >= 100 && _threshold <= 10000, "Threshold must be 1-100%");
+        defaultThreshold = _threshold;
+    }
+    
+    function isSystemHealthy() external view returns (bool) {
+        if (safeguardActive) return false;
+        if (totalYieldPool == 0) return true;
+        
+        uint256 defaultRatio = (totalDefaults * 10000) / totalYieldPool;
+        return defaultRatio <= defaultThreshold;
+    }
+    
+    function getRiskMetrics() external view returns (
+        uint256 _totalDefaults,
+        uint256 _defaultRatio,
+        uint256 _reserveRatio,
+        bool _safeguardActive,
+        uint256 _lastRiskCheck
+    ) {
+        uint256 _defaultRatio = totalYieldPool > 0 ? (totalDefaults * 10000) / totalYieldPool : 0;
+        uint256 _reserveRatio = totalDistributedYield > 0 
+            ? (totalYieldPool * 10000) / totalDistributedYield 
+            : 0;
+        
+        return (totalDefaults, _defaultRatio, _reserveRatio, safeguardActive, lastRiskCheck);
     }
 }

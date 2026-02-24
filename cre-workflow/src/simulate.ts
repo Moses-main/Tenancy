@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { simulateRiskScenario, assessRiskLevel, getRiskRecommendations } from './risk-service';
 
 const MOCK_PAYMENTS = [
   {
@@ -109,7 +110,18 @@ async function simulateCREWorkflow(): Promise<void> {
   console.log('\n   AI Strategy: High priority → Property 0, 1 | Low priority → Property 2');
 
   console.log('\n┌────────────────────────────────────────────────────────────┐');
-  console.log('│ STEP 5: On-Chain Yield Distribution                        │');
+  console.log('│ STEP 5: Risk & Compliance Check                            │');
+  console.log('│   - Proof-of-Reserve on yield pool                        │');
+  console.log('│   - Default threshold monitoring                         │');
+  console.log('│   - Auto-trigger safeguard if needed                     │');
+  console.log('└────────────────────────────────────────────────────────────┘\n');
+
+  await sleep(500);
+  const riskMetrics = await simulateRiskScenario('healthy');
+  await sleep(400);
+
+  console.log('\n┌────────────────────────────────────────────────────────────┐');
+  console.log('│ STEP 6: On-Chain Yield Distribution                        │');
   console.log('│   Calling: YieldDistributor.createDistribution()          │');
   console.log('│   Calling: YieldDistributor.startDistribution()           │');
   console.log('└────────────────────────────────────────────────────────────┘\n');
