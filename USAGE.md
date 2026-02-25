@@ -251,9 +251,12 @@ Properties may take a moment to load. Try:
 
 | Contract | Address | Explorer |
 |----------|---------|----------|
-| TENToken | `0x4e9A9676b3E24E406a42710A06120561D5A9A045` | [View](https://sepolia.basescan.org/address/0x4e9A9676b3E24E406a42710A06120561D5A9A045) |
-| PropertyRegistry | `0x00185866B2eb4dEB6000e82840E436CCE375BcF2` | [View](https://sepolia.basescan.org/address/0x00185866B2eb4dEB6000e82840E436CCE375BcF2) |
-| YieldDistributor | `0xd42992B93a9cD29D6d7Bfb6e1e84bc83C97F3302` | [View](https://sepolia.basescan.org/address/0xd42992B93a9cD29D6d7Bfb6e1e84bc83C97F3302) |
+| TENToken | `0x539bd9076cB447Da9c88e722052293dD3394b536` | [View](https://sepolia.basescan.org/address/0x539bd9076cB447Da9c88e722052293dD3394b536) |
+| PropertyRegistry | `0x8f77c2BD2132727327B27164cDec4ccaA2083f7C` | [View](https://sepolia.basescan.org/address/0x8f77c2BD2132727327B27164cDec4ccaA2083f7C) |
+| YieldDistributor | `0xd7c3c5e900Bd95653FA65b660a94625E1ddbBDA1` | [View](https://sepolia.basescan.org/address/0xd7c3c5e900Bd95653FA65b660a94625E1ddbBDA1) |
+| PriceFeedConsumer | `0xc8C6ecAA0287310bb8B0c9BE71253E758702b541` | [View](https://sepolia.basescan.org/address/0xc8C6ecAA0287310bb8B0c9BE71253E758702b541) |
+| RentalToken | `0xa17936BD48Aff8F27f607EdcFf4f206570cd1EF2` | [View](https://sepolia.basescan.org/address/0xa17936BD48Aff8F27f607EdcFf4f206570cd1EF2) |
+| PropertyMarketplace | `0xE07db63A23d6572dB1374B49DB7Cc063BE0aE035` | [View](https://sepolia.basescan.org/address/0xE07db63A23d6572dB1374B49DB7Cc063BE0aE035) |
 
 ---
 

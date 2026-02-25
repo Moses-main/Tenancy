@@ -42,4 +42,5 @@
 contracts/cache/
 contracts/out/
 contracts/broadcast/
+contracts/.env
 
