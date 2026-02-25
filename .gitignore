@@ -35,6 +35,7 @@
 /server/tests
 /server/test-results
 /server/test-results-*/
+/server/.env
 
 
 # Foundry
