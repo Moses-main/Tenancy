@@ -13,15 +13,16 @@ contract DeployTENANCY is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
         
+        // Default to no price feed (can be set later)
+        // Sepolia: 0x694AA1769357215DE4FAC081bf1f309aDC325306
+        // Base Sepolia: Use address(0) initially - set later
+        address ethUsdPriceFeed = vm.envOr("ETH_USD_PRICE_FEED", address(0));
+        
         vm.startBroadcast(deployerPrivateKey);
 
         TENToken tenToken = new TENToken(deployer);
         console.log("TENToken deployed at:", address(tenToken));
 
-        // Sepolia Chainlink Price Feeds (ETH/USD)
-        // https://docs.chain.link/data-feeds/price-feeds/addresses?network=ethereum
-        address ethUsdPriceFeed = 0x694AA1769357215DE4FAC081bf1f309aDC325306;
-        
         // Inflation Index (custom/mock) - placeholder address
         address inflationIndexFeed = 0x0000000000000000000000000000000000000001;
         

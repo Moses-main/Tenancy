@@ -52,10 +52,12 @@ const AppContent: React.FC = () => {
 };
 
 const App: React.FC = () => {
+  const privyAppId = import.meta.env.VITE_PRIVY_APP_ID || 'your_privy_app_id';
+  
   return (
     <ErrorBoundary>
       <PrivyProvider
-        appId="cmlzow5lz004r0djm386ert5v"
+        appId={privyAppId}
         config={{
           loginMethods: ['email', 'wallet'],
           embeddedWallets: {
