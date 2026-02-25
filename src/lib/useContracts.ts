@@ -5,7 +5,9 @@ import {
   CONTRACT_ADDRESSES, 
   ABIS, 
   type Property,
-  type PropertyWithToken 
+  type PropertyWithToken,
+  type MarketplaceListing,
+  type Lease
 } from './contracts';
 
 export const useContracts = () => {
@@ -37,9 +39,15 @@ export const useContracts = () => {
       propertyRegistry: new Contract(addrs.propertyRegistry, ABIS.propertyRegistry, signer),
       tenToken: new Contract(addrs.tenToken, ABIS.erc20, signer),
       yieldDistributor: new Contract(addrs.yieldDistributor, ABIS.yieldDistributor, signer),
+      marketplace: addrs.marketplace !== '0x0000000000000000000000000000000000000000' 
+        ? new Contract(addrs.marketplace, ABIS.marketplace, signer) 
+        : null,
       propertyRegistryReader: new Contract(addrs.propertyRegistry, ABIS.propertyRegistry, provider),
       tenTokenReader: new Contract(addrs.tenToken, ABIS.erc20, provider),
       yieldDistributorReader: new Contract(addrs.yieldDistributor, ABIS.yieldDistributor, provider),
+      marketplaceReader: addrs.marketplace !== '0x0000000000000000000000000000000000000000'
+        ? new Contract(addrs.marketplace, ABIS.marketplace, provider)
+        : null,
       addresses: addrs,
     };
   }, [provider, address, chainId]);
@@ -199,22 +207,191 @@ export const useContracts = () => {
     }
   }, [getContracts]);
 
+  const getYieldPoolInfo = useCallback(async () => {
+    if (!provider) return null;
+    try {
+      const isBaseSepolia = chainId === 84532;
+      const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
+      const yieldDist = new Contract(addrs.yieldDistributor, ABIS.yieldDistributor, provider);
+      
+      const totalPool = await yieldDist.totalYieldPool();
+      const totalDistributed = await yieldDist.totalDistributedYield();
+      const isHealthy = await yieldDist.isSystemHealthy();
+      const ethPrice = await yieldDist.getEthUsdPrice();
+      
+      return {
+        totalPool: formatUnits(totalPool, 18),
+        totalDistributed: formatUnits(totalDistributed, 18),
+        isHealthy,
+        ethPrice: formatUnits(ethPrice, 8),
+      };
+    } catch (err) {
+      console.error('Error getting yield pool info:', err);
+      return null;
+    }
+  }, [provider, chainId]);
+
+  const getUserDistributions = useCallback(async (userAddress?: string): Promise<Array<{
+    distributionId: number;
+    propertyId: bigint;
+    totalYield: string;
+    distributedYield: string;
+    holderBalance: string;
+    status: number;
+    timestamp: number;
+  }>> => {
+    if (!provider) return [];
+    try {
+      const isBaseSepolia = chainId === 84532;
+      const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
+      const yieldDist = new Contract(addrs.yieldDistributor, ABIS.yieldDistributor, provider);
+      
+      const properties = await getAllProperties();
+      const userAddr = userAddress || address;
+      const distributions: Array<{
+        distributionId: number;
+        propertyId: bigint;
+        totalYield: string;
+        distributedYield: string;
+        holderBalance: string;
+        status: number;
+        timestamp: number;
+      }> = [];
+      
+      for (let i = 0; i < properties.length; i++) {
+        try {
+          const info = await yieldDist.getDistributionInfo(i);
+          if (info && info.holders.includes(userAddr)) {
+            const holderIndex = info.holders.indexOf(userAddr);
+            distributions.push({
+              distributionId: i,
+              propertyId: info.propertyId,
+              totalYield: formatUnits(info.totalYield, 18),
+              distributedYield: formatUnits(info.distributedYield, 18),
+              holderBalance: formatUnits(info.holderBalances[holderIndex], 18),
+              status: Number(info.status),
+              timestamp: Number(info.distributionTimestamp),
+            });
+          }
+        } catch {
+          continue;
+        }
+      }
+      
+      return distributions;
+    } catch (err) {
+      console.error('Error getting user distributions:', err);
+      return [];
+    }
+  }, [provider, address, chainId, getAllProperties]);
+
+  const claimAllYields = useCallback(async (): Promise<string[]> => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const distributions = await getUserDistributions();
+      const txHashes: string[] = [];
+      
+      for (const dist of distributions) {
+        if (dist.status === 2) {
+          try {
+            const contracts = await getContracts();
+            const tx = await contracts.yieldDistributor.claimYield(dist.distributionId);
+            const receipt = await tx.wait();
+            txHashes.push(receipt.hash);
+          } catch (err) {
+            console.error(`Error claiming yield for distribution ${dist.distributionId}:`, err);
+          }
+        }
+      }
+      
+      return txHashes;
+    } catch (err: any) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [getContracts, getUserDistributions]);
+
+  const USDC_ADDRESSES = {
+    baseSepolia: '0x036CbD53846f34B88b1d4a2d8b9B7F7f3F9D3F9',
+    sepolia: '0xda0d3FA677B08D2Afd00D8e23c4A79DC9eBd8C2',
+  };
+
+  const buyPropertyTokens = useCallback(async (
+    propertyTokenAddress: string,
+    amount: string,
+    sellerAddress: string
+  ): Promise<string> => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const signer = await provider.getSigner();
+      const buyerAddress = await signer.getAddress();
+      
+      const isBaseSepolia = chainId === 84532;
+      const usdcAddress = isBaseSepolia ? USDC_ADDRESSES.baseSepolia : USDC_ADDRESSES.sepolia;
+      
+      const propertyToken = new Contract(propertyTokenAddress, ABIS.erc20, signer);
+      const amountWei = parseUnits(amount, 18);
+      
+      const pricePerToken = parseUnits('1.05', 6);
+      const totalCost = (amountWei * pricePerToken) / parseUnits('1', 18);
+      
+      const usdcABI = [
+        'function transferFrom(address from, address to, uint256 amount) returns (bool)',
+        'function approve(address spender, uint256 amount) returns (bool)',
+        'function allowance(address owner, address spender) view returns (uint256)',
+        'function balanceOf(address account) view returns (uint256)',
+      ];
+      
+      const usdc = new Contract(usdcAddress, usdcABI, signer);
+      
+      const buyerUSDCBalance = await usdc.balanceOf(buyerAddress);
+      if (buyerUSDCBalance < totalCost) {
+        throw new Error('Insufficient USDC balance. Please get USDC to proceed.');
+      }
+      
+      const currentAllowance = await usdc.allowance(buyerAddress, propertyTokenAddress);
+      if (currentAllowance < totalCost) {
+        const approveTx = await usdc.approve(propertyTokenAddress, totalCost);
+        await approveTx.wait();
+      }
+      
+      const transferFromTx = await usdc.transferFrom(buyerAddress, sellerAddress, totalCost);
+      await transferFromTx.wait();
+      
+      const mintTx = await propertyToken.transfer(buyerAddress, amountWei);
+      const receipt = await mintTx.wait();
+      
+      return receipt.hash;
+    } catch (err: any) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [provider, chainId]);
+
   const buyTokens = useCallback(async (propertyTokenAddress: string, amount: string): Promise<string> => {
     setIsLoading(true);
     setError(null);
     try {
       const isBaseSepolia = chainId === 84532;
       const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
-      const tenToken = new Contract(addrs.tenToken, ABIS.erc20, provider);
+      const propertyToken = new Contract(propertyTokenAddress, ABIS.erc20, provider);
       const signer = await provider.getSigner();
       const userAddress = await signer.getAddress();
       
-      const token = new Contract(propertyTokenAddress, ABIS.erc20, signer);
       const amountWei = parseUnits(amount, 18);
       
-      const pricePerToken = parseUnits('1.05', 18);
-      const totalCost = amountWei * pricePerToken / parseEther('1');
+      const balance = await propertyToken.balanceOf(addrs.tenToken);
+      if (balance < amountWei) {
+        throw new Error('Insufficient property tokens available');
+      }
       
+      const tenToken = new Contract(addrs.tenToken, ABIS.erc20, signer);
       const tx = await tenToken.transfer(userAddress, amountWei);
       const receipt = await tx.wait();
       return receipt.hash;
@@ -225,6 +402,191 @@ export const useContracts = () => {
       setIsLoading(false);
     }
   }, [provider, chainId, getContracts]);
+
+  const getMarketplaceListings = useCallback(async (): Promise<MarketplaceListing[]> => {
+    if (!provider) return [];
+    
+    try {
+      const isBaseSepolia = chainId === 84532;
+      const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
+      
+      if (!addrs.marketplace || addrs.marketplace === '0x0000000000000000000000000000000000000000') {
+        console.warn('Marketplace not deployed');
+        return [];
+      }
+      
+      const marketplace = new Contract(addrs.marketplace, ABIS.marketplace, provider);
+      const listings = await marketplace.getListings();
+      
+      return listings.map((l: any) => ({
+        id: l.id,
+        seller: l.seller,
+        propertyToken: l.propertyToken,
+        amount: l.amount,
+        pricePerToken: l.pricePerToken,
+        totalPrice: l.totalPrice,
+        isActive: l.isActive,
+        createdAt: l.createdAt,
+      }));
+    } catch (err) {
+      console.error('Error fetching marketplace listings:', err);
+      return [];
+    }
+  }, [provider, chainId]);
+
+  const createMarketplaceListing = useCallback(async (
+    propertyToken: string,
+    amount: string,
+    pricePerToken: string
+  ): Promise<string> => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const contracts = await getContracts();
+      if (!contracts.marketplace) {
+        throw new Error('Marketplace not deployed');
+      }
+      
+      const propertyTokenContract = new Contract(propertyToken, ABIS.erc20, await provider.getSigner());
+      const amountWei = parseUnits(amount, 18);
+      const priceWei = parseUnits(pricePerToken, 18);
+      
+      const allowance = await propertyTokenContract.allowance(address, contracts.marketplace.target);
+      if (allowance < amountWei) {
+        const approveTx = await propertyTokenContract.approve(contracts.marketplace.target, amountWei);
+        await approveTx.wait();
+      }
+      
+      const tx = await contracts.marketplace.createListing(propertyToken, amountWei, priceWei);
+      const receipt = await tx.wait();
+      return receipt.hash;
+    } catch (err: any) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [provider, address, chainId, getContracts]);
+
+  const buyMarketplaceListing = useCallback(async (listingId: number): Promise<string> => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const contracts = await getContracts();
+      if (!contracts.marketplace) {
+        throw new Error('Marketplace not deployed');
+      }
+      
+      const tx = await contracts.marketplace.buyListing(listingId, { value: parseEther('0.01') });
+      const receipt = await tx.wait();
+      return receipt.hash;
+    } catch (err: any) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [getContracts]);
+
+  const cancelMarketplaceListing = useCallback(async (listingId: number): Promise<string> => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const contracts = await getContracts();
+      if (!contracts.marketplace) {
+        throw new Error('Marketplace not deployed');
+      }
+      
+      const tx = await contracts.marketplace.cancelListing(listingId);
+      const receipt = await tx.wait();
+      return receipt.hash;
+    } catch (err: any) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [getContracts]);
+
+  const getLeases = useCallback(async (userAddress?: string): Promise<Lease[]> => {
+    if (!provider) return [];
+    
+    try {
+      const properties = await getAllProperties();
+      const userAddr = userAddress || address;
+      
+      if (!userAddr) return [];
+      
+      const leases: Lease[] = [];
+      
+      for (const prop of properties) {
+        const propertyToken = new Contract(prop.propertyToken, ABIS.erc20, provider);
+        const balance = await propertyToken.balanceOf(userAddr);
+        
+        if (balance > 0) {
+          leases.push({
+            id: prop.id,
+            propertyId: prop.id,
+            tenant: userAddr,
+            monthlyRent: prop.rentAmount,
+            rentDueDate: BigInt(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            lastPaymentDate: BigInt(Date.now() - 15 * 24 * 60 * 60 * 1000),
+            status: 1,
+            createdAt: BigInt(Date.now()),
+          });
+        }
+      }
+      
+      return leases;
+    } catch (err) {
+      console.error('Error fetching user leases:', err);
+      return [];
+    }
+  }, [provider, address, getAllProperties]);
+
+  const payRent = useCallback(async (propertyId: number, amount: string): Promise<string> => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const properties = await getAllProperties();
+      const property = properties.find((p: Property) => Number(p.id) === propertyId);
+      
+      if (!property) {
+        throw new Error('Property not found');
+      }
+      
+      const isBaseSepolia = chainId === 84532;
+      const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
+      
+      const usdcABI = [
+        'function transfer(address to, uint256 amount) returns (bool)',
+        'function approve(address spender, uint256 amount) returns (bool)',
+        'function allowance(address owner, address spender) view returns (uint256)',
+        'function balanceOf(address account) view returns (uint256)',
+      ];
+      
+      const usdcAddress = isBaseSepolia ? '0x036CbD53846f34B88b1d4a2d8b9B7F7f3F9D3F9' : '0xda0d3FA677B08D2Afd00D8e23c4A79DC9eBd8C2';
+      const signer = await provider.getSigner();
+      const usdc = new Contract(usdcAddress, usdcABI, signer);
+      
+      const amountWei = parseUnits(amount, 6);
+      const balance = await usdc.balanceOf(address);
+      
+      if (balance < amountWei) {
+        throw new Error('Insufficient USDC balance');
+      }
+      
+      const tx = await usdc.transfer(property.owner, amountWei);
+      const receipt = await tx.wait();
+      
+      return receipt.hash;
+    } catch (err: any) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [provider, address, chainId, getAllProperties]);
 
   return {
     isLoading,
@@ -240,6 +602,16 @@ export const useContracts = () => {
     getPendingYield,
     claimYield,
     depositYield,
+    getYieldPoolInfo,
+    getUserDistributions,
+    claimAllYields,
     buyTokens,
+    buyPropertyTokens,
+    getMarketplaceListings,
+    createMarketplaceListing,
+    buyMarketplaceListing,
+    cancelMarketplaceListing,
+    getLeases,
+    payRent,
   };
 };

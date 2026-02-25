@@ -12,6 +12,7 @@ interface Listing {
   propertyId: number;
   propertyName: string;
   propertyUri: string;
+  propertyToken: string;
   seller: string;
   amount: number;
   pricePerToken: number;
@@ -22,7 +23,7 @@ interface Listing {
 
 export default function Marketplace() {
   const { isAuthenticated, address, isCorrectNetwork } = useAuth();
-  const { getAllProperties, buyTokens, chainId } = useContracts();
+  const { getAllProperties, buyPropertyTokens, chainId } = useContracts();
   
   const [listings, setListings] = useState<Listing[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,6 +52,7 @@ export default function Marketplace() {
           propertyId: Number(p.id),
           propertyName: p.uri || `Property #${Number(p.id)}`,
           propertyUri: p.uri,
+          propertyToken: p.propertyToken,
           seller: p.owner,
           amount: parseFloat(formatUnits(p.totalSupply, 18)),
           pricePerToken: 1.05,
@@ -85,7 +87,8 @@ export default function Marketplace() {
     const toastId = toast.loading("Processing purchase...");
     
     try {
-      await buyTokens(listing.seller, (listing.amount / 1000).toString());
+      const amount = (listing.amount / 1000).toString();
+      await buyPropertyTokens(listing.propertyToken, amount, listing.seller);
       toast.update(toastId, {
         render: `Successfully purchased ${listing.amount} tokens for ${listing.totalPrice.toFixed(2)} USDC!`,
         type: "success",
@@ -114,6 +117,7 @@ export default function Marketplace() {
       propertyId: parseInt(newListing.propertyId),
       propertyName: `Property ${newListing.propertyId}`,
       propertyUri: '',
+      propertyToken: '0x0000000000000000000000000000000000000000',
       seller: address || '0xYou...ABC1',
       amount: parseInt(newListing.amount),
       pricePerToken: parseFloat(newListing.pricePerToken),

@@ -1,10 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
-import { Building2, UploadCloud, CheckCircle2, AlertCircle, ArrowRight, ExternalLink, Loader2 } from 'lucide-react';
+import { Building2, UploadCloud, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useContracts } from '../lib/useContracts';
 import { useAuth } from '../lib/AuthContext';
-import { formatUnits, parseUnits } from 'ethers';
+import { formatUnits } from 'ethers';
 
 interface PropertyDisplay {
   id: number;
@@ -29,14 +29,6 @@ export default function IssuerDashboard() {
 
   const [properties, setProperties] = useState<PropertyDisplay[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const pollingRef = useRef<Map<string, number>>(new Map());
-  const [apiKey, setApiKey] = useState('');
-
-  const activeStreams = [
-    { id: '1', name: '742 Evergreen Terrace', rent: 2000, duration: '8/12 mo', status: 'Active' },
-    { id: '2', name: '100 Universal City Plaza', rent: 5500, duration: '2/24 mo', status: 'Active' },
-    { id: '3', name: '350 Fifth Ave, Ste 40', rent: 12000, duration: '11/12 mo', status: 'Pending Verification' },
-  ];
 
   useEffect(() => {
     const fetchProperties = async () => {
@@ -63,42 +55,6 @@ export default function IssuerDashboard() {
     };
     fetchProperties();
   }, [isAuthenticated, isCorrectNetwork, chainId, address]);
-
-  useEffect(() => {
-    return () => {
-      pollingRef.current.forEach((timerId) => clearInterval(timerId));
-      pollingRef.current.clear();
-    };
-  }, []);
-
-  const startPolling = (verificationId: string) => {
-    if (pollingRef.current.has(verificationId)) return;
-
-    const timerId = window.setInterval(async () => {
-      try {
-        const updated = await api.getVerification(verificationId);
-        setVerifications((prev) => {
-          const found = prev.find((p) => p.verificationId === verificationId);
-          if (found) {
-            return prev.map((p) => (p.verificationId === verificationId ? updated : p));
-          }
-          return [updated, ...prev];
-        });
-
-        if (updated.status === 'verified' || updated.chainlinkTx) {
-          const t = pollingRef.current.get(verificationId);
-          if (t) {
-            clearInterval(t);
-            pollingRef.current.delete(verificationId);
-          }
-        }
-      } catch (err) {
-        console.error('[PollError]', err);
-      }
-    }, 2500);
-
-    pollingRef.current.set(verificationId, timerId);
-  };
 
   const handleTokenize = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,32 +110,6 @@ export default function IssuerDashboard() {
       });
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleTriggerChainlink = async (verificationId: string) => {
-    if (!apiKey) {
-      toast.error('API Key is required to trigger the mock Chainlink job (local dev).');
-      return;
-    }
-
-    const loadingId = toast.loading('Triggering mock Chainlink job...');
-
-    try {
-      toast.update(loadingId, {
-        render: `Chainlink job triggered (simulated)`,
-        type: 'success',
-        isLoading: false,
-        autoClose: 4000,
-      });
-    } catch (err: any) {
-      console.error(err);
-      toast.update(loadingId, {
-        render: err?.message || 'Failed to trigger Chainlink job',
-        type: 'error',
-        isLoading: false,
-        autoClose: 4000,
-      });
     }
   };
 

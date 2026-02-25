@@ -10,18 +10,21 @@ export const CONTRACT_ADDRESSES = {
     tenToken: getEnv('VITE_TEN_TOKEN_BASE_SEPOLIA', '0x925ab782659574dd2e615c8ad85a985a423c228e'),
     yieldDistributor: getEnv('VITE_YIELD_DISTRIBUTOR_BASE_SEPOLIA', '0xa836ba4e902e4dc0b82b712410d71240db84107d'),
     priceFeedConsumer: getEnv('VITE_PRICE_FEED_CONSUMER_BASE_SEPOLIA', '0x7a7cef96db7efaeebeef6c1af9d724e634ad7d70'),
+    marketplace: getEnv('VITE_MARKETPLACE_BASE_SEPOLIA', '0x0000000000000000000000000000000000000000'),
   },
   sepolia: {
     propertyRegistry: getEnv('VITE_PROPERTY_REGISTRY_SEPOLIA', '0x452ba94272f3302E7b48bFFC1F5a57ec7136A6aA'),
     tenToken: getEnv('VITE_TEN_TOKEN_SEPOLIA', '0x9e395acF058c74386b531e4c901C53B1c73E6D5F'),
     yieldDistributor: getEnv('VITE_YIELD_DISTRIBUTOR_SEPOLIA', '0x84bc076C939Aa2B70e0DaEbA708B3aDa3881a179'),
     priceFeedConsumer: getEnv('VITE_PRICE_FEED_CONSUMER_SEPOLIA', '0xE88A399F85550dDF61f9DD6Cb91e2673817D7f91'),
+    marketplace: getEnv('VITE_MARKETPLACE_SEPOLIA', '0x0000000000000000000000000000000000000000'),
   },
   mainnet: {
     propertyRegistry: getEnv('VITE_PROPERTY_REGISTRY_MAINNET', '0x0000000000000000000000000000000000000000'),
     tenToken: getEnv('VITE_TEN_TOKEN_MAINNET', '0x0000000000000000000000000000000000000000'),
     yieldDistributor: getEnv('VITE_YIELD_DISTRIBUTOR_MAINNET', '0x0000000000000000000000000000000000000000'),
     priceFeedConsumer: getEnv('VITE_PRICE_FEED_CONSUMER_MAINNET', '0x0000000000000000000000000000000000000000'),
+    marketplace: getEnv('VITE_MARKETPLACE_MAINNET', '0x0000000000000000000000000000000000000000'),
   },
 };
 
@@ -74,6 +77,19 @@ export const ABIS = {
     "function getLatestPrice() view returns (int256)",
     "function getRoundData(uint80 roundId) view returns (int256)",
   ],
+  marketplace: [
+    "function createListing(address propertyToken, uint256 amount, uint256 pricePerToken) returns (uint256)",
+    "function cancelListing(uint256 listingId)",
+    "function buyListing(uint256 listingId) payable",
+    "function makeOffer(uint256 listingId, uint256 amount, uint256 offeredPrice)",
+    "function acceptOffer(uint256 listingId, uint256 offerId)",
+    "function cancelOffer(uint256 listingId, uint256 offerId)",
+    "function getListings() view returns (tuple(uint256 id, address seller, address propertyToken, uint256 amount, uint256 pricePerToken, uint256 totalPrice, bool isActive, uint256 createdAt)[])",
+    "function getActiveListings() view returns (tuple(uint256 id, address seller, address propertyToken, uint256 amount, uint256 pricePerToken, uint256 totalPrice, bool isActive, uint256 createdAt)[])",
+    "function getUserListings(address user) view returns (tuple(uint256 id, address seller, address propertyToken, uint256 amount, uint256 pricePerToken, uint256 totalPrice, bool isActive, uint256 createdAt)[])",
+    "function listingCount() view returns (uint256)",
+    "function platformFeePercent() view returns (uint256)",
+  ],
 };
 
 export const getContracts = async (provider: BrowserProvider, chainId: number) => {
@@ -85,6 +101,9 @@ export const getContracts = async (provider: BrowserProvider, chainId: number) =
     tenToken: new Contract(addresses.tenToken, ABIS.erc20, provider),
     yieldDistributor: new Contract(addresses.yieldDistributor, ABIS.yieldDistributor, provider),
     priceFeedConsumer: new Contract(addresses.priceFeedConsumer, ABIS.priceFeed, provider),
+    marketplace: addresses.marketplace !== '0x0000000000000000000000000000000000000000' 
+      ? new Contract(addresses.marketplace, ABIS.marketplace, provider) 
+      : null,
     addresses,
     chainConfig: config || CHAIN_CONFIG[84532],
   };
@@ -122,4 +141,26 @@ export interface PropertyWithToken extends Property {
   tokenSymbol?: string;
   tokenDecimals?: number;
   tokenBalance?: bigint;
+}
+
+export interface MarketplaceListing {
+  id: bigint;
+  seller: string;
+  propertyToken: string;
+  amount: bigint;
+  pricePerToken: bigint;
+  totalPrice: bigint;
+  isActive: boolean;
+  createdAt: bigint;
+}
+
+export interface Lease {
+  id: bigint;
+  propertyId: bigint;
+  tenant: string;
+  monthlyRent: bigint;
+  rentDueDate: bigint;
+  lastPaymentDate: bigint;
+  status: number;
+  createdAt: bigint;
 }

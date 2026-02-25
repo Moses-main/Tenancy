@@ -17,6 +17,7 @@ interface PropertyDisplay {
   tokensAvailable: string;
   rent: string;
   propertyToken: string;
+  owner: string;
 }
 
 export default function InvestorDashboard() {
@@ -26,7 +27,7 @@ export default function InvestorDashboard() {
     getTENBalance, 
     getPendingYield, 
     claimYield,
-    buyTokens,
+    buyPropertyTokens,
     isLoading: contractLoading,
     chainId
   } = useContracts();
@@ -59,6 +60,7 @@ export default function InvestorDashboard() {
           tokensAvailable: parseFloat(formatUnits(p.totalSupply, 18)).toLocaleString(),
           rent: `$${(parseFloat(formatUnits(p.rentAmount, 6)) / 100).toFixed(0)}/mo`,
           propertyToken: p.propertyToken,
+          owner: p.owner,
         }));
         
         setProperties(displayProps);
@@ -85,9 +87,10 @@ export default function InvestorDashboard() {
     const toastId = toast.loading("Processing token purchase...");
     
     try {
-      const txHash = await buyTokens(selectedProperty.propertyToken, buyAmount);
+      const sellerAddress = selectedProperty.owner || '0x0000000000000000000000000000000000000000';
+      const txHash = await buyPropertyTokens(selectedProperty.propertyToken, buyAmount, sellerAddress);
       toast.update(toastId, { 
-        render: `Successfully purchased ${buyAmount} TEN tokens!`, 
+        render: `Successfully purchased ${buyAmount} property tokens!`, 
         type: "success", 
         isLoading: false, 
         autoClose: 3000 
