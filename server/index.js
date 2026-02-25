@@ -26,6 +26,9 @@
  *   POST /verify-payment                  - Request payment verification
  *   POST /webhook/payment                 - Payment webhook (protected)
  *   POST /trigger-chainlink              - Trigger Chainlink job (protected)
+ *   POST /api/chainlink/verify           - Verify rental payment via Chainlink
+ *   GET  /api/chainlink/status/:id       - Get verification status
+ *   GET  /api/chainlink/history/:propertyId - Get verification history
  *   GET  /verifications/:id              - Get verification status
  */
 
@@ -415,6 +418,100 @@ app.get('/properties', (req, res) => {
   res.json({
     total: SAMPLE_PROPERTIES.length,
     data: SAMPLE_PROPERTIES
+  });
+});
+
+app.post('/api/chainlink/verify', async (req, res) => {
+  const { propertyId, propertyAddress, tenantAddress, expectedRentAmount, paymentProof, subscriptionId, routerAddress } = req.body || {};
+  
+  if (!propertyId) {
+    return res.status(400).json({ error: 'propertyId is required' });
+  }
+  
+  const verificationId = `cl_${crypto.randomBytes(12).toString('hex')}`;
+  const createdAt = Date.now();
+  
+  const record = {
+    verificationId,
+    propertyId,
+    propertyAddress: propertyAddress || '',
+    tenantAddress: tenantAddress || '',
+    expectedRentAmount: expectedRentAmount || 0,
+    paymentProof: paymentProof || '',
+    subscriptionId: subscriptionId || '',
+    routerAddress: routerAddress || '',
+    status: 'pending',
+    createdAt,
+    verifiedAt: null,
+    chainlinkJobId: null,
+    chainlinkTx: null,
+    error: null
+  };
+  
+  IN_MEMORY_STORE.verifications.set(verificationId, record);
+  
+  console.log(`[Chainlink API] Verification request received: ${verificationId} for property ${propertyId}`);
+  
+  setTimeout(async () => {
+    const verification = IN_MEMORY_STORE.verifications.get(verificationId);
+    if (!verification) return;
+    
+    const price = await fetchChainlinkPrice();
+    const isValid = Math.random() > 0.1;
+    
+    verification.status = isValid ? 'verified' : 'failed';
+    verification.verifiedAt = Date.now();
+    verification.chainlinkJobId = `cljob_${crypto.randomBytes(6).toString('hex')}`;
+    verification.chainlinkTx = isValid ? `0x${crypto.randomBytes(32).toString('hex')}` : null;
+    verification.priceFeedAtVerification = price;
+    
+    IN_MEMORY_STORE.verifications.set(verificationId, verification);
+    
+    console.log(`[Chainlink API] Verification ${verificationId} completed: ${verification.status}`);
+  }, 2000 + Math.floor(Math.random() * 3000));
+  
+  res.json({
+    verificationId,
+    propertyId,
+    status: 'pending',
+    message: 'Chainlink verification request submitted'
+  });
+});
+
+app.get('/api/chainlink/status/:verificationId', (req, res) => {
+  const { verificationId } = req.params;
+  const rec = IN_MEMORY_STORE.verifications.get(verificationId);
+  
+  if (!rec) {
+    return res.status(404).json({ 
+      verificationId,
+      status: 'not_found',
+      error: 'Verification not found'
+    });
+  }
+  
+  res.json({
+    verificationId: rec.verificationId,
+    propertyId: rec.propertyId,
+    status: rec.status,
+    chainlinkTx: rec.chainlinkTx,
+    verifiedAt: rec.verifiedAt,
+    error: rec.error
+  });
+});
+
+app.get('/api/chainlink/history/:propertyId', (req, res) => {
+  const { propertyId } = req.params;
+  const propId = parseInt(propertyId);
+  
+  const history = Array.from(IN_MEMORY_STORE.verifications.values())
+    .filter(v => v.propertyId === propId)
+    .sort((a, b) => (b.verifiedAt || b.createdAt) - (a.verifiedAt || a.createdAt));
+  
+  res.json({
+    propertyId: propId,
+    total: history.length,
+    data: history
   });
 });
 

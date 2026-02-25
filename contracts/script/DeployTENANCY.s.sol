@@ -7,6 +7,7 @@ import {PropertyRegistry} from "../src/PropertyRegistry.sol";
 import {YieldDistributor} from "../src/YieldDistributor.sol";
 import {PriceFeedConsumer} from "../src/PriceFeedConsumer.sol";
 import {RentalToken} from "../src/RentalToken.sol";
+import {PropertyMarketplace} from "../src/PropertyMarketplace.sol";
 
 contract DeployTENANCY is Script {
     function run() external {
@@ -44,6 +45,9 @@ contract DeployTENANCY is Script {
 
         RentalToken rentalToken = new RentalToken(deployer);
         console.log("RentalToken deployed at:", address(rentalToken));
+
+        PropertyMarketplace marketplace = new PropertyMarketplace();
+        console.log("PropertyMarketplace deployed at:", address(marketplace));
 
         propertyRegistry.setIssuer(deployer, true);
         tenToken.setMinter(deployer, true);
