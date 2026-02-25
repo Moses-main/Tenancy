@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
+import WorldIdVerify from '../components/WorldIdVerify';
 import { Coins, ArrowDownToLine, ArrowRightLeft, TrendingUp, Building, ExternalLink, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useContracts } from '../lib/useContracts';
@@ -40,6 +41,7 @@ export default function InvestorDashboard() {
   const [isProcessingBuy, setIsProcessingBuy] = useState(false);
   const [isProcessingClaim, setIsProcessingClaim] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<PropertyDisplay | null>(null);
+  const [worldIdVerified, setWorldIdVerified] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -115,6 +117,11 @@ export default function InvestorDashboard() {
   const handleClaimYield = async () => {
     if (properties.length === 0) return;
     
+    if (!worldIdVerified) {
+      toast.error('Please verify with World ID first');
+      return;
+    }
+    
     setIsProcessingClaim(true);
     const toastId = toast.loading("Claiming yield...");
     
@@ -129,6 +136,7 @@ export default function InvestorDashboard() {
         autoClose: 3000 
       });
       
+      setWorldIdVerified(false);
       const yield_ = await getPendingYield();
       setPendingYield(yield_);
     } catch (err: any) {
@@ -189,10 +197,18 @@ export default function InvestorDashboard() {
             trend={parseFloat(pendingYield) > 0 ? "+Available" : undefined}
             trendUp={true}
           />
+          {!worldIdVerified && (
+            <div className="col-span-full">
+              <WorldIdVerify
+                actionName="claim-yield"
+                onVerified={() => setWorldIdVerified(true)}
+              />
+            </div>
+          )}
           <div className="rounded-2xl border border-border bg-card p-6 flex flex-col justify-center stat-card">
             <button
               onClick={handleClaimYield}
-              disabled={isProcessingClaim || parseFloat(pendingYield) === 0}
+              disabled={isProcessingClaim || parseFloat(pendingYield) === 0 || !worldIdVerified}
               className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-12 px-6 gap-2 text-base"
             >
               {isProcessingClaim ? (
