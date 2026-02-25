@@ -38,12 +38,12 @@ interface WorkflowConfig {
 const config: WorkflowConfig = {
   propertyRegistryAddress: process.env.PROPERTY_REGISTRY_ADDRESS || '',
   yieldDistributorAddress: process.env.YIELD_DISTRIBUTOR_ADDRESS || '',
-  rpcUrl: process.env.SEPOLIA_RPC_URL || '',
+  rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || process.env.SEPOLIA_RPC_URL || '',
   privateKey: process.env.PRIVATE_KEY || '',
   confidentialApiUrl: process.env.CONFIDENTIAL_API_URL || 'https://api.tenancy.internal',
   confidentialApiKey: process.env.CONFIDENTIAL_API_KEY || '',
   ethUsdPriceFeed: process.env.ETH_USD_PRICE_FEED || '0x694AA1769357215DE4FAC081bf1f309aDC325306',
-  network: (process.env.NETWORK as WorkflowConfig['network']) || 'sepolia',
+  network: (process.env.NETWORK as WorkflowConfig['network']) || 'baseSepolia',
 };
 
 const YIELD_DISTRIBUTOR_ABI = [
