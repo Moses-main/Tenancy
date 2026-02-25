@@ -1,0 +1,48 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'vite.config.ts'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_PRIVY_APP_ID: ${{ secrets.VITE_PRIVY_APP_ID }}
+          VITE_PROPERTY_REGISTRY_BASE_SEPOLIA: ${{ secrets.VITE_PROPERTY_REGISTRY_BASE_SEPOLIA }}
+          VITE_TEN_TOKEN_BASE_SEPOLIA: ${{ secrets.VITE_TEN_TOKEN_BASE_SEPOLIA }}
+          VITE_YIELD_DISTRIBUTOR_BASE_SEPOLIA: ${{ secrets.VITE_YIELD_DISTRIBUTOR_BASE_SEPOLIA }}
+          VITE_PRICE_FEED_CONSUMER_BASE_SEPOLIA: ${{ secrets.VITE_PRICE_FEED_CONSUMER_BASE_SEPOLIA }}
+          VITE_MARKETPLACE_BASE_SEPOLIA: ${{ secrets.VITE_MARKETPLACE_BASE_SEPOLIA }}
+          VITE_RENTAL_TOKEN_BASE_SEPOLIA: ${{ secrets.VITE_RENTAL_TOKEN_BASE_SEPOLIA }}
+          VITE_PINATA_JWT: ${{ secrets.VITE_PINATA_JWT }}
+          VITE_WORLD_ID_APP_ID: ${{ secrets.VITE_WORLD_ID_APP_ID }}
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.ORG_ID }}
+          vercel-project-id: ${{ secrets.PROJECT_ID }}
+          vercel-args: '--prod'

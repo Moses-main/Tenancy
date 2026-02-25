@@ -1,0 +1,60 @@
+services:
+  - type: web
+    name: tenancy-cre-workflow
+    env: node
+    region: oregon
+    buildCommand: cd cre-workflow && npm install && npm run build
+    startCommand: cd cre-workflow && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NETWORK
+        value: base_sepolia
+      - key: PORT
+        value: 3000
+      - key: PRIVATE_KEY
+        sync: false
+      - key: BASE_SEPOLIA_RPC_URL
+        sync: false
+      - key: PROPERTY_REGISTRY_ADDRESS
+        sync: false
+      - key: YIELD_DISTRIBUTOR_ADDRESS
+        sync: false
+      - key: TEN_TOKEN_ADDRESS
+        sync: false
+      - key: PRICE_FEED_CONSUMER_ADDRESS
+        sync: false
+      - key: ETH_USD_PRICE_FEED
+        sync: false
+      - key: CHAINLINK_ROUTER
+        sync: false
+      - key: CHAINLINK_SUBSCRIPTION_ID
+        sync: false
+      - key: WORLD_COIN_PRIVATE_KEY
+        sync: false
+      - key: WORLD_RP_ID
+        sync: false
+      - key: WORLD_ID_APP_ID
+        sync: false
+      - key: PAYMENT_API_URL
+        sync: false
+      - key: PAYMENT_API_KEY
+        sync: false
+      - key: PINATA_JWT
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+
+  - type: web
+    name: tenancy-mock-server
+    env: node
+    region: oregon
+    buildCommand: cd server && npm install
+    startCommand: cd server && npm run dev
+    envVars:
+      - key: NODE_ENV
+        value: development
+      - key: PORT
+        value: 4010
+      - key: API_KEY
+        sync: false
