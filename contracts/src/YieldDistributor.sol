@@ -4,6 +4,8 @@ pragma solidity ^0.8.20;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 interface IPFSInterface {
     function store(string memory data) external returns (string memory ipfsHash);
@@ -21,8 +23,12 @@ interface AggregatorV3Interface {
     function decimals() external view returns (uint8);
 }
 
-contract YieldDistributor is Ownable, ReentrancyGuard, Pausable {
+contract YieldDistributor is Ownable, ReentrancyGuard, Pausable, AccessControl {
+    bytes32 public constant AGENT_ROLE = keccak256("AGENT_ROLE");
+    
     enum DistributionStatus { PENDING, DISTRIBUTING, COMPLETED, PAUSED }
+    
+    enum AgentActionType { DISTRIBUTE_YIELD, PAUSE_YIELD, ADJUST_RENT, FLAG_DEFAULT, NONE }
     
     struct Distribution {
         uint256 propertyId;
@@ -34,9 +40,23 @@ contract YieldDistributor is Ownable, ReentrancyGuard, Pausable {
         address[] holders;
     }
     
+    struct AgentDecision {
+        uint256 propertyId;
+        AgentActionType action;
+        uint256 adjustmentPercent;
+        string reason;
+        uint256 confidence;
+        bytes32 recommendationId;
+        bool executed;
+        uint256 timestamp;
+    }
+    
     mapping(uint256 => Distribution) private _distributions;
     mapping(uint256 => uint256) private _propertyYieldRates;
+    mapping(uint256 => AgentDecision) private _pendingAgentDecisions;
+    mapping(bytes32 => bool) private _executedDecisions;
     uint256 private _distributionCount;
+    uint256 private _decisionCount;
     
     AggregatorV3Interface public ethUsdPriceFeed;
     AggregatorV3Interface public inflationIndexFeed;
@@ -71,9 +91,38 @@ contract YieldDistributor is Ownable, ReentrancyGuard, Pausable {
     event ReserveHealthCheck(uint256 totalReserve, uint256 requiredReserve, bool isHealthy);
     event DefaultRecorded(uint256 propertyId, uint256 defaultAmount, uint256 timestamp);
     event SafeguardTriggered(string reason, uint256 timestamp);
+    event AgentAction(
+        address indexed agent,
+        uint256 indexed propertyId,
+        string actionType,
+        string details,
+        bytes32 txHash,
+        uint256 timestamp
+    );
+    event AgentDecisionExecuted(
+        uint256 indexed propertyId,
+        string action,
+        uint256 adjustmentPercent,
+        string reason,
+        uint256 confidence,
+        bytes32 decisionId,
+        bool success,
+        uint256 timestamp
+    );
+    event YieldDistributionWithAI(
+        uint256 indexed distributionId,
+        uint256 indexed propertyId,
+        uint256 amount,
+        string aiReason,
+        uint256 confidence,
+        bytes32 recommendationId,
+        uint256 timestamp
+    );
     
     constructor(address initialOwner, address _ethUsdPriceFeed, address _inflationIndexFeed) Ownable(initialOwner) {
         _distributionCount = 0;
+        _decisionCount = 0;
+        _grantRole(AGENT_ROLE, initialOwner);
         if (_ethUsdPriceFeed != address(0)) {
             ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
         }
@@ -183,7 +232,7 @@ contract YieldDistributor is Ownable, ReentrancyGuard, Pausable {
         return type(uint256).max;
     }
     
-    function updateYieldPool(uint256 amount) external onlyOwner {
+    function updateYieldPool(uint256 amount) external payable onlyOwner {
         require(amount > 0, "Amount must be positive");
         totalYieldPool += amount;
         emit YieldPoolUpdated(totalYieldPool, amount);
@@ -334,7 +383,7 @@ contract YieldDistributor is Ownable, ReentrancyGuard, Pausable {
         return (isHealthy, totalReserve, requiredReserve);
     }
     
-    function recordDefault(uint256 propertyId, uint256 defaultAmount) external onlyOwner {
+    function _recordDefaultInternal(uint256 propertyId, uint256 defaultAmount) internal {
         propertyDefaults[propertyId] += defaultAmount;
         totalDefaults += defaultAmount;
         
@@ -344,6 +393,10 @@ contract YieldDistributor is Ownable, ReentrancyGuard, Pausable {
         if (defaultRatio > defaultThreshold) {
             _triggerSafeguard("Default threshold exceeded");
         }
+    }
+    
+    function recordDefault(uint256 propertyId, uint256 defaultAmount) external onlyRole(AGENT_ROLE) {
+        _recordDefaultInternal(propertyId, defaultAmount);
     }
     
     function getDefaultRatio() external view returns (uint256) {
@@ -405,5 +458,188 @@ contract YieldDistributor is Ownable, ReentrancyGuard, Pausable {
             : 0;
         
         return (totalDefaults, defaultRatioVal, reserveRatioVal, safeguardActive, lastRiskCheck);
+    }
+
+    function setAgent(address _agent, bool _status) external onlyOwner {
+        if (_status) {
+            _grantRole(AGENT_ROLE, _agent);
+        } else {
+            _revokeRole(AGENT_ROLE, _agent);
+        }
+    }
+
+    function submitAgentDecision(
+        uint256 propertyId,
+        AgentActionType action,
+        uint256 adjustmentPercent,
+        string calldata reason,
+        uint256 confidence
+    ) external onlyRole(AGENT_ROLE) returns (bytes32 decisionId) {
+        decisionId = keccak256(
+            abi.encodePacked(propertyId, action, block.timestamp, confidence, _decisionCount++)
+        );
+        
+        _pendingAgentDecisions[propertyId] = AgentDecision({
+            propertyId: propertyId,
+            action: action,
+            adjustmentPercent: adjustmentPercent,
+            reason: reason,
+            confidence: confidence,
+            recommendationId: decisionId,
+            executed: false,
+            timestamp: block.timestamp
+        });
+        
+        emit AgentAction(
+            msg.sender,
+            propertyId,
+            "decision_submitted",
+            string(abi.encodePacked("Action: ", Strings.toString(uint256(action)), " Confidence: ", Strings.toString(confidence))),
+            decisionId,
+            block.timestamp
+        );
+    }
+
+    function executeAgentDecision(uint256 propertyId) external onlyRole(AGENT_ROLE) returns (bool success) {
+        AgentDecision storage decision = _pendingAgentDecisions[propertyId];
+        require(!decision.executed, "Decision already executed");
+        
+        bytes32 decisionId = decision.recommendationId;
+        _executedDecisions[decisionId] = true;
+        decision.executed = true;
+        
+        if (decision.action == AgentActionType.DISTRIBUTE_YIELD) {
+            success = true;
+        } else if (decision.action == AgentActionType.PAUSE_YIELD) {
+            _pause();
+            success = true;
+        } else if (decision.action == AgentActionType.FLAG_DEFAULT) {
+            _recordDefaultInternal(propertyId, decision.adjustmentPercent);
+            success = true;
+        } else {
+            success = false;
+        }
+        
+        emit AgentDecisionExecuted(
+            propertyId,
+            _actionToString(decision.action),
+            decision.adjustmentPercent,
+            decision.reason,
+            decision.confidence,
+            decisionId,
+            success,
+            block.timestamp
+        );
+    }
+
+    function distributeWithAIRecommendation(
+        uint256 propertyId,
+        uint256 amount,
+        string calldata aiReason,
+        uint256 confidence,
+        bytes32 recommendationId
+    ) external onlyRole(AGENT_ROLE) whenNotPaused nonReentrant returns (uint256 distributionId) {
+        require(amount > 0, "Amount must be positive");
+        require(totalYieldPool >= amount, "Insufficient yield pool");
+        
+        distributionId = _distributionCount++;
+        
+        Distribution memory newDistribution = Distribution({
+            propertyId: propertyId,
+            totalYield: amount,
+            distributedYield: 0,
+            status: DistributionStatus.DISTRIBUTING,
+            distributionTimestamp: block.timestamp,
+            holderBalances: new uint256[](0),
+            holders: new address[](0)
+        });
+        
+        _distributions[distributionId] = newDistribution;
+        totalYieldPool -= amount;
+        totalDistributedYield += amount;
+        
+        emit YieldDistributionWithAI(
+            distributionId,
+            propertyId,
+            amount,
+            aiReason,
+            confidence,
+            recommendationId,
+            block.timestamp
+        );
+        
+        emit AgentAction(
+            msg.sender,
+            propertyId,
+            "distribute_yield_with_ai",
+            aiReason,
+            recommendationId,
+            block.timestamp
+        );
+    }
+
+    function pauseYieldDistribution(uint256 propertyId) external onlyRole(AGENT_ROLE) {
+        require(_propertyYieldRates[propertyId] > 0, "No active distribution");
+        
+        emit AgentAction(
+            msg.sender,
+            propertyId,
+            "pause_yield",
+            "Yield distribution paused by agent",
+            bytes32(0),
+            block.timestamp
+        );
+    }
+
+    function flagPropertyDefault(uint256 propertyId, uint256 defaultAmount, string calldata reason) external onlyRole(AGENT_ROLE) {
+        _recordDefaultInternal(propertyId, defaultAmount);
+        
+        emit AgentAction(
+            msg.sender,
+            propertyId,
+            "flag_default",
+            reason,
+            bytes32(0),
+            block.timestamp
+        );
+    }
+
+    function getAgentDecision(uint256 propertyId) external view returns (
+        uint256 propId,
+        uint256 action,
+        uint256 adjustmentPercent,
+        string memory reason,
+        uint256 confidence,
+        bytes32 recommendationId,
+        bool executed,
+        uint256 timestamp
+    ) {
+        AgentDecision memory decision = _pendingAgentDecisions[propertyId];
+        return (
+            decision.propertyId,
+            uint256(decision.action),
+            decision.adjustmentPercent,
+            decision.reason,
+            decision.confidence,
+            decision.recommendationId,
+            decision.executed,
+            decision.timestamp
+        );
+    }
+
+    function isDecisionExecuted(bytes32 decisionId) external view returns (bool) {
+        return _executedDecisions[decisionId];
+    }
+
+    function isAgent(address account) external view returns (bool) {
+        return hasRole(AGENT_ROLE, account);
+    }
+
+    function _actionToString(AgentActionType action) internal pure returns (string memory) {
+        if (action == AgentActionType.DISTRIBUTE_YIELD) return "distribute_yield";
+        if (action == AgentActionType.PAUSE_YIELD) return "pause_yield";
+        if (action == AgentActionType.ADJUST_RENT) return "adjust_rent";
+        if (action == AgentActionType.FLAG_DEFAULT) return "flag_default";
+        return "none";
     }
 }

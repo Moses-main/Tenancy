@@ -6,14 +6,17 @@ import {TENToken} from "../src/TENToken.sol";
 import {PropertyRegistry, PropertyToken} from "../src/PropertyRegistry.sol";
 import {YieldDistributor} from "../src/YieldDistributor.sol";
 import {PriceFeedConsumer} from "../src/PriceFeedConsumer.sol";
+import {RentalToken} from "../src/RentalToken.sol";
 
 contract TENANCYTest is Test {
     TENToken public tenToken;
     PropertyRegistry public propertyRegistry;
     YieldDistributor public yieldDistributor;
     PriceFeedConsumer public priceFeedConsumer;
+    RentalToken public rentalToken;
 
     address public owner = address(0x1);
+    address public agent = address(0x5);
     address public issuer = address(0x2);
     address public investor = address(0x3);
     address public investor2 = address(0x4);
@@ -36,6 +39,35 @@ contract TENANCYTest is Test {
         address indexed recipient,
         uint256 amount
     );
+    event PropertyPaused(uint256 indexed propertyId, string reason, uint256 timestamp);
+    event RentAdjusted(uint256 indexed propertyId, uint256 oldRent, uint256 newRent, uint256 timestamp);
+    event AIRecommendation(
+        uint256 indexed propertyId,
+        string action,
+        uint256 adjustmentPercent,
+        string reason,
+        uint256 confidence,
+        bytes32 recommendationId,
+        uint256 timestamp
+    );
+    event AgentAction(
+        address indexed agent,
+        uint256 indexed propertyId,
+        string actionType,
+        string details,
+        bytes32 txHash,
+        uint256 timestamp
+    );
+    event AgentDecisionExecuted(
+        uint256 indexed propertyId,
+        string action,
+        uint256 adjustmentPercent,
+        string reason,
+        uint256 confidence,
+        bytes32 decisionId,
+        bool success,
+        uint256 timestamp
+    );
 
     function setUp() public {
         vm.startPrank(owner);
@@ -44,6 +76,7 @@ contract TENANCYTest is Test {
         propertyRegistry = new PropertyRegistry(owner, ETH_USD_FEED);
         yieldDistributor = new YieldDistributor(owner, ETH_USD_FEED, INFLATION_FEED);
         priceFeedConsumer = new PriceFeedConsumer(ETH_USD_FEED, ETH_USD_FEED);
+        rentalToken = new RentalToken(owner);
 
         propertyRegistry.setIssuer(issuer, true);
         tenToken.setMinter(issuer, true);
@@ -733,5 +766,344 @@ contract TENANCYTest is Test {
         tenToken.transfer(investor2, amount);
 
         assertEq(tenToken.balanceOf(investor2), amount);
+    }
+
+    // ============================================================================
+    // AGENT FUNCTION TESTS - Phase 1
+    // ============================================================================
+
+    function testPropertyRegistrySetAgent() public {
+        vm.prank(owner);
+        propertyRegistry.setAgent(agent, true);
+
+        assertTrue(propertyRegistry.isAgent(agent));
+        assertTrue(propertyRegistry.hasRole(keccak256("AGENT_ROLE"), agent));
+    }
+
+    function testPropertyRegistryPauseProperty() public {
+        vm.prank(owner);
+        propertyRegistry.setAgent(agent, true);
+
+        vm.prank(issuer);
+        (address propertyToken,) = _createProperty(0);
+
+        vm.prank(agent);
+        propertyRegistry.pauseProperty(0, "AI recommended pause due to low occupancy");
+
+        assertTrue(propertyRegistry.isPropertyPaused(0));
+    }
+
+    function testPropertyRegistryResumeProperty() public {
+        vm.prank(owner);
+        propertyRegistry.setAgent(agent, true);
+
+        vm.prank(issuer);
+        _createProperty(0);
+
+        vm.prank(agent);
+        propertyRegistry.pauseProperty(0, "AI recommended pause");
+
+        vm.prank(agent);
+        propertyRegistry.resumeProperty(0, "AI recommended resume");
+
+        assertFalse(propertyRegistry.isPropertyPaused(0));
+    }
+
+    function testPropertyRegistryAdjustRent() public {
+        vm.prank(owner);
+        propertyRegistry.setAgent(agent, true);
+
+        vm.prank(issuer);
+        _createProperty(0);
+
+        vm.prank(agent);
+        propertyRegistry.adjustRent(0, 3000e18, "Market adjustment - increased by AI");
+
+        PropertyRegistry.Property memory prop = propertyRegistry.getProperty(0);
+        assertEq(prop.rentAmount, 3000e18);
+    }
+
+    function testPropertyRegistryEmitAIRecommendation() public {
+        vm.prank(owner);
+        propertyRegistry.setAgent(agent, true);
+
+        vm.prank(issuer);
+        _createProperty(0);
+
+        vm.prank(agent);
+        bytes32 recId = propertyRegistry.emitAIRecommendation(
+            0,
+            "distribute_yield",
+            5,
+            "High occupancy rate - distribute yield",
+            95
+        );
+
+        assertTrue(recId != bytes32(0));
+        assertEq(propertyRegistry.getRecommendationCount(0), 1);
+    }
+
+    function testPropertyRegistryEmitRiskAlert() public {
+        vm.prank(owner);
+        propertyRegistry.setAgent(agent, true);
+
+        vm.prank(issuer);
+        _createProperty(0);
+
+        vm.prank(agent);
+        propertyRegistry.emitRiskAlert(0, 2, "Payment overdue warning", 25);
+
+        // Event should emit without revert
+    }
+
+    function testPropertyRegistryUpdatePaymentStatus() public {
+        vm.prank(owner);
+        propertyRegistry.setAgent(agent, true);
+
+        vm.prank(issuer);
+        _createProperty(0);
+
+        vm.prank(agent);
+        propertyRegistry.updatePaymentStatus(0, 2, 15);
+
+        (,,,, uint256 daysOverdue,) = propertyRegistry.getPropertyStatus(0);
+        assertEq(daysOverdue, 15);
+    }
+
+    function testPropertyRegistryOnlyAgentCanPauseProperty() public {
+        vm.prank(issuer);
+        _createProperty(0);
+
+        vm.prank(issuer);
+        vm.expectRevert();
+        propertyRegistry.pauseProperty(0, "Not an agent");
+    }
+
+    function testRentalTokenSetAgent() public {
+        vm.prank(owner);
+        rentalToken.setAgent(agent, true);
+
+        assertTrue(rentalToken.isAgent(agent));
+    }
+
+    function testRentalTokenPauseProperty() public {
+        vm.prank(owner);
+        rentalToken.setAgent(agent, true);
+
+        vm.prank(owner);
+        rentalToken.registerProperty("Test Property", "Description", "ipfs://QmTest", 2500e18, 10);
+
+        vm.prank(owner);
+        rentalToken.activateProperty(0, "Activating property");
+
+        vm.prank(agent);
+        rentalToken.pauseProperty(0, "AI recommended pause");
+
+        assertTrue(rentalToken.isPropertyPaused(0));
+    }
+
+    function testRentalTokenResumeProperty() public {
+        vm.prank(owner);
+        rentalToken.setAgent(agent, true);
+
+        vm.prank(owner);
+        rentalToken.registerProperty("Test Property", "Description", "ipfs://QmTest", 2500e18, 10);
+
+        vm.prank(owner);
+        rentalToken.activateProperty(0, "Activating property");
+
+        vm.prank(agent);
+        rentalToken.pauseProperty(0, "AI recommended pause");
+
+        vm.prank(agent);
+        rentalToken.resumeProperty(0, "AI recommended resume");
+
+        assertFalse(rentalToken.isPropertyPaused(0));
+    }
+
+    function testRentalTokenAdjustRent() public {
+        vm.prank(owner);
+        rentalToken.setAgent(agent, true);
+
+        vm.prank(owner);
+        rentalToken.registerProperty("Test Property", "Description", "ipfs://QmTest", 2500e18, 1);
+
+        vm.prank(agent);
+        rentalToken.adjustRent(1, 3000e18);
+
+        (bool isActive, bool isPaused, uint256 rentAmount,,,) = rentalToken.getPropertyStatus(1);
+        assertEq(rentAmount, 3000e18);
+    }
+
+    function testRentalTokenUpdatePaymentStatus() public {
+        vm.prank(owner);
+        rentalToken.setAgent(agent, true);
+
+        vm.prank(owner);
+        rentalToken.registerProperty("Test Property", "Description", "ipfs://QmTest", 2500e18, 10);
+
+        vm.prank(agent);
+        rentalToken.updatePaymentStatus(0, 1, 5);
+
+        (, , , , uint256 paymentStatus, uint256 daysOverdue) = rentalToken.getPropertyStatus(0);
+        assertEq(paymentStatus, 1);
+        assertEq(daysOverdue, 5);
+    }
+
+    function testYieldDistributorSetAgent() public {
+        vm.prank(owner);
+        yieldDistributor.setAgent(agent, true);
+
+        assertTrue(yieldDistributor.isAgent(agent));
+    }
+
+    function testYieldDistributorSubmitAgentDecision() public {
+        vm.prank(owner);
+        yieldDistributor.setAgent(agent, true);
+
+        vm.prank(agent);
+        bytes32 decisionId = yieldDistributor.submitAgentDecision(
+            0,
+            YieldDistributor.AgentActionType.DISTRIBUTE_YIELD,
+            500,
+            "AI recommended yield distribution",
+            90
+        );
+
+        assertTrue(decisionId != bytes32(0));
+    }
+
+    function testYieldDistributorExecuteAgentDecision() public {
+        vm.prank(owner);
+        yieldDistributor.setAgent(agent, true);
+        
+        vm.deal(owner, 100 ether);
+        vm.prank(owner);
+        yieldDistributor.updateYieldPool{value: 10 ether}(10 ether);
+
+        vm.prank(agent);
+        bytes32 decisionId = yieldDistributor.submitAgentDecision(
+            0,
+            YieldDistributor.AgentActionType.DISTRIBUTE_YIELD,
+            500,
+            "AI recommended yield distribution",
+            90
+        );
+
+        vm.prank(agent);
+        yieldDistributor.executeAgentDecision(0);
+
+        assertTrue(yieldDistributor.isDecisionExecuted(decisionId));
+    }
+
+    function testYieldDistributorDistributeWithAIRecommendation() public {
+        vm.prank(owner);
+        yieldDistributor.setAgent(agent, true);
+
+        vm.deal(owner, 100 ether);
+        vm.prank(owner);
+        yieldDistributor.updateYieldPool{value: 10 ether}(10 ether);
+
+        vm.prank(agent);
+        uint256 distId = yieldDistributor.distributeWithAIRecommendation(
+            0,
+            1 ether,
+            "AI recommended distribution based on high occupancy",
+            85,
+            bytes32(uint256(1))
+        );
+
+        assertEq(distId, 0);
+    }
+
+    function testYieldDistributorFlagPropertyDefault() public {
+        vm.prank(owner);
+        yieldDistributor.setAgent(agent, true);
+
+        vm.prank(agent);
+        yieldDistributor.flagPropertyDefault(0, 500e18, "Tenant default - AI detected");
+
+        (uint256 totalDefaults,,,,) = yieldDistributor.getRiskMetrics();
+        assertEq(totalDefaults, 500e18);
+    }
+
+    function testMultipleAgentsCanBeSet() public {
+        address agent2 = address(0x6);
+
+        vm.prank(owner);
+        propertyRegistry.setAgent(agent, true);
+
+        vm.prank(owner);
+        propertyRegistry.setAgent(agent2, true);
+
+        assertTrue(propertyRegistry.isAgent(agent));
+        assertTrue(propertyRegistry.isAgent(agent2));
+    }
+
+    function testAgentRoleRevocation() public {
+        vm.prank(owner);
+        propertyRegistry.setAgent(agent, true);
+
+        assertTrue(propertyRegistry.isAgent(agent));
+
+        vm.prank(owner);
+        propertyRegistry.setAgent(agent, false);
+
+        assertFalse(propertyRegistry.isAgent(agent));
+    }
+
+    function testPropertyRegistryPauseActiveProperty() public {
+        vm.prank(owner);
+        propertyRegistry.setAgent(agent, true);
+
+        vm.prank(issuer);
+        _createProperty(0);
+
+        vm.prank(agent);
+        propertyRegistry.pauseProperty(0, "AI pause");
+
+        vm.prank(agent);
+        vm.expectRevert("PropertyRegistry: property already paused");
+        propertyRegistry.pauseProperty(0, "AI pause again");
+    }
+
+    function testPropertyRegistryResumeNonPausedProperty() public {
+        vm.prank(owner);
+        propertyRegistry.setAgent(agent, true);
+
+        vm.prank(issuer);
+        _createProperty(0);
+
+        vm.prank(agent);
+        vm.expectRevert("PropertyRegistry: property not paused");
+        propertyRegistry.resumeProperty(0, "AI resume");
+    }
+
+    function testAIRecommendationEventEmission() public {
+        vm.prank(owner);
+        propertyRegistry.setAgent(agent, true);
+
+        vm.prank(issuer);
+        _createProperty(0);
+
+        vm.prank(agent);
+        propertyRegistry.emitAIRecommendation(
+            0,
+            "distribute_yield",
+            5,
+            "High confidence AI recommendation",
+            95
+        );
+    }
+
+    function testAgentActionEventEmission() public {
+        vm.prank(owner);
+        propertyRegistry.setAgent(agent, true);
+
+        vm.prank(issuer);
+        _createProperty(0);
+
+        vm.prank(agent);
+        propertyRegistry.pauseProperty(0, "AI action - low occupancy");
     }
 }

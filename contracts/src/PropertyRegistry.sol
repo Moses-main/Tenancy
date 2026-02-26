@@ -5,6 +5,8 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
 
 contract PropertyToken is ERC20, ReentrancyGuard {
@@ -32,7 +34,7 @@ contract PropertyToken is ERC20, ReentrancyGuard {
     }
 }
 
-contract PropertyRegistry is Ownable, ReentrancyGuard, Pausable {
+contract PropertyRegistry is Ownable, ReentrancyGuard, Pausable, AccessControl {
     struct Property {
         uint256 id;
         string uri;
@@ -41,17 +43,25 @@ contract PropertyRegistry is Ownable, ReentrancyGuard, Pausable {
         uint256 totalSupply;
         address propertyToken;
         bool isActive;
+        bool isPaused;
         address owner;
         uint256 valuationUsd;
         uint256 lastValuationTimestamp;
+        uint256 paymentStatus;
+        uint256 daysOverdue;
     }
+
+    bytes32 public constant AGENT_ROLE = keccak256("AGENT_ROLE");
 
     AggregatorV3Interface public ethUsdPriceFeed;
 
     uint256 public nextPropertyId;
     mapping(uint256 => Property) public properties;
     mapping(address => bool) public issuers;
+    mapping(address => bool) public agents;
     mapping(uint256 => mapping(address => uint256)) public userHoldings;
+    mapping(uint256 => bytes32[]) public propertyRecommendationIds;
+    mapping(uint256 => uint256) public propertyPauseTimestamps;
 
     event PropertyCreated(
         uint256 indexed propertyId,
@@ -67,6 +77,33 @@ contract PropertyRegistry is Ownable, ReentrancyGuard, Pausable {
     );
     event YieldDistributed(uint256 indexed propertyId, uint256 amount);
     event PropertyValuationUpdated(uint256 indexed propertyId, uint256 valuationUsd);
+    event AIRecommendation(
+        uint256 indexed propertyId,
+        string action,
+        uint256 adjustmentPercent,
+        string reason,
+        uint256 confidence,
+        bytes32 recommendationId,
+        uint256 timestamp
+    );
+    event AgentAction(
+        address indexed agent,
+        uint256 indexed propertyId,
+        string actionType,
+        string details,
+        bytes32 txHash,
+        uint256 timestamp
+    );
+    event RiskAlert(
+        uint256 indexed propertyId,
+        uint256 alertType,
+        string message,
+        uint256 value,
+        uint256 timestamp
+    );
+    event PropertyPaused(uint256 indexed propertyId, string reason, uint256 timestamp);
+    event PropertyResumed(uint256 indexed propertyId, string reason, uint256 timestamp);
+    event RentAdjusted(uint256 indexed propertyId, uint256 oldRent, uint256 newRent, uint256 timestamp);
 
     modifier onlyIssuer() {
         require(issuers[msg.sender], "PropertyRegistry: not an issuer");
@@ -75,6 +112,8 @@ contract PropertyRegistry is Ownable, ReentrancyGuard, Pausable {
 
     constructor(address initialOwner, address _ethUsdPriceFeed) Ownable(initialOwner) {
         issuers[initialOwner] = true;
+        agents[initialOwner] = true;
+        _grantRole(AGENT_ROLE, initialOwner);
         if (_ethUsdPriceFeed != address(0)) {
             ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
         }
@@ -131,9 +170,12 @@ contract PropertyRegistry is Ownable, ReentrancyGuard, Pausable {
             totalSupply: initialSupply,
             propertyToken: address(propertyToken),
             isActive: true,
+            isPaused: false,
             owner: msg.sender,
             valuationUsd: valuationUsd,
-            lastValuationTimestamp: block.timestamp
+            lastValuationTimestamp: block.timestamp,
+            paymentStatus: 0,
+            daysOverdue: 0
         });
 
         properties[propertyId] = newProperty;
@@ -223,5 +265,151 @@ contract PropertyRegistry is Ownable, ReentrancyGuard, Pausable {
 
     function unpause() external onlyOwner {
         _unpause();
+    }
+
+    function setAgent(address _agent, bool _status) external onlyOwner {
+        agents[_agent] = _status;
+        if (_status) {
+            _grantRole(AGENT_ROLE, _agent);
+        } else {
+            _revokeRole(AGENT_ROLE, _agent);
+        }
+    }
+
+    function pauseProperty(uint256 propertyId, string calldata reason) external onlyRole(AGENT_ROLE) {
+        Property storage property = properties[propertyId];
+        require(property.isActive, "PropertyRegistry: property not active");
+        require(!property.isPaused, "PropertyRegistry: property already paused");
+        
+        property.isPaused = true;
+        propertyPauseTimestamps[propertyId] = block.timestamp;
+        
+        emit PropertyPaused(propertyId, reason, block.timestamp);
+        emit AgentAction(msg.sender, propertyId, "pause_property", reason, bytes32(0), block.timestamp);
+    }
+
+    function resumeProperty(uint256 propertyId, string calldata reason) external onlyRole(AGENT_ROLE) {
+        Property storage property = properties[propertyId];
+        require(property.isPaused, "PropertyRegistry: property not paused");
+        
+        property.isPaused = false;
+        
+        emit PropertyResumed(propertyId, reason, block.timestamp);
+        emit AgentAction(msg.sender, propertyId, "resume_property", reason, bytes32(0), block.timestamp);
+    }
+
+    function adjustRent(uint256 propertyId, uint256 newRentAmount, string calldata reason) external onlyRole(AGENT_ROLE) returns (uint256 oldRent) {
+        Property storage property = properties[propertyId];
+        require(property.isActive, "PropertyRegistry: property not active");
+        
+        oldRent = property.rentAmount;
+        property.rentAmount = newRentAmount;
+        
+        emit RentAdjusted(propertyId, oldRent, newRentAmount, block.timestamp);
+        emit AgentAction(
+            msg.sender, 
+            propertyId, 
+            "adjust_rent", 
+            string(abi.encodePacked(reason, " - Old: ", Strings.toString(oldRent), " New: ", Strings.toString(newRentAmount))),
+            bytes32(0), 
+            block.timestamp
+        );
+    }
+
+    function emitAIRecommendation(
+        uint256 propertyId,
+        string calldata action,
+        uint256 adjustmentPercent,
+        string calldata reason,
+        uint256 confidence
+    ) external onlyRole(AGENT_ROLE) returns (bytes32 recommendationId) {
+        Property storage property = properties[propertyId];
+        require(property.isActive, "PropertyRegistry: property not active");
+        
+        recommendationId = keccak256(
+            abi.encodePacked(propertyId, action, block.timestamp, confidence)
+        );
+        
+        propertyRecommendationIds[propertyId].push(recommendationId);
+        
+        emit AIRecommendation(
+            propertyId,
+            action,
+            adjustmentPercent,
+            reason,
+            confidence,
+            recommendationId,
+            block.timestamp
+        );
+        emit AgentAction(
+            msg.sender,
+            propertyId,
+            "ai_recommendation",
+            string(abi.encodePacked("Action: ", action, " Confidence: ", Strings.toString(confidence))),
+            recommendationId,
+            block.timestamp
+        );
+    }
+
+    function emitRiskAlert(
+        uint256 propertyId,
+        uint256 alertType,
+        string calldata message,
+        uint256 value
+    ) external onlyRole(AGENT_ROLE) {
+        emit RiskAlert(propertyId, alertType, message, value, block.timestamp);
+        emit AgentAction(
+            msg.sender,
+            propertyId,
+            "risk_alert",
+            message,
+            bytes32(0),
+            block.timestamp
+        );
+    }
+
+    function updatePaymentStatus(
+        uint256 propertyId,
+        uint256 newPaymentStatus,
+        uint256 daysOverdue
+    ) external onlyRole(AGENT_ROLE) {
+        Property storage property = properties[propertyId];
+        property.paymentStatus = newPaymentStatus;
+        property.daysOverdue = daysOverdue;
+        
+        if (daysOverdue > 30) {
+            emit RiskAlert(propertyId, 1, "Payment overdue > 30 days", daysOverdue, block.timestamp);
+        }
+    }
+
+    function getPropertyStatus(uint256 propertyId) external view returns (
+        bool isActive,
+        bool isPaused,
+        uint256 rentAmount,
+        uint256 paymentStatus,
+        uint256 daysOverdue,
+        uint256 valuationUsd
+    ) {
+        Property memory property = properties[propertyId];
+        return (
+            property.isActive,
+            property.isPaused,
+            property.rentAmount,
+            property.paymentStatus,
+            property.daysOverdue,
+            property.valuationUsd
+        );
+    }
+
+    function getRecommendationCount(uint256 propertyId) external view returns (uint256) {
+        return propertyRecommendationIds[propertyId].length;
+    }
+
+    function isPropertyPaused(uint256 propertyId) external view returns (bool) {
+        return properties[propertyId].isPaused;
+    }
+
+    function isAgent(address account) external view returns (bool) {
+        return agents[account];
     }
 }
