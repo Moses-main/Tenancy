@@ -149,11 +149,23 @@ export const useContracts = () => {
     try {
       const isBaseSepolia = chainId === 84532;
       const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
+      
+      if (!addrs.tenToken || addrs.tenToken === '0x0000000000000000000000000000000000000000') {
+        console.warn('TEN Token not deployed on this network');
+        return '0';
+      }
+      
       const token = new Contract(addrs.tenToken, ABIS.erc20, provider);
+      const code = await provider.getCode(addrs.tenToken);
+      if (code === '0x') {
+        console.warn('TEN Token contract not found at address:', addrs.tenToken);
+        return '0';
+      }
+      
       const balance = await token.balanceOf(address);
       return formatUnits(balance, 18);
-    } catch (err) {
-      console.error('Error getting TEN balance:', err);
+    } catch (err: any) {
+      console.error('Error getting TEN balance:', err?.message || err);
       return '0';
     }
   }, [provider, address, chainId]);
@@ -163,11 +175,22 @@ export const useContracts = () => {
     try {
       const isBaseSepolia = chainId === 84532;
       const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
+      
+      if (!addrs.yieldDistributor || addrs.yieldDistributor === '0x0000000000000000000000000000000000000000') {
+        return '0';
+      }
+      
+      const code = await provider.getCode(addrs.yieldDistributor);
+      if (code === '0x') {
+        console.warn('YieldDistributor contract not found at address:', addrs.yieldDistributor);
+        return '0';
+      }
+      
       const yieldDist = new Contract(addrs.yieldDistributor, ABIS.yieldDistributor, provider);
       const pending = await yieldDist.getUserTotalPendingYield(userAddress || address);
       return formatUnits(pending, 18);
-    } catch (err) {
-      console.error('Error getting pending yield:', err);
+    } catch (err: any) {
+      console.error('Error getting pending yield:', err?.message || err);
       return '0';
     }
   }, [provider, address, chainId]);

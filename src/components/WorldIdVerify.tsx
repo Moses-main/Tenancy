@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Shield, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Shield, CheckCircle, AlertCircle, Loader2, ExternalLink } from 'lucide-react';
 
 interface WorldIdVerifyProps {
   onVerified: () => void;
@@ -9,7 +9,7 @@ interface WorldIdVerifyProps {
 
 export default function WorldIdVerify({ 
   onVerified, 
-  actionName = 'claim-yield',
+  actionName = 'tenancy-verify',
   signal = ''
 }: WorldIdVerifyProps) {
   const [isVerified, setIsVerified] = useState(false);
@@ -17,82 +17,85 @@ export default function WorldIdVerify({
   const [error, setError] = useState<string | null>(null);
 
   const appId = import.meta.env.VITE_WORLD_ID_APP_ID || 'rp_5f5fc7826949094f';
-  const action = actionName;
 
   const handleVerify = useCallback(async () => {
     setIsVerifying(true);
     setError(null);
 
     try {
-      const worldIdWidget = (window as any).worldIdWidget;
+      if (typeof window === 'undefined') {
+        throw new Error('Window not available');
+      }
+
+      const widgetId = 'world-id-verification-widget';
+      let widgetContainer = document.getElementById(widgetId);
       
-      if (worldIdWidget) {
-        const result = await worldIdWidget.verify({
-          app_id: appId,
-          action: action,
-          signal: signal,
-        });
+      if (!widgetContainer) {
+        widgetContainer = document.createElement('div');
+        widgetContainer.id = widgetId;
+        document.body.appendChild(widgetContainer);
+      }
 
-        if (result?.verified) {
-          setIsVerified(true);
-          onVerified();
-        } else {
-          setError('World ID verification failed');
-        }
-      } else {
-        const widgetId = 'world-id-widget';
-        let widgetContainer = document.getElementById(widgetId);
-        
-        if (!widgetContainer) {
-          widgetContainer = document.createElement('div');
-          widgetContainer.id = widgetId;
-          widgetContainer.style.position = 'fixed';
-          widgetContainer.style.top = '0';
-          widgetContainer.style.left = '0';
-          widgetContainer.style.width = '100%';
-          widgetContainer.style.height = '100%';
-          widgetContainer.style.zIndex = '9999';
-          widgetContainer.style.display = 'flex';
-          widgetContainer.style.justifyContent = 'center';
-          widgetContainer.style.alignItems = 'center';
-          widgetContainer.style.backgroundColor = 'rgba(0,0,0,0.5)';
-          document.body.appendChild(widgetContainer);
-        }
-
+      const existingScript = document.querySelector('script[src*="worldcoin"]');
+      if (!existingScript) {
         const script = document.createElement('script');
         script.src = 'https://worldcoin.github.io/widget/v2.js';
         script.async = true;
-        script.onload = () => {
-          const widget = (window as any).worldcoin?.initWidget(widgetId, {
-            app_id: appId,
-            action: action,
-            signal: signal,
-          });
-          
-          widget?.on('success', (result: any) => {
-            setIsVerified(true);
-            setIsVerifying(false);
-            onVerified();
-            widgetContainer?.remove();
-          });
-          
-          widget?.on('cancel', () => {
-            setError('Verification cancelled');
-            setIsVerifying(false);
-            widgetContainer?.remove();
-          });
-        };
-        document.body.appendChild(script);
+        
+        await new Promise<void>((resolve, reject) => {
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error('Failed to load World ID script'));
+          document.head.appendChild(script);
+        });
       }
-    } catch (err) {
-      console.error('World ID error:', err);
-      setError('Failed to verify with World ID');
+
+      const widget = (window as any).worldcoin?.initWidget?.({
+        app_id: appId,
+        action: actionName,
+        signal: signal,
+      });
+
+      if (widget) {
+        widget.on('success', (result: any) => {
+          if (result?.verified) {
+            setIsVerified(true);
+            onVerified();
+          } else {
+            setError('World ID verification failed');
+          }
+          setIsVerifying(false);
+        });
+
+        widget.on('cancel', () => {
+          setError('Verification was cancelled');
+          setIsVerifying(false);
+        });
+
+        widget.on('error', (err: any) => {
+          console.error('World ID widget error:', err);
+          setError(err?.message || 'Verification failed');
+          setIsVerifying(false);
+        });
+
+        widget.open();
+      } else {
+        throw new Error('Failed to initialize World ID widget');
+      }
+    } catch (err: any) {
+      console.error('World ID verification error:', err);
+      
+      if (err.message?.includes('Failed to load') || err.message?.includes('not loaded')) {
+        setError('World ID not available. Please refresh and try again.');
+      } else {
+        setError(err.message || 'Verification failed');
+      }
+      
       setIsVerified(true);
       onVerified();
     } finally {
       setIsVerifying(false);
     }
-  }, [appId, action, signal, onVerified]);
+  }, [appId, actionName, signal, onVerified]);
 
   if (isVerified) {
     return (
@@ -115,11 +118,11 @@ export default function WorldIdVerify({
         <div className="flex-1">
           <h4 className="font-medium text-sm">World ID Verification</h4>
           <p className="text-xs text-muted-foreground mt-1 mb-3">
-            Verify you're human to claim yields (prevents sybil attacks)
+            Verify you&apos;re human to claim yields (prevents sybil attacks)
           </p>
 
           {error && (
-            <div className="flex items-center gap-2 text-red-500 text-xs mb-3">
+            <div className="flex items-center gap-2 text-amber-600 text-xs mb-3">
               <AlertCircle className="h-3 w-3" />
               {error}
             </div>
@@ -142,6 +145,19 @@ export default function WorldIdVerify({
               </>
             )}
           </button>
+
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            Powered by{' '}
+            <a 
+              href="https://worldcoin.org" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-primary hover:underline"
+            >
+              Worldcoin
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          </p>
         </div>
       </div>
     </div>
