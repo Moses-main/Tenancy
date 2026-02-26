@@ -12,6 +12,7 @@ import Issuer from './src/pages/Issuer.tsx';
 import Investor from './src/pages/Investor.tsx';
 import Tenant from './src/pages/Tenant.tsx';
 import Marketplace from './src/pages/Marketplace.tsx';
+import Agent from './src/pages/Agent.tsx';
 import NotFound from './src/pages/NotFound.tsx';
 import { AuthProvider } from './src/lib/AuthContext.tsx';
 import { ThemeProvider, useTheme } from './src/lib/ThemeContext.tsx';
@@ -30,6 +31,7 @@ const AppContent: React.FC = () => {
             <Route path="/investor" element={<Investor />} />
             <Route path="/tenant" element={<Tenant />} />
             <Route path="/marketplace" element={<Marketplace />} />
+            <Route path="/agent" element={<Agent />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           <ToastContainer
