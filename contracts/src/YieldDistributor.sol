@@ -642,4 +642,196 @@ contract YieldDistributor is Ownable, ReentrancyGuard, Pausable, AccessControl {
         if (action == AgentActionType.FLAG_DEFAULT) return "flag_default";
         return "none";
     }
+
+    // ============================================================================
+    // ADVANCED PRICE FEED & RISK LOGIC - Phase 2
+    // ============================================================================
+
+    struct RiskProfile {
+        uint256 maxDefaultRatio;
+        uint256 maxReserveRatio;
+        uint256 minDistributionFrequency;
+        uint256 emergencyPauseThreshold;
+        bool allowInflationAdjustment;
+    }
+
+    mapping(uint256 => RiskProfile) public propertyRiskProfiles;
+    mapping(uint256 => uint256) public propertyLastYieldDistribution;
+    mapping(uint256 => uint256) public propertyYieldAccumulated;
+    mapping(uint256 => uint256) public propertyRiskScore;
+
+    event RiskProfileUpdated(uint256 propertyId, uint256 maxDefaultRatio, uint256 maxReserveRatio);
+    event YieldAdjustedForInflation(uint256 propertyId, uint256 oldYield, uint256 newYield, uint256 inflationFactor);
+    event RiskThresholdBreached(uint256 propertyId, string metric, uint256 actual, uint256 threshold);
+    event AutomaticPauseTriggered(uint256 propertyId, string reason, uint256 riskScore);
+
+    function calculatePropertyInflationAdjustedYield(
+        uint256 propertyId,
+        uint256 baseYield
+    ) external view returns (uint256 adjustedYield) {
+        RiskProfile memory profile = propertyRiskProfiles[propertyId];
+        
+        if (!profile.allowInflationAdjustment || address(inflationIndexFeed) == address(0)) {
+            return baseYield;
+        }
+
+        (, int256 inflationRate,,,) = inflationIndexFeed.latestRoundData();
+        if (inflationRate <= 0) {
+            return baseYield;
+        }
+
+        uint256 annualInflation = uint256(inflationRate);
+        uint256 inflationFactor = 10000 + annualInflation;
+        adjustedYield = (baseYield * inflationFactor) / 10000;
+    }
+
+    function calculateYieldInUsdFromPool(uint256 yieldAmountEth) external view returns (uint256) {
+        uint256 price = lastEthUsdPrice;
+        if (price == 0) {
+            (, int256 currentPrice,,,) = ethUsdPriceFeed.latestRoundData();
+            price = uint256(currentPrice);
+        }
+        return (yieldAmountEth * price) / 1e8;
+    }
+
+    function getYieldDistributionHealth() external view returns (
+        uint256 totalPoolUsd,
+        uint256 totalDistributedUsd,
+        uint256 reserveRatio,
+        bool isHealthy
+    ) {
+        uint256 price = lastEthUsdPrice;
+        if (price == 0) {
+            (, int256 currentPrice,,,) = ethUsdPriceFeed.latestRoundData();
+            price = uint256(currentPrice);
+        }
+
+        totalPoolUsd = (totalYieldPool * price) / 1e8;
+        totalDistributedUsd = (totalDistributedYield * price) / 1e8;
+        reserveRatio = totalDistributedUsd > 0 
+            ? (totalPoolUsd * 10000) / totalDistributedUsd 
+            : 10000;
+        isHealthy = reserveRatio >= minReserveRatio;
+    }
+
+    function recordYieldDistribution(uint256 propertyId, uint256 amount) external onlyRole(AGENT_ROLE) {
+        propertyLastYieldDistribution[propertyId] = block.timestamp;
+        propertyYieldAccumulated[propertyId] += amount;
+    }
+
+    function getPropertyYieldInfo(uint256 propertyId) external view returns (
+        uint256 lastDistribution,
+        uint256 accumulated,
+        uint256 daysSinceLast
+    ) {
+        lastDistribution = propertyLastYieldDistribution[propertyId];
+        accumulated = propertyYieldAccumulated[propertyId];
+        daysSinceLast = lastDistribution > 0 
+            ? (block.timestamp - lastDistribution) / 86400 
+            : 0;
+    }
+
+    function canDistributeYield(uint256 propertyId) external view returns (bool canDistribute, string memory reason) {
+        RiskProfile memory profile = propertyRiskProfiles[propertyId];
+        
+        if (profile.minDistributionFrequency == 0) {
+            profile.minDistributionFrequency = distributionInterval;
+        }
+
+        uint256 daysSinceLast = propertyLastYieldDistribution[propertyId] > 0 
+            ? (block.timestamp - propertyLastYieldDistribution[propertyId]) / 86400 
+            : 0;
+
+        if (daysSinceLast * 86400 < profile.minDistributionFrequency) {
+            return (false, "Distribution frequency too low");
+        }
+
+        if (propertyRiskScore[propertyId] > profile.emergencyPauseThreshold) {
+            return (false, "Risk score too high");
+        }
+
+        if (safeguardActive) {
+            return (false, "System safeguard active");
+        }
+
+        return (true, "OK");
+    }
+
+    function autoCheckRiskThresholds(uint256 propertyId) external onlyRole(AGENT_ROLE) returns (bool shouldPause) {
+        RiskProfile memory profile = propertyRiskProfiles[propertyId];
+        
+        if (profile.maxDefaultRatio == 0) {
+            profile.maxDefaultRatio = defaultThreshold;
+        }
+
+        uint256 defaultRatio = totalYieldPool == 0 ? 0 : (totalDefaults * 10000) / totalYieldPool;
+        
+        if (defaultRatio > profile.maxDefaultRatio) {
+            emit RiskThresholdBreached(
+                propertyId, 
+                "default_ratio", 
+                defaultRatio, 
+                profile.maxDefaultRatio
+            );
+            shouldPause = true;
+        }
+
+        if (propertyRiskScore[propertyId] > profile.emergencyPauseThreshold) {
+            emit RiskThresholdBreached(
+                propertyId,
+                "risk_score",
+                propertyRiskScore[propertyId],
+                profile.emergencyPauseThreshold
+            );
+            shouldPause = true;
+        }
+
+        return shouldPause;
+    }
+
+    function getPriceFeedHealth() external view returns (
+        bool ethUsdHealthy,
+        bool inflationHealthy,
+        uint256 ethUsdPrice,
+        uint256 inflationIndex,
+        uint256 timeSinceUpdate
+    ) {
+        (, int256 price,, uint256 ethTimestamp,) = ethUsdPriceFeed.latestRoundData();
+        ethUsdPrice = price > 0 ? uint256(price) : 0;
+        ethUsdHealthy = price > 0 && (block.timestamp - ethTimestamp) < 1 hours;
+
+        if (address(inflationIndexFeed) != address(0)) {
+            (, int256 inflation,, uint256 inflationTimestamp,) = inflationIndexFeed.latestRoundData();
+            inflationIndex = inflation > 0 ? uint256(inflation) : 0;
+            inflationHealthy = inflation > 0 && (block.timestamp - inflationTimestamp) < 1 hours;
+        }
+
+        timeSinceUpdate = block.timestamp - priceFeedUpdateTime;
+    }
+
+    function getSystemHealth() external view returns (
+        bool priceFeedsHealthy,
+        bool reservesHealthy,
+        bool defaultsHealthy,
+        bool systemOperational
+    ) {
+        priceFeedsHealthy = isPriceFeedHealthy();
+        reservesHealthy = checkReserveHealthSimple();
+        defaultsHealthy = (totalYieldPool == 0 ? 0 : (totalDefaults * 10000) / totalYieldPool) <= defaultThreshold;
+        systemOperational = priceFeedsHealthy && reservesHealthy && defaultsHealthy && !safeguardActive;
+    }
+
+    function isPriceFeedHealthy() public view returns (bool) {
+        if (address(ethUsdPriceFeed) == address(0)) return false;
+        (, int256 price,, uint256 timestamp,) = ethUsdPriceFeed.latestRoundData();
+        return price > 0 && (block.timestamp - timestamp) < 1 hours;
+    }
+
+    function checkReserveHealthSimple() public view returns (bool) {
+        if (totalYieldPool == 0) return true;
+        uint256 reserveRatio = totalDistributedYield > 0 
+            ? (totalYieldPool * 10000) / totalDistributedYield 
+            : 10000;
+        return reserveRatio >= minReserveRatio;
+    }
 }
