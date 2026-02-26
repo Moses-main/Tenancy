@@ -1,0 +1,31 @@
+name: AutonomousRentalAgent
+description: Autonomous rental property management agent using AI and Chainlink CRE
+version: 1.0.0
+
+trigger:
+  type: cron
+  schedule: "0 0 * * *"  # Daily at 00:00 UTC
+  http: true  # Enable manual HTTP trigger for testing
+
+secrets:
+  - LLM_API_KEY  # OPENAI_API_KEY or GROQ_API_KEY
+
+networks:
+  - sepolia
+  - base_sepolia
+
+contracts:
+  PropertyRegistry: "0x..."
+  YieldDistributor: "0x..."
+
+functions:
+  - fetchPaymentStatus
+  - fetchMarketData
+  - analyzeWithLLM
+  - executeDecisions
+  - emitEvents
+
+configuration:
+  confidenceThreshold: 70
+  maxRentAdjustmentPercent: 10
+  defaultDistributionYield: true
