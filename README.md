@@ -528,11 +528,37 @@ npm run test:tenderly
 
 The Chainlink Runtime Environment (CRE) workflow handles:
 
-1. **Trigger**: Cron schedule or EVM event
+1. **Trigger**: Cron schedule (Daily 00:00 UTC) or HTTP event
 2. **Fetch**: HTTP request to payment API (Confidential HTTP)
 3. **Verify**: Validate payment status
-4. **Consensus**: Multiple node verification
-5. **Execute**: Call smart contract to distribute yield
+4. **AI Analysis**: LLM-powered decision making (OpenAI/Groq)
+5. **Consensus**: Multiple node verification
+6. **Execute**: Call smart contract to distribute yield
+
+#### Autonomous Rental Agent Workflow
+
+The **AutonomousRentalAgent** is a sophisticated CRE workflow that autonomously manages rental properties:
+
+| File | Description |
+|------|-------------|
+| [`cre-workflow/workflows/AutonomousRentalAgent/workflow.yaml`](cre-workflow/workflows/AutonomousRentalAgent/workflow.yaml) | Workflow definition with cron trigger |
+| [`cre-workflow/workflows/AutonomousRentalAgent/workflow.ts`](cre-workflow/workflows/AutonomousRentalAgent/workflow.ts) | Full TypeScript implementation |
+| [`cre-workflow/workflows/AutonomousRentalAgent/secrets.yaml`](cre-workflow/workflows/AutonomousRentalAgent/secrets.yaml) | Secrets configuration |
+| [`cre-workflow/workflows/AutonomousRentalAgent/simulate.ts`](cre-workflow/workflows/AutonomousRentalAgent/simulate.ts) | Local simulation |
+
+**Workflow Features:**
+- Daily autonomous execution at 00:00 UTC
+- Confidential HTTP for payment & market data APIs
+- AI-powered decision making via LLM (OpenAI/Groq)
+- On-chain execution of decisions
+- AIRecommendation event emissions
+- Proof-of-Reserve health checks
+
+**Decision Types:**
+- `distribute_yield` - Pay out yield to investors
+- `pause_yield` - Pause distributions for property
+- `adjust_rent` - Change rent amount
+- `flag_default` - Mark tenant as in default
 
 #### CRE Workflow Files:
 
@@ -577,6 +603,22 @@ On-chain risk management with Proof-of-Reserve:
 - Reserve health checks
 - Default threshold monitoring
 - Auto-triggered safeguard
+- **Auto-Pause**: `autoPauseIfUnsafe()` - Automatically pauses system when risk thresholds breached
+
+#### Agent Functions
+
+Smart contracts with autonomous agent capabilities:
+
+| Contract | Function | Description |
+|----------|---------|-------------|
+| `PropertyRegistry` | `pauseProperty()` | Pause property by agent |
+| `PropertyRegistry` | `adjustRent()` | Adjust rent dynamically |
+| `PropertyRegistry` | `emitAIRecommendation()` | Record AI decisions on-chain |
+| `YieldDistributor` | `distributeWithAIRecommendation()` | Distribute yield with AI reason |
+| `YieldDistributor` | `submitAgentDecision()` | Submit AI decision |
+| `YieldDistributor` | `executeAgentDecision()` | Execute pending decision |
+| `YieldDistributor` | `autoPauseIfUnsafe()` | Auto-pause when unsafe |
+| `YieldDistributor` | `getAutoPauseStatus()` | Preview auto-pause conditions |
 
 #### Privacy Layer
 
@@ -607,11 +649,43 @@ Sybil resistance for yield claims:
 TENANCY targets multiple Chainlink Convergence tracks:
 
 1. **DeFi & Tokenization** - RWA lifecycle (property onboarding → token mint → rent servicing → redemption)
-2. **CRE & AI** - LLM-powered yield optimization and vacancy forecasting
-3. **Risk & Compliance** - Real-time payment health, Proof-of-Reserve
+2. **CRE & AI** - LLM-powered yield optimization, vacancy forecasting, autonomous rental agent
+3. **Risk & Compliance** - Real-time payment health, Proof-of-Reserve, auto-pause safeguards
 4. **Privacy** - Confidential HTTP, private computation
+5. **Agents (Bonus)** - Moltbook submission ready
 
-See [`cre-workflow/src/index.ts`](cre-workflow/src/index.ts) for implementation.
+See [`cre-workflow/workflows/AutonomousRentalAgent/`](cre-workflow/workflows/AutonomousRentalAgent/) for implementation.
+
+---
+
+## 📹 Video Script (3-5 minutes)
+
+### Scene 1: Introduction (30s)
+- Welcome to TENANCY - Autonomous Rental Property Management on Chainlink
+- Show the main dashboard with property statistics
+- Highlight: Tokenized real estate + AI agent
+
+### Scene 2: Smart Contracts (1min)
+- Show Foundry contracts compilation
+- Highlight key contracts: PropertyRegistry, YieldDistributor
+- Demo: Create property → Token minted
+
+### Scene 3: Autonomous Agent (1.5min)
+- Navigate to /agent page
+- Show AI Decisions table
+- Click "Trigger Agent Now"
+- Explain: Daily cron at 00:00 UTC
+- Show LLM integration (confidential HTTP)
+
+### Scene 4: On-Chain Execution (1min)
+- Show transaction in block explorer
+- View AIRecommendation events
+- Demonstrate risk auto-pause
+
+### Scene 5: Conclusion (30s)
+- Recap: Blockchain + External API + LLM/AI Agent
+- Multiple tracks: #defi-tokenization #cre-ai #risk-compliance #privacy
+- GitHub repo link
 
 ---
 
@@ -624,6 +698,7 @@ See [`cre-workflow/src/index.ts`](cre-workflow/src/index.ts) for implementation.
 | Home | `/` | Landing page with stats, featured properties |
 | Investor | `/investor` | Browse properties, buy tokens, claim yield |
 | Issuer | `/issuer` | Register properties, manage streams |
+| **Agent** | `/agent` | **Autonomous Agent Dashboard** - AI decisions, trigger, stats |
 
 ### Authentication
 
