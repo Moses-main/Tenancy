@@ -786,7 +786,53 @@ contract YieldDistributor is Ownable, ReentrancyGuard, Pausable, AccessControl {
             shouldPause = true;
         }
 
+        if (shouldPause && profile.emergencyPauseThreshold > 0) {
+            emit AutomaticPauseTriggered(propertyId, "Risk threshold exceeded - auto pause", propertyRiskScore[propertyId]);
+        }
+
         return shouldPause;
+    }
+
+    function autoPauseIfUnsafe() external onlyRole(AGENT_ROLE) returns (bool paused) {
+        bool isHealthy = checkReserveHealthSimple();
+        
+        if (!isHealthy) {
+            _pause();
+            emit SafeguardTriggered("Auto-pause: System unhealthy", block.timestamp);
+            paused = true;
+        }
+        
+        uint256 defaultRatio = totalYieldPool == 0 ? 0 : (totalDefaults * 10000) / totalYieldPool;
+        if (defaultRatio > defaultThreshold * 2) {
+            _pause();
+            emit SafeguardTriggered("Auto-pause: Default ratio critical", block.timestamp);
+            paused = true;
+        }
+        
+        return paused;
+    }
+
+    function getAutoPauseStatus() external view returns (
+        bool wouldPause,
+        string memory reason
+    ) {
+        uint256 defaultRatio = totalYieldPool == 0 ? 0 : (totalDefaults * 10000) / totalYieldPool;
+        
+        bool isHealthy = checkReserveHealthSimple();
+        
+        if (!isHealthy) {
+            return (true, "System reserve health check failed");
+        }
+        
+        if (defaultRatio > defaultThreshold * 2) {
+            return (true, "Default ratio is critically high");
+        }
+        
+        if (safeguardActive) {
+            return (true, "Safeguard is already active");
+        }
+        
+        return (false, "System is healthy");
     }
 
     function getPriceFeedHealth() external view returns (
