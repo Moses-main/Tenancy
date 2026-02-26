@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Layout from '../components/Layout';
 import { 
   Bot, 
   Play, 
@@ -19,7 +20,9 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
+import { useContracts } from '../lib/useContracts';
 import { toast } from 'react-toastify';
+import { formatUnits } from 'ethers';
 
 interface AgentDecision {
   propertyId: string;
@@ -37,59 +40,100 @@ interface AgentStatus {
   nextRun: string;
   isRunning: boolean;
   totalRuns: number;
-  decisions: AgentDecision[];
+  totalYieldPool?: string;
+  totalDistributed?: string;
+  ethUsdPrice?: number;
 }
 
-const mockDecisions: AgentDecision[] = [
-  {
-    propertyId: '0',
-    propertyName: 'Downtown Apartment Complex',
-    action: 'distribute_yield',
-    adjustmentPercent: 0,
-    reason: 'All payments current - proceed with yield distribution',
-    confidence: 92,
-    timestamp: new Date(Date.now() - 86400000).toISOString(),
-    txHash: '0x1234...5678'
-  },
-  {
-    propertyId: '1',
-    propertyName: 'Suburban Office Building',
-    action: 'adjust_rent',
-    adjustmentPercent: 5,
-    reason: 'Market rates increased - adjusting rent upward',
-    confidence: 78,
-    timestamp: new Date(Date.now() - 86400000).toISOString(),
-    txHash: '0xabcd...efgh'
-  },
-  {
-    propertyId: '2',
-    propertyName: 'Riverside Condos',
-    action: 'flag_default',
-    adjustmentPercent: 100,
-    reason: 'Tenant over 30 days overdue - flagging as default',
-    confidence: 95,
-    timestamp: new Date(Date.now() - 86400000).toISOString(),
-    txHash: '0x9876...5432'
-  },
-];
+const actionLabels: Record<number, string> = {
+  0: 'distribute_yield',
+  1: 'pause_yield',
+  2: 'adjust_rent',
+  3: 'flag_default',
+  4: 'none',
+};
+
+const actionLabelsReverse: Record<string, number> = {
+  'distribute_yield': 0,
+  'pause_yield': 1,
+  'adjust_rent': 2,
+  'flag_default': 3,
+  'none': 4,
+};
 
 const Agent: React.FC = () => {
   const { address, isAuthenticated, chainId } = useAuth();
+  const { getAgentStatus, getAgentDecisions, getYieldStats, getAllProperties, chainId: currentChainId } = useContracts();
   const [agentStatus, setAgentStatus] = useState<AgentStatus>({
     lastRun: new Date(Date.now() - 86400000).toISOString(),
     nextRun: new Date(Date.now() + 86400000).toISOString(),
     isRunning: false,
     totalRuns: 47,
-    decisions: [],
   });
+  const [decisions, setDecisions] = useState<AgentDecision[]>([]);
+  const [yieldStats, setYieldStats] = useState<any>(null);
   const [isTriggering, setIsTriggering] = useState(false);
 
   useEffect(() => {
-    setAgentStatus(prev => ({
-      ...prev,
-      decisions: mockDecisions
-    }));
-  }, []);
+    const fetchData = async () => {
+      if (!isAuthenticated) {
+        setDecisions([]);
+        return;
+      }
+
+      try {
+        const [status, stats, properties] = await Promise.all([
+          getAgentStatus(),
+          getYieldStats(),
+          getAllProperties(),
+        ]);
+
+        if (status) {
+          setAgentStatus(prev => ({
+            ...prev,
+            lastRun: status.lastRun,
+            nextRun: status.nextRun,
+            isRunning: status.isRunning,
+            totalRuns: status.totalRuns,
+            totalYieldPool: status.totalYieldPool,
+            totalDistributed: status.totalDistributed,
+            ethUsdPrice: status.ethUsdPrice,
+          }));
+        }
+
+        if (stats) {
+          setYieldStats(stats);
+        }
+
+        if (properties && properties.length > 0) {
+          const propertyIds = properties.map((_, index) => index);
+          const agentDecisions = await getAgentDecisions(propertyIds);
+          
+          if (agentDecisions && agentDecisions.length > 0) {
+            const mappedDecisions: AgentDecision[] = agentDecisions.map((d: any) => ({
+              propertyId: d.propertyId,
+              propertyName: properties[Number(d.propertyId)]?.uri || `Property ${d.propertyId}`,
+              action: actionLabels[d.action] as AgentDecision['action'],
+              adjustmentPercent: d.adjustmentPercent,
+              reason: d.reason,
+              confidence: d.confidence,
+              timestamp: d.timestamp > 0 ? new Date(d.timestamp).toISOString() : new Date().toISOString(),
+            }));
+            setDecisions(mappedDecisions);
+          } else {
+            setDecisions([]);
+          }
+        } else {
+          setDecisions([]);
+        }
+      } catch (err) {
+        console.error('Error fetching agent data:', err);
+        setDecisions([]);
+      }
+    };
+
+    fetchData();
+  }, [isAuthenticated, chainId, currentChainId, getAgentStatus, getAgentDecisions, getYieldStats, getAllProperties]);
 
   const handleTriggerAgent = async () => {
     if (!isAuthenticated) {
@@ -176,18 +220,19 @@ const Agent: React.FC = () => {
     });
   };
 
-  const avgConfidence = agentStatus.decisions.length > 0
-    ? Math.round(agentStatus.decisions.reduce((sum, d) => sum + d.confidence, 0) / agentStatus.decisions.length)
+  const avgConfidence = decisions.length > 0
+    ? Math.round(decisions.reduce((sum, d) => sum + d.confidence, 0) / decisions.length)
     : 0;
 
   return (
-    <div className="space-y-6 lg:space-y-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-3">
-            <Bot className="h-7 w-7 md:h-8 md:w-8 text-primary" />
-            Autonomous Agent
+    <Layout>
+      <div className="space-y-6 lg:space-y-8">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-3">
+              <Bot className="h-7 w-7 md:h-8 md:w-8 text-primary" />
+              Autonomous Agent
           </h1>
           <p className="text-muted-foreground mt-1">
             AI-powered rental property management
@@ -291,7 +336,7 @@ const Agent: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {agentStatus.decisions.length === 0 ? (
+              {decisions.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
@@ -301,7 +346,7 @@ const Agent: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                agentStatus.decisions.map((decision, index) => (
+                decisions.map((decision, index) => (
                   <tr key={index} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3">
                       <div>
@@ -372,10 +417,12 @@ const Agent: React.FC = () => {
             <div className="p-2 rounded-lg bg-green-500/10">
               <DollarSign className="h-5 w-5 text-green-500" />
             </div>
-            <h3 className="font-semibold">Yield Distributed</h3>
+            <h3 className="font-semibold">Total Yield Pool</h3>
           </div>
-          <p className="text-2xl font-bold">12.5 ETH</p>
-          <p className="text-sm text-muted-foreground mt-1">Last 30 days</p>
+          <p className="text-2xl font-bold">{yieldStats?.totalYieldPool || '0.00'} TEN</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {agentStatus.ethUsdPrice ? `$${(parseFloat(yieldStats?.totalYieldPool || '0') * agentStatus.ethUsdPrice).toFixed(2)} USD` : 'Value in ETH'}
+          </p>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5">
@@ -383,10 +430,10 @@ const Agent: React.FC = () => {
             <div className="p-2 rounded-lg bg-blue-500/10">
               <TrendingUp className="h-5 w-5 text-blue-500" />
             </div>
-            <h3 className="font-semibold">Rent Adjusted</h3>
+            <h3 className="font-semibold">Total Distributed</h3>
           </div>
-          <p className="text-2xl font-bold">+5%</p>
-          <p className="text-sm text-muted-foreground mt-1">Average increase</p>
+          <p className="text-2xl font-bold">{yieldStats?.totalDistributed || '0.00'} TEN</p>
+          <p className="text-sm text-muted-foreground mt-1">All time</p>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5">
@@ -396,10 +443,30 @@ const Agent: React.FC = () => {
             </div>
             <h3 className="font-semibold">Defaults Flagged</h3>
           </div>
-          <p className="text-2xl font-bold">2</p>
+          <p className="text-2xl font-bold">{yieldStats?.totalDefaults || 0}</p>
           <p className="text-sm text-muted-foreground mt-1">Properties at risk</p>
         </div>
       </div>
+
+      {/* System Health */}
+      {yieldStats && (
+        <div className={`rounded-xl border p-5 ${yieldStats.isHealthy ? 'border-green-500/20 bg-green-500/5' : 'border-red-500/20 bg-red-500/5'}`}>
+          <div className="flex items-start gap-4">
+            <div className={`p-2 rounded-lg ${yieldStats.isHealthy ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+              <Shield className={`h-5 w-5 ${yieldStats.isHealthy ? 'text-green-500' : 'text-red-500'}`} />
+            </div>
+            <div>
+              <h3 className="font-semibold">System Health</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {yieldStats.isHealthy ? 'Reserve health is good' : 'Reserve below threshold - safeguard may be active'}
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Reserve: {yieldStats.totalReserve} TEN / Required: {yieldStats.requiredReserve} TEN
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Info Card */}
       <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
@@ -431,6 +498,7 @@ const Agent: React.FC = () => {
         </div>
       </div>
     </div>
+    </Layout>
   );
 };
 

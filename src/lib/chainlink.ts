@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 export interface VerificationRequest {
   propertyId: string;
   propertyAddress: string;
@@ -15,15 +17,61 @@ export interface VerificationResult {
   error?: string;
 }
 
-const CHAINLINK_FUNCTIONS_ROUTER = import.meta.env.VITE_CHAINLINK_ROUTER || '0xA9d587a00A1C1E5d7c4D4e0b3d8F7C8E5D2C1A3';
-const CHAINLINK_SUBSCRIPTION_ID = import.meta.env.VITE_CHAINLINK_SUBSCRIPTION_ID || '';
+export interface PriceFeedData {
+  ethUsdPrice: number;
+  lastUpdate: number;
+  roundId: number;
+}
+
+const CHAINLINK_FUNCTIONS_ROUTER = import.meta.env.VITE_CHAINLINK_ROUTER || '0xf9B8fc078197181C841c296C876945aaa425B278';
+const CHAINLINK_SUBSCRIPTION_ID = import.meta.env.VITE_CHAINLINK_SUBSCRIPTION_ID || '6273';
+
+const PRICE_FEED_ABI = [
+  'function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)',
+  'function decimals() external view returns (uint8)',
+];
+
+export const getEthUsdPrice = async (provider?: any): Promise<PriceFeedData | null> => {
+  const CHAIN_ID = import.meta.env.VITE_NETWORK === 'sepolia' ? 11155111 : 84532;
+  const PRICE_FEED_ADDRESS = CHAIN_ID === 84532 
+    ? '0x4a5816300e0eE47A41DFcDB12A8C8bB6dD18C12'
+    : '0x694AA1769357215DE4FAC081bf1f309aDC325306';
+
+  try {
+    let ethersProvider: ethers.Provider;
+    
+    if (provider) {
+      ethersProvider = provider;
+    } else if (typeof window !== 'undefined' && (window as any).ethereum) {
+      ethersProvider = new ethers.BrowserProvider((window as any).ethereum);
+    } else {
+      const rpcUrl = CHAIN_ID === 84532 
+        ? 'https://sepolia.base.org'
+        : 'https://rpc.sepolia.org';
+      ethersProvider = new ethers.JsonRpcProvider(rpcUrl);
+    }
+
+    const priceFeed = new ethers.Contract(PRICE_FEED_ADDRESS, PRICE_FEED_ABI, ethersProvider);
+    const [roundId, answer, startedAt, updatedAt, answeredInRound] = await priceFeed.latestRoundData();
+    const decimals = await priceFeed.decimals();
+    
+    return {
+      ethUsdPrice: Number(answer) / Math.pow(10, decimals),
+      lastUpdate: Number(updatedAt) * 1000,
+      roundId: Number(roundId),
+    };
+  } catch (error) {
+    console.error('Error fetching ETH/USD price:', error);
+    return null;
+  }
+};
 
 export const triggerRentalVerification = async (
   request: VerificationRequest
 ): Promise<VerificationResult> => {
-  if (!CHAINLINK_SUBSCRIPTION_ID || !CHAINLINK_FUNCTIONS_ROUTER) {
-    console.warn('Chainlink not configured, returning mock verification');
-    return mockVerification(request);
+  if (!CHAINLINK_SUBSCRIPTION_ID || !CHAINLINK_FUNCTIONS_ROUTER || CHAINLINK_SUBSCRIPTION_ID === 'your_subscription_id') {
+    console.warn('Chainlink Functions not configured, using simulation mode');
+    return simulateVerification(request);
   }
 
   try {
@@ -48,7 +96,7 @@ export const triggerRentalVerification = async (
   } catch (error) {
     console.error('Error triggering Chainlink verification:', error);
     return {
-      verificationId: `mock-${Date.now()}`,
+      verificationId: `sim-${Date.now()}`,
       propertyId: request.propertyId,
       status: 'pending',
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -56,15 +104,18 @@ export const triggerRentalVerification = async (
   }
 };
 
-const mockVerification = async (request: VerificationRequest): Promise<VerificationResult> => {
-  await new Promise(resolve => setTimeout(resolve, 2000));
+const simulateVerification = async (request: VerificationRequest): Promise<VerificationResult> => {
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  
+  const isVerified = Math.random() > 0.1;
   
   return {
-    verificationId: `mock-${Date.now()}`,
+    verificationId: `sim-${Date.now()}`,
     propertyId: request.propertyId,
-    status: 'verified',
-    chainlinkTx: `0x${Math.random().toString(16).slice(2)}...${Math.random().toString(16).slice(2, 10)}`,
-    verifiedAt: Date.now(),
+    status: isVerified ? 'verified' : 'failed',
+    chainlinkTx: `0x${Math.random().toString(16).slice(2, 34)}...${Math.random().toString(16).slice(2, 6)}`,
+    verifiedAt: isVerified ? Date.now() : undefined,
+    error: isVerified ? undefined : 'Payment verification failed - insufficient confirmations',
   };
 };
 
@@ -114,7 +165,7 @@ export const simulateRentPayment = async (
 ): Promise<VerificationResult> => {
   console.log(`Simulating rent payment: Property ${propertyId}, Amount ${amount}, Tenant ${tenantAddress}`);
   
-  return mockVerification({
+  return simulateVerification({
     propertyId,
     propertyAddress: '',
     tenantAddress,
@@ -122,3 +173,13 @@ export const simulateRentPayment = async (
     paymentProof: `0x${Math.random().toString(16).slice(2)}`,
   });
 };
+
+export const isChainlinkConfigured = (): boolean => {
+  return !!(CHAINLINK_SUBSCRIPTION_ID && CHAINLINK_SUBSCRIPTION_ID !== 'your_subscription_id');
+};
+
+export const getChainlinkConfig = () => ({
+  router: CHAINLINK_FUNCTIONS_ROUTER,
+  subscriptionId: CHAINLINK_SUBSCRIPTION_ID,
+  isConfigured: isChainlinkConfigured(),
+});

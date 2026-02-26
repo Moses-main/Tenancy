@@ -72,6 +72,10 @@ export const ABIS = {
     "function getRiskMetrics() view returns (uint256 totalDefaults, uint256 defaultRatio, uint256 reserveRatio, bool safeguardActive, uint256 lastRiskCheck)",
     "function getEthUsdPrice() view returns (uint256)",
     "function getYieldDistributionUsd(uint256 distributionId) view returns (uint256)",
+    "function getAgentDecision(uint256 propertyId) view returns (uint256 propId, uint256 action, uint256 adjustmentPercent, string reason, uint256 confidence, bytes32 recommendationId, bool executed, uint256 timestamp)",
+    "function lastDistributionTimestamp() view returns (uint256)",
+    "function totalYieldPool() view returns (uint256)",
+    "function totalDistributedYield() view returns (uint256)",
   ],
   priceFeed: [
     "function getLatestPrice() view returns (int256)",

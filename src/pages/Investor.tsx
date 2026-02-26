@@ -29,6 +29,7 @@ export default function InvestorDashboard() {
     getPendingYield, 
     claimYield,
     buyPropertyTokens,
+    getUserDistributions,
     isLoading: contractLoading,
     chainId
   } = useContracts();
@@ -36,6 +37,7 @@ export default function InvestorDashboard() {
   const [properties, setProperties] = useState<PropertyDisplay[]>([]);
   const [tenBalance, setTenBalance] = useState('0');
   const [pendingYield, setPendingYield] = useState('0');
+  const [distributions, setDistributions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [buyAmount, setBuyAmount] = useState('');
   const [isProcessingBuy, setIsProcessingBuy] = useState(false);
@@ -67,10 +69,14 @@ export default function InvestorDashboard() {
         
         setProperties(displayProps);
 
-        const balance = await getTENBalance();
-        const yield_ = await getPendingYield();
+        const [balance, yield_, userDists] = await Promise.all([
+          getTENBalance(),
+          getPendingYield(),
+          getUserDistributions(),
+        ]);
         setTenBalance(balance);
         setPendingYield(yield_);
+        setDistributions(userDists || []);
       } catch (err) {
         console.error('Error fetching data:', err);
       } finally {
@@ -79,7 +85,7 @@ export default function InvestorDashboard() {
     };
 
     fetchData();
-  }, [isAuthenticated, isCorrectNetwork, chainId]);
+  }, [isAuthenticated, isCorrectNetwork, chainId, getAllProperties, getTENBalance, getPendingYield, getUserDistributions]);
 
   const handleBuyTEN = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -367,23 +373,34 @@ export default function InvestorDashboard() {
             </div>
             <div className="flex-1 overflow-auto">
               <div className="space-y-2">
-                {[
-                  { date: 'Oct 01, 2024', amount: '+142.50 USDC', status: 'Claimed', tx: '0x3f...9a1' },
-                  { date: 'Sep 01, 2024', amount: '+138.20 USDC', status: 'Claimed', tx: '0x8b...4c2' },
-                  { date: 'Aug 01, 2024', amount: '+140.00 USDC', status: 'Claimed', tx: '0x1a...7d9' },
-                ].map((tx, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                    <div className="space-y-1">
-                      <p className="font-semibold text-green-500">{tx.amount}</p>
-                      <p className="text-xs text-muted-foreground">{tx.date}</p>
+                {distributions && distributions.length > 0 ? (
+                  distributions.slice(0, 10).map((dist, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors">
+                      <div className="space-y-1">
+                        <p className="font-semibold text-green-500">+{parseFloat(dist.totalYield).toFixed(2)} TEN</p>
+                        <p className="text-xs text-muted-foreground">
+                          {dist.timestamp > 0 
+                            ? new Date(dist.timestamp * 1000).toLocaleDateString() 
+                            : 'Pending'}
+                        </p>
+                      </div>
+                      <div className="text-right space-y-1">
+                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
+                          dist.status === 2 ? 'bg-green-500/10 text-green-500' : 
+                          dist.status === 1 ? 'bg-blue-500/10 text-blue-500' :
+                          'bg-yellow-500/10 text-yellow-500'
+                        }`}>
+                          {dist.status === 2 ? 'Claimed' : dist.status === 1 ? 'Distributing' : 'Pending'}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-right space-y-1">
-                      <span className="inline-flex items-center rounded-full bg-green-500/10 text-green-500 px-3 py-1 text-xs font-medium">
-                        {tx.status}
-                      </span>
-                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No yield history yet</p>
+                    <p className="text-sm text-muted-foreground mt-1">Invest in properties to earn yield</p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>

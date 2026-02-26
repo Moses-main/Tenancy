@@ -134,3 +134,70 @@ export function InlineError({
     </div>
   );
 }
+
+export function StatsCardSkeleton() {
+  return (
+    <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-4 w-4 rounded-full" />
+      </div>
+      <Skeleton className="h-8 w-20" />
+    </div>
+  );
+}
+
+export function ChartSkeleton() {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-6">
+      <Skeleton className="h-6 w-48 mb-4" />
+      <Skeleton className="h-64 w-full" />
+    </div>
+  );
+}
+
+export function ListItemSkeleton() {
+  return (
+    <div className="flex items-center gap-4 p-3 rounded-lg">
+      <Skeleton className="h-10 w-10 rounded-full" />
+      <div className="flex-1 space-y-2">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-3 w-24" />
+      </div>
+      <div className="text-right space-y-2">
+        <Skeleton className="h-4 w-16" />
+        <Skeleton className="h-3 w-12" />
+      </div>
+    </div>
+  );
+}
+
+export function FormSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+      <Skeleton className="h-10 w-32" />
+    </div>
+  );
+}
+
+export function FullPageLoader({ text = 'Loading...' }: { text?: string }) {
+  return (
+    <div className="min-h-[80vh] flex flex-col items-center justify-center gap-4">
+      <div className="relative">
+        <LoadingSpinner size="lg" />
+        <div className="absolute inset-0 animate-ping opacity-20">
+          <Loader2 className="h-12 w-12 text-primary" />
+        </div>
+      </div>
+      <p className="text-muted-foreground text-sm animate-pulse">{text}</p>
+    </div>
+  );
+}

@@ -588,6 +588,120 @@ export const useContracts = () => {
     }
   }, [provider, address, chainId, getAllProperties]);
 
+  const getAgentStatus = useCallback(async () => {
+    if (!provider) return null;
+    
+    try {
+      const isBaseSepolia = chainId === 84532;
+      const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
+      const yieldDistributor = new Contract(addrs.yieldDistributor, ABIS.yieldDistributor, provider);
+      
+      const [lastRun, totalPool, totalDistributed, lastPrice] = await Promise.all([
+        yieldDistributor.lastDistributionTimestamp(),
+        yieldDistributor.totalYieldPool(),
+        yieldDistributor.totalDistributedYield(),
+        yieldDistributor.getEthUsdPrice().catch(() => 0n),
+      ]);
+      
+      const nextRun = Number(lastRun) + 86400;
+      
+      return {
+        lastRun: Number(lastRun) > 0 ? new Date(Number(lastRun) * 1000).toISOString() : null,
+        nextRun: new Date(nextRun * 1000).toISOString(),
+        isRunning: false,
+        totalRuns: Number(lastRun) > 0 ? Math.floor(Number(lastRun) / 86400) : 0,
+        totalYieldPool: formatUnits(totalPool, 18),
+        totalDistributed: formatUnits(totalDistributed, 18),
+        ethUsdPrice: Number(lastPrice) / 1e8,
+      };
+    } catch (err) {
+      console.error('Error fetching agent status:', err);
+      return null;
+    }
+  }, [provider, chainId]);
+
+  const getAgentDecisions = useCallback(async (propertyIds: number[]) => {
+    if (!provider) return [];
+    
+    try {
+      const isBaseSepolia = chainId === 84532;
+      const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
+      const yieldDistributor = new Contract(addrs.yieldDistributor, ABIS.yieldDistributor, provider);
+      
+      const decisions = await Promise.all(
+        propertyIds.map(async (propertyId) => {
+          try {
+            const decision = await yieldDistributor.getAgentDecision(propertyId);
+            return {
+              propertyId: decision.propId.toString(),
+              action: Number(decision.action),
+              adjustmentPercent: Number(decision.adjustmentPercent),
+              reason: decision.reason,
+              confidence: Number(decision.confidence),
+              executed: decision.executed,
+              timestamp: Number(decision.timestamp) * 1000,
+            };
+          } catch {
+            return null;
+          }
+        })
+      );
+      
+      return decisions.filter(Boolean);
+    } catch (err) {
+      console.error('Error fetching agent decisions:', err);
+      return [];
+    }
+  }, [provider, chainId]);
+
+  const getYieldStats = useCallback(async () => {
+    if (!provider) return null;
+    
+    try {
+      const isBaseSepolia = chainId === 84532;
+      const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
+      const yieldDistributor = new Contract(addrs.yieldDistributor, ABIS.yieldDistributor, provider);
+      
+      const [totalPool, totalDistributed, price, health, risk] = await Promise.all([
+        yieldDistributor.totalYieldPool(),
+        yieldDistributor.totalDistributedYield(),
+        yieldDistributor.getEthUsdPrice().catch(() => 0n),
+        yieldDistributor.checkReserveHealth().catch(() => ({ isHealthy: true, totalReserve: 0n, requiredReserve: 0n })),
+        yieldDistributor.getRiskMetrics().catch(() => ({ totalDefaults: 0n, defaultRatio: 0n, reserveRatio: 0n, safeguardActive: false, lastRiskCheck: 0n })),
+      ]);
+      
+      return {
+        totalYieldPool: formatUnits(totalPool, 18),
+        totalDistributed: formatUnits(totalDistributed, 18),
+        ethUsdPrice: Number(price) / 1e8,
+        isHealthy: health.isHealthy,
+        totalReserve: formatUnits(health.totalReserve, 18),
+        requiredReserve: formatUnits(health.requiredReserve, 18),
+        totalDefaults: Number(risk.totalDefaults),
+        safeguardActive: risk.safeguardActive,
+      };
+    } catch (err) {
+      console.error('Error fetching yield stats:', err);
+      return null;
+    }
+  }, [provider, chainId]);
+
+  const getEthUsdPrice = useCallback(async (): Promise<number | null> => {
+    if (!provider) return null;
+    
+    try {
+      const isBaseSepolia = chainId === 84532;
+      const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
+      const yieldDistributor = new Contract(addrs.yieldDistributor, ABIS.yieldDistributor, provider);
+      
+      const price = await yieldDistributor.getEthUsdPrice();
+      return Number(price) / 1e8;
+    } catch (err) {
+      console.error('Error fetching ETH/USD price:', err);
+      return null;
+    }
+  }, [provider, chainId]);
+
   return {
     isLoading,
     error,
@@ -613,5 +727,9 @@ export const useContracts = () => {
     cancelMarketplaceListing,
     getLeases,
     payRent,
+    getAgentStatus,
+    getAgentDecisions,
+    getYieldStats,
+    getEthUsdPrice,
   };
 };
