@@ -15,9 +15,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('tenancy-theme') as Theme;
       if (saved) return saved;
-      return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      // Default to light mode for modern SaaS look
+      return 'light';
     }
-    return 'dark';
+    return 'light';
   });
 
   useEffect(() => {
