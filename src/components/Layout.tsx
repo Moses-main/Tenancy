@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Building2, Wallet, Coins, BarChart3, Menu, X, ShieldCheck, Copy, ExternalLink, LogOut, Store, Sun, Moon, RefreshCw, Layers, Home } from 'lucide-react';
+import { Building2, Wallet, Coins, BarChart3, Menu, X, ShieldCheck, Copy, ExternalLink, LogOut, Store, Sun, Moon, RefreshCw, Layers, Home, Bot } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { useTheme } from '../lib/ThemeContext';
 
@@ -41,6 +41,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navItems = [
     { path: '/', label: 'Dashboard', icon: BarChart3 },
     { path: '/marketplace', label: 'Marketplace', icon: Store },
+    { path: '/agent', label: 'Agent', icon: Bot },
     { path: '/issuer', label: 'Issuer', icon: Building2 },
     { path: '/investor', label: 'Investor', icon: Coins },
     { path: '/tenant', label: 'Tenant', icon: Home },
