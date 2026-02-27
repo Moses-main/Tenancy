@@ -15,7 +15,7 @@
   "dependencies": {
     "@privy-io/react-auth": "^3.14.1",
     "@radix-ui/themes": "^3.2.1",
-    "@thirdweb-dev/sdk": "^4.1.0",
+    "@thirdweb-dev/sdk": "^4.0.0",
     "clsx": "^2.1.1",
     "dotenv": "^16.4.5",
     "ethers": "^6.16.0",
