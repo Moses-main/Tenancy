@@ -5,7 +5,8 @@ import { Home, CreditCard, Clock, CheckCircle, AlertCircle, Building, DollarSign
 import { toast } from 'react-toastify';
 import { useAuth } from '../lib/AuthContext';
 import { useContracts } from '../lib/useContracts';
-import { formatUnits, parseUnits } from 'ethers';
+import { ethers } from 'ethers';
+const { formatUnits, parseUnits } = ethers.utils;
 
 interface Lease {
   id: number;

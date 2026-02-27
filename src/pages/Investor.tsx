@@ -6,7 +6,8 @@ import { Coins, ArrowDownToLine, ArrowRightLeft, TrendingUp, Building, ExternalL
 import { toast } from 'react-toastify';
 import { useContracts } from '../lib/useContracts';
 import { useAuth } from '../lib/AuthContext';
-import { formatUnits, parseUnits } from 'ethers';
+import { ethers } from 'ethers';
+const { formatUnits, parseUnits } = ethers.utils;
 import { Link } from 'react-router-dom';
 
 interface PropertyDisplay {

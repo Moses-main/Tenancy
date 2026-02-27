@@ -1,4 +1,5 @@
-import { parseUnits, parseEther } from 'ethers';
+import { ethers } from 'ethers';
+const { parseUnits, parseEther } = ethers.utils;
 
 const PINATA_JWT = import.meta.env.VITE_PINATA_JWT || '';
 const IPFS_GATEWAY = 'https://gateway.pinata.cloud/ipfs/';

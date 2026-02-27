@@ -22,7 +22,8 @@ import {
 import { useAuth } from '../lib/AuthContext';
 import { useContracts } from '../lib/useContracts';
 import { toast } from 'react-toastify';
-import { formatUnits } from 'ethers';
+import { ethers } from 'ethers';
+const { formatUnits } = ethers.utils;
 
 interface AgentDecision {
   propertyId: string;

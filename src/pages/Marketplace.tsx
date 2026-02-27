@@ -5,7 +5,8 @@ import { Building, DollarSign, TrendingUp, Users, Search, Filter, ArrowUpDown, C
 import { toast } from 'react-toastify';
 import { useContracts } from '../lib/useContracts';
 import { useAuth } from '../lib/AuthContext';
-import { formatUnits, parseUnits } from 'ethers';
+import { ethers } from 'ethers';
+const { formatUnits, parseUnits } = ethers.utils;
 
 interface Listing {
   id: number;

@@ -7,7 +7,8 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Link } from 'react-router-dom';
 import { useContracts } from '../lib/useContracts';
 import { useAuth } from '../lib/AuthContext';
-import { formatUnits } from 'ethers';
+import { ethers } from 'ethers';
+const { formatUnits } = ethers.utils;
 
 const generateYieldHistory = (): { name: string; yield: number }[] => {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

@@ -7,7 +7,6 @@ import {
   BarChart3,
   Menu,
   X,
-  ShieldCheck,
   Copy,
   ExternalLink,
   LogOut,
@@ -77,13 +76,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="container flex h-16 md:h-18 items-center justify-between px-4 md:px-8">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/25 overflow-hidden">
-              <img
-                src="/Logo.png"
-                alt="TENANCY Protocol"
-                className="w-full h-full object-contain"
-              />
-            </div>
+            {/*<div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/25 overflow-hidden">*/}
+            <img
+              src="/Logo.png"
+              alt="TENANCY Protocol"
+              className="w-full h-full object-contain"
+            />
+            {/*</div>*/}
             <div className="flex flex-col">
               <span className="text-lg font-bold tracking-tight">TENANCY</span>
               <span className="text-[10px] text-muted-foreground -mt-1">

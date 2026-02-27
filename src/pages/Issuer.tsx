@@ -4,7 +4,8 @@ import { Building2, UploadCloud, CheckCircle2, AlertCircle, Loader2 } from 'luci
 import { toast } from 'react-toastify';
 import { useContracts } from '../lib/useContracts';
 import { useAuth } from '../lib/AuthContext';
-import { formatUnits } from 'ethers';
+import { ethers } from 'ethers';
+const { formatUnits } = ethers.utils;
 
 interface PropertyDisplay {
   id: number;
