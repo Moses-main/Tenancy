@@ -1,26 +1,30 @@
 {
-  "name": "tenancy-backend-mock",
+  "name": "tenancy-backend",
   "version": "1.0.0",
-  "description": "Lightweight mock backend for TENANCY protocol - simulates off-chain rental verification and Chainlink trigger endpoints (testnets only).",
+  "description": "Backend for TENANCY protocol - persistent storage and Chainlink automation triggers",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js --watch index.js --ext js,json"
+    "dev": "nodemon index.js --watch index.js --ext js,json",
+    "db:init": "node db/init.js"
   },
   "keywords": [
     "tenancy",
     "backend",
-    "mock",
     "chainlink",
-    "express"
+    "express",
+    "postgresql"
   ],
   "author": "Meku",
   "license": "MIT",
   "dependencies": {
     "cors": "^2.8.5",
+    "ethers": "^5.7.2",
     "express": "^4.18.2",
-    "helmet": "^7.0.0"
+    "helmet": "^7.0.0",
+    "pg": "^8.11.3",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "nodemon": "^2.0.22"
