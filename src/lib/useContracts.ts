@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ethers, Contract, formatEther, formatUnits, parseEther, parseUnits } from 'ethers';
+import { ethers, Contract } from 'ethers';
+
+const { formatEther, formatUnits, parseEther, parseUnits } = ethers.utils;
 
 type Web3Provider = ethers.providers.Web3Provider;
 import { useAuth } from './AuthContext';
