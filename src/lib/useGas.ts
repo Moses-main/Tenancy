@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
-import { BrowserProvider } from 'ethers';
+import { ethers } from 'ethers';
+
+type Web3Provider = ethers.providers.Web3Provider;
 import { useAuth } from './AuthContext';
 import { 
   estimateGas, 

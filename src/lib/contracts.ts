@@ -1,4 +1,6 @@
-import { BrowserProvider, Contract, formatEther, formatUnits, parseEther, parseUnits } from 'ethers';
+import { ethers, Contract, formatEther, formatUnits, parseEther, parseUnits } from 'ethers';
+
+type Web3Provider = ethers.providers.Web3Provider;
 
 const getEnv = (key: string, fallback: string = '') => {
   return import.meta.env[key] || fallback;
@@ -96,7 +98,7 @@ export const ABIS = {
   ],
 };
 
-export const getContracts = async (provider: BrowserProvider, chainId: number) => {
+export const getContracts = async (provider: Web3Provider, chainId: number) => {
   const config = CHAIN_CONFIG[chainId as keyof typeof CHAIN_CONFIG];
   const addresses = config ? CONTRACT_ADDRESSES[config.network] : CONTRACT_ADDRESSES.baseSepolia;
 

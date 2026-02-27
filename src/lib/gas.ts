@@ -1,4 +1,6 @@
-import { BrowserProvider, TransactionReceipt, ethers } from 'ethers';
+import { ethers, TransactionReceipt } from 'ethers';
+
+type Web3Provider = ethers.providers.Web3Provider;
 
 export interface GasEstimate {
   gasLimit: bigint;
@@ -32,7 +34,7 @@ const GAS_BUFFER_PERCENT = 20;
 const MAX_GAS_PRICE_GWEI = 500;
 
 export async function estimateGas(
-  provider: BrowserProvider,
+  provider: Web3Provider,
   tx: Promise<{ gasLimit?: bigint; to?: string; data?: string; value?: bigint }>,
   priceFeedAddress?: string
 ): Promise<GasEstimate> {
@@ -90,7 +92,7 @@ export async function estimateGas(
 }
 
 export async function sendTransactionWithRetry(
-  provider: BrowserProvider,
+  provider: Web3Provider,
   tx: Promise<{ to?: string; data?: string; value?: bigint; gasLimit?: bigint; gasPrice?: bigint; maxFeePerGas?: bigint; maxPriorityFeePerGas?: bigint; nonce?: number }>,
   options: TransactionOptions = {}
 ): Promise<TransactionResult> {

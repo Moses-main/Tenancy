@@ -43,7 +43,7 @@ export const getEthUsdPrice = async (provider?: any): Promise<PriceFeedData | nu
     if (provider) {
       ethersProvider = provider;
     } else if (typeof window !== 'undefined' && (window as any).ethereum) {
-      ethersProvider = new ethers.BrowserProvider((window as any).ethereum);
+      ethersProvider = new ethers.providers.Web3Provider((window as any).ethereum);
     } else {
       const rpcUrl = CHAIN_ID === 84532 
         ? 'https://sepolia.base.org'

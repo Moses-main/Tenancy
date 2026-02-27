@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
-import { BrowserProvider, ethers } from 'ethers';
+import { ethers } from 'ethers';
+
+type Web3Provider = ethers.providers.Web3Provider;
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -12,7 +14,7 @@ interface AuthContextType {
   balance: string | null;
   chainId: number | null;
   chainName: string | null;
-  provider: BrowserProvider | null;
+  provider: Web3Provider | null;
   isWalletModalOpen: boolean;
   setWalletModalOpen: (open: boolean) => void;
   connectWallet: () => void;
@@ -43,7 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [balance, setBalance] = useState<string | null>(null);
   const [chainId, setChainId] = useState<number | null>(null);
   const [chainName, setChainName] = useState<string | null>(null);
-  const [provider, setProvider] = useState<BrowserProvider | null>(null);
+  const [provider, setProvider] = useState<Web3Provider | null>(null);
   const [isWalletModalOpen, setWalletModalOpen] = useState(false);
 
   const address = wallets[0]?.address || null;
@@ -61,7 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const ethProvider = await wallets[0].getEthereumProvider();
         if (ethProvider) {
-          const ethersProvider = new BrowserProvider(ethProvider);
+          const ethersProvider = new providers.Web3Provider(ethProvider);
           setProvider(ethersProvider);
           
           const balanceWei = await ethersProvider.getBalance(wallets[0].address);
