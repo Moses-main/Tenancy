@@ -76,13 +76,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="container flex h-16 md:h-18 items-center justify-between px-4 md:px-8">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            {/*<div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/25 overflow-hidden">*/}
-            <img
-              src="/Logo.png"
-              alt="TENANCY Protocol"
-              className="w-full h-full object-contain"
-            />
-            {/*</div>*/}
+            <div className="w-10 h-10 rounded-xl items-center justify-center shadow-lg shadow-primary/25 overflow-hidden">
+              <img
+                src="https://coral-careful-clownfish-270.mypinata.cloud/ipfs/bafybeicoasfwy7zdldrer72cy6rgylbhflmv5mzogeu6e5jujt4koqe5gi"
+                alt="TENANCY Protocol"
+                className="w-full h-full object-contain"
+              />
+            </div>
             <div className="flex flex-col">
               <span className="text-lg font-bold tracking-tight">TENANCY</span>
               <span className="text-[10px] text-muted-foreground -mt-1">
@@ -362,7 +362,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center overflow-hidden shadow-md">
               <img
-                src="/Logo.png"
+                src="https://coral-careful-clownfish-270.mypinata.cloud/ipfs/bafybeicoasfwy7zdldrer72cy6rgylbhflmv5mzogeu6e5jujt4koqe5gi"
                 alt="TENANCY Protocol"
                 className="w-full h-full object-contain"
               />
