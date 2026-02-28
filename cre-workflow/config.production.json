@@ -1,0 +1,19 @@
+{
+  "schedule": "0 0 * * * *",
+  "networks": {
+    "baseSepolia": {
+      "chainSelector": "11344663589393246078",
+      "propertyRegistryAddress": "0x8f77c2BD2132727327B27164cDec4ccaA2083f7C",
+      "yieldDistributorAddress": "0xd7c3c5e900Bd95653FA65b660a94625E1ddbBDA1",
+      "priceFeedAddress": "0x694AA1769357215DE4FAC081bf1f309aDC325306"
+    }
+  },
+  "secrets": {
+    "paymentApiUrl": "https://api.tenancy.internal",
+    "paymentApiKey": "tenancy_dev_key_2024",
+    "llmProvider": "openai",
+    "openaiApiKey": "${OPENAI_API_KEY}",
+    "groqApiKey": "",
+    "ollamaUrl": "http://localhost:11434"
+  }
+}

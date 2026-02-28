@@ -1,0 +1,26 @@
+{
+  "staging-settings": {
+    "description": "Staging environment for CRE workflow testing",
+    "configPath": "./config.staging.json",
+    "secrets": {
+      "paymentApiUrl": "https://api.tenancy.internal",
+      "paymentApiKey": "",
+      "llmProvider": "openai",
+      "openaiApiKey": "YOUR_OPENAI_API_KEY_HERE",
+      "groqApiKey": "",
+      "ollamaUrl": "http://localhost:11434"
+    }
+  },
+  "production-settings": {
+    "description": "Production environment (Base Sepolia)",
+    "configPath": "./config.production.json",
+    "secrets": {
+      "paymentApiUrl": "https://api.tenancy.internal",
+      "paymentApiKey": "${PAYMENT_API_KEY}",
+      "llmProvider": "openai",
+      "openaiApiKey": "${OPENAI_API_KEY}",
+      "groqApiKey": "",
+      "ollamaUrl": "http://localhost:11434"
+    }
+  }
+}

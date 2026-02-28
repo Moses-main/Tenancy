@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
+import { MoonPayWidget, BuyCryptoButton } from '../components/MoonPayWidget';
 import { Home, CreditCard, Clock, CheckCircle, AlertCircle, Building, DollarSign, FileText, Loader2, ExternalLink, Calendar } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAuth } from '../lib/AuthContext';
@@ -37,6 +38,7 @@ export default function Tenant() {
   const [selectedLease, setSelectedLease] = useState<Lease | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showMoonPay, setShowMoonPay] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -235,7 +237,7 @@ export default function Tenant() {
             value={overdueCount.toString()}
             icon={AlertCircle}
             description="Payments"
-            alert={overdueCount > 0}
+            variant={overdueCount > 0 ? 'warning' : 'default'}
           />
         </div>
 
@@ -364,6 +366,15 @@ export default function Tenant() {
                 <p className="text-sm text-muted-foreground mt-2">Monthly Rent</p>
                 <p className="font-medium">{selectedLease.monthlyRent.toLocaleString()} USDC</p>
               </div>
+              <div className="mb-4">
+                <BuyCryptoButton 
+                  onClick={() => setShowMoonPay(true)} 
+                  className="w-full justify-center"
+                />
+                <p className="text-xs text-center text-muted-foreground mt-2">
+                  Need USDC? Buy crypto with card or bank transfer
+                </p>
+              </div>
               <form onSubmit={handlePayment} className="space-y-4">
                 <div>
                   <label className="text-sm font-medium mb-2 block">Amount (USDC)</label>
@@ -412,6 +423,13 @@ export default function Tenant() {
             </div>
           </div>
         )}
+
+        <MoonPayWidget
+          isOpen={showMoonPay}
+          onClose={() => setShowMoonPay(false)}
+          walletAddress={address || ''}
+          amount={selectedLease ? selectedLease.monthlyRent : 100}
+        />
       </div>
     </Layout>
   );
