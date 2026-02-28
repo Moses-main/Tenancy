@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
-import { ethers } from 'ethers';
+import { ethers, providers } from 'ethers';
+
+const { formatEther } = ethers.utils;
 
 type Web3Provider = ethers.providers.Web3Provider;
 
@@ -67,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setProvider(ethersProvider);
           
           const balanceWei = await ethersProvider.getBalance(wallets[0].address);
-          const balanceEth = ethers.formatEther(balanceWei);
+          const balanceEth = formatEther(balanceWei);
           setBalance(parseFloat(balanceEth).toFixed(4));
 
           const network = await ethersProvider.getNetwork();
@@ -124,6 +126,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const isCorrectNetwork = chainId === 84532 || chainId === 11155111;
+
+  const BASE_SEPOLIA_CHAIN_ID = 84532;
+
+  useEffect(() => {
+    if (authenticated && address && !isCorrectNetwork) {
+      const switchToBaseSepolia = async () => {
+        try {
+          await switchNetwork(BASE_SEPOLIA_CHAIN_ID);
+        } catch (error) {
+          console.log('Could not auto-switch to Base Sepolia');
+        }
+      };
+      switchToBaseSepolia();
+    }
+  }, [authenticated, address, isCorrectNetwork]);
 
   return (
     <AuthContext.Provider
