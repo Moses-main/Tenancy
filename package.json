@@ -13,6 +13,8 @@
     "test:tenderly": "npx ts-node scripts/tenderly-test.ts"
   },
   "dependencies": {
+    "@moonpay/moonpay-js": "^0.7.6",
+    "@moonpay/moonpay-react": "^1.10.6",
     "@privy-io/react-auth": "^3.14.1",
     "@radix-ui/themes": "^3.2.1",
     "@thirdweb-dev/sdk": "^4.0.0",

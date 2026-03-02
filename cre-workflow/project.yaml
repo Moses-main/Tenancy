@@ -1,0 +1,19 @@
+staging-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: https://ethereum-sepolia-rpc.publicnode.com
+  user-workflow:
+    workflow-name: "tenancy-cre-staging"
+    workflow-artifacts:
+      workflow-path: "main.ts"
+      config-path: "config.staging.json"
+
+production-settings:
+  rpcs:
+    - chain-name: ethereum
+      url: https://ethereum-rpc.publicnode.com
+  user-workflow:
+    workflow-name: "tenancy-cre-production"
+    workflow-artifacts:
+      workflow-path: "main.ts"
+      config-path: "config.production.json"

@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: tenancy-cre-workflow
+    env: container
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SEPOLIA_RPC_URL
+        value: https://ethereum-sepolia-rpc.publicnode.com
+      - key: CRE_ETH_PRIVATE_KEY
+        sync: false
+      - key: PAYMENT_API_KEY
+        value: tenancy_dev_key_2024

@@ -8,7 +8,14 @@ export default defineConfig({
       'ignored-directive': 'silent', 
     },
   },
-  logLevel: 'info', 
+  server: {
+    watch: {
+      usePolling: false,
+    },
+    hmr: {
+      overlay: false,
+    },
+  },
   build: {
     rollupOptions: {
       onwarn(warning, warn) {

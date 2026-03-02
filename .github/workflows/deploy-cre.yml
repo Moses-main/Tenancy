@@ -8,31 +8,60 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  simulate:
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v1
         with:
-          node-version: '20'
+          bun-version: 1.2
+
+      - name: Install CRE CLI
+        run: |
+          curl -sSL https://cre.chain.link/install.sh | bash
+          echo "$HOME/.cre/bin" >> $GITHUB_PATH
 
       - name: Install dependencies
         run: |
           cd cre-workflow
-          npm ci
+          bun install
 
-      - name: Build
+      - name: Simulate workflow
         run: |
           cd cre-workflow
-          npm run build
+          bun run simulate
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+  deploy:
+    needs: simulate
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v1
         with:
-          name: cre-workflow-dist
-          path: cre-workflow/dist/
-          retention-days: 7
+          bun-version: 1.2
+
+      - name: Install CRE CLI
+        run: |
+          curl -sSL https://cre.chain.link/install.sh | bash
+          echo "$HOME/.cre/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          cd cre-workflow
+          bun install
+
+      - name: Deploy to CRE
+        run: |
+          cd cre-workflow
+          bun run deploy
+        env:
+          CRE_API_KEY: ${{ secrets.CRE_API_KEY }}
