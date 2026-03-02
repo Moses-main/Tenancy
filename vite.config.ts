@@ -8,6 +8,17 @@ export default defineConfig({
       'ignored-directive': 'silent', 
     },
   },
+  resolve: {
+    alias: {
+      buffer: 'buffer',
+      events: 'events',
+      stream: 'stream',
+    },
+  },
+  define: {
+    global: 'globalThis',
+    Buffer: 'Buffer',
+  },
   server: {
     watch: {
       usePolling: false,

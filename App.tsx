@@ -3,7 +3,7 @@ import '@radix-ui/themes/styles.css';
 import { Theme as RadixTheme } from '@radix-ui/themes';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { PrivyProvider } from '@privy-io/react-auth';
 import { sepolia } from 'viem/chains';
 
