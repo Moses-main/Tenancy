@@ -69,7 +69,7 @@ const Agent: React.FC = () => {
     lastRun: new Date(Date.now() - 86400000).toISOString(),
     nextRun: new Date(Date.now() + 86400000).toISOString(),
     isRunning: false,
-    totalRuns: 47,
+    totalRuns: 0,
   });
   const [decisions, setDecisions] = useState<AgentDecision[]>([]);
   const [yieldStats, setYieldStats] = useState<any>(null);

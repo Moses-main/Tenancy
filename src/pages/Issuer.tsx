@@ -10,6 +10,7 @@ const { formatUnits } = ethers.utils;
 interface PropertyDisplay {
   id: number;
   uri: string;
+  imageUrl: string | null;
   rentAmount: string;
   totalSupply: string;
   owner: string;
@@ -43,6 +44,7 @@ export default function IssuerDashboard() {
         setProperties(userProps.map((p: any) => ({
           id: Number(p.id),
           uri: p.uri,
+          imageUrl: p.uri && (p.uri.startsWith('http') || p.uri.startsWith('ipfs://')) ? p.uri : null,
           rentAmount: formatUnits(p.rentAmount, 6),
           totalSupply: formatUnits(p.totalSupply, 18),
           owner: p.owner,
@@ -96,6 +98,7 @@ export default function IssuerDashboard() {
       setProperties(userProps.map((p: any) => ({
         id: Number(p.id),
         uri: p.uri,
+        imageUrl: p.uri && (p.uri.startsWith('http') || p.uri.startsWith('ipfs://')) ? p.uri : null,
         rentAmount: formatUnits(p.rentAmount, 6),
         totalSupply: formatUnits(p.totalSupply, 18),
         owner: p.owner,
@@ -263,9 +266,25 @@ export default function IssuerDashboard() {
                   </div>
                 ) : (
                   properties.map((stream) => (
-                    <div key={stream.id} className="flex items-center justify-between p-4 rounded-xl border border-border hover:border-primary/30 transition-colors">
-                      <div>
-                        <p className="font-medium">{stream.uri || `Property #${stream.id}`}</p>
+                    <div key={stream.id} className="flex items-center gap-4 p-4 rounded-xl border border-border hover:border-primary/30 transition-colors">
+                      {stream.imageUrl ? (
+                        <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0">
+                          <img 
+                            src={stream.imageUrl} 
+                            alt={`Property #${stream.id}`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                          <Building2 className="h-6 w-6 text-primary/40" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{stream.uri || `Property #${stream.id}`}</p>
                         <p className="text-sm text-muted-foreground">${parseFloat(stream.rentAmount).toLocaleString()} USDC / mo</p>
                       </div>
                       <div className="text-right">

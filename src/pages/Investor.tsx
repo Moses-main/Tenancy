@@ -14,6 +14,7 @@ interface PropertyDisplay {
   id: number;
   name: string;
   address: string;
+  imageUrl: string | null;
   yield: string;
   price: string;
   tokensAvailable: string;
@@ -56,17 +57,25 @@ export default function InvestorDashboard() {
       try {
         const props = await getAllProperties();
         
-        const displayProps: PropertyDisplay[] = props.map((p: any, index: number) => ({
-          id: Number(p.id),
-          name: `Property #${Number(p.id)}`,
-          address: p.uri || 'Location on file',
-          yield: `${(7 + (index % 3)).toFixed(1)}%`,
-          price: `$${(parseFloat(formatUnits(p.totalSupply, 18)) * 1.05 / 1000000).toFixed(1)}M`,
-          tokensAvailable: parseFloat(formatUnits(p.totalSupply, 18)).toLocaleString(),
-          rent: `$${(parseFloat(formatUnits(p.rentAmount, 6)) / 100).toFixed(0)}/mo`,
-          propertyToken: p.propertyToken,
-          owner: p.owner,
-        }));
+        const displayProps: PropertyDisplay[] = props.map((p: any, index: number) => {
+          const rentUsd = parseFloat(formatUnits(p.rentAmount, 6));
+          const supplyTokens = parseFloat(formatUnits(p.totalSupply, 18));
+          const propertyValue = rentUsd * 12 * 10; // Cap rate valuation
+          const apy = supplyTokens > 0 ? ((rentUsd * 12) / propertyValue * 100) : 7;
+          
+          return {
+            id: Number(p.id),
+            name: `Property #${Number(p.id)}`,
+            address: p.uri || 'Location on file',
+            imageUrl: p.uri && (p.uri.startsWith('http') || p.uri.startsWith('ipfs://')) ? p.uri : null,
+            yield: `${apy.toFixed(1)}%`,
+            price: `$${(propertyValue / 1000000).toFixed(2)}M`,
+            tokensAvailable: supplyTokens.toLocaleString(),
+            rent: `$${rentUsd.toLocaleString()}/mo`,
+            propertyToken: p.propertyToken,
+            owner: p.owner,
+          };
+        });
         
         setProperties(displayProps);
 
@@ -259,13 +268,30 @@ export default function InvestorDashboard() {
                   className={`group rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/50 transition-all hover:shadow-xl hover:-translate-y-1 card-hover cursor-pointer`}
                   onClick={() => setSelectedProperty(property)}
                 >
-                  <div className="h-28 md:h-32 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center relative">
-                    <Building className="h-10 w-10 text-primary/40" />
-                    <div className="absolute top-4 right-4">
-                      <span className="inline-flex items-center rounded-full bg-background/80 backdrop-blur px-3 py-1 text-xs font-medium">
-                        {property.yield} APY
-                      </span>
+                  {property.imageUrl ? (
+                    <div className="h-28 md:h-32 relative">
+                      <img 
+                        src={property.imageUrl} 
+                        alt={property.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                      <div className="hidden h-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                        <Building className="h-10 w-10 text-primary/40" />
+                      </div>
                     </div>
+                  ) : (
+                    <div className="h-28 md:h-32 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center relative">
+                      <Building className="h-10 w-10 text-primary/40" />
+                    </div>
+                  )}
+                  <div className="absolute top-4 right-4">
+                    <span className="inline-flex items-center rounded-full bg-background/80 backdrop-blur px-3 py-1 text-xs font-medium">
+                      {property.yield} APY
+                    </span>
                   </div>
                   <div className="p-4 md:p-6">
                     <h3 className="font-semibold text-lg mb-1">{property.name}</h3>

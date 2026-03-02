@@ -84,7 +84,7 @@ export default function Home() {
     try {
       return `$${(parseFloat(formatUnits(supply, 18)) * 1.05).toFixed(1)}M`;
     } catch {
-      return 'N/A';
+      return '$0';
     }
   };
 
@@ -92,7 +92,7 @@ export default function Home() {
     try {
       return `$${(parseFloat(formatUnits(rent, 6)) / 100).toFixed(0)}`;
     } catch {
-      return 'N/A';
+      return '$0';
     }
   };
 
@@ -100,7 +100,7 @@ export default function Home() {
     try {
       return parseFloat(formatUnits(supply, 18)).toLocaleString();
     } catch {
-      return '2,400';
+      return '0';
     }
   };
 
@@ -139,7 +139,7 @@ export default function Home() {
         <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total Value Tokenized"
-            value={properties.length > 0 ? `$${(properties.length * 2400000).toLocaleString()}` : '$12,450,000'}
+            value={properties.length > 0 ? `$${(properties.length * 2400000).toLocaleString()}` : '$0'}
             icon={Building}
             trend="+14%"
             trendUp={true}
@@ -147,7 +147,7 @@ export default function Home() {
           />
           <StatCard
             title="TEN Token Price"
-            value="$1.05 USDC"
+            value="0"
             icon={DollarSign}
             trend="+2.1%"
             trendUp={true}
@@ -155,7 +155,7 @@ export default function Home() {
           />
           <StatCard
             title="Average APY"
-            value="6.8%"
+            value="0"
             icon={Activity}
             trend="+0.4%"
             trendUp={true}
@@ -163,7 +163,7 @@ export default function Home() {
           />
           <StatCard
             title="Active Properties"
-            value={properties.length > 0 ? properties.length.toString() : '142'}
+            value={properties.length > 0 ? properties.length.toString() : '0'}
             icon={Users}
             description="verified off-chain"
           />
@@ -254,7 +254,7 @@ export default function Home() {
                   <div className="grid grid-cols-3 gap-2 md:gap-4 text-center">
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">APY</p>
-                      <p className="font-semibold text-green-500 text-sm md:text-base">7.5%</p>
+                      <p className="font-semibold text-green-500 text-sm md:text-base">0%</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Value</p>
