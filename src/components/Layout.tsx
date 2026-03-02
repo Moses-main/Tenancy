@@ -19,6 +19,7 @@ import {
   Bot,
   ChevronRight,
   Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthContext";
 import { useTheme } from "../lib/ThemeContext";
@@ -43,6 +44,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     chainName,
     switchNetwork,
     switchAccount,
+    isCorrectNetwork,
+    showNetworkPrompt,
+    setShowNetworkPrompt,
   } = useAuth();
 
   const formatAddress = (addr: string | null) => {
@@ -128,11 +132,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </button>
 
             {/* Network Status */}
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-secondary/50 text-sm">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-              <span className="text-muted-foreground">
+            <div 
+              onClick={() => !isCorrectNetwork && setShowNetworkPrompt(true)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm cursor-pointer transition-colors ${
+                isCorrectNetwork 
+                  ? "bg-secondary/50 text-muted-foreground" 
+                  : "bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/30"
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${isCorrectNetwork ? "bg-green-500 animate-pulse" : "bg-amber-500"}`}></span>
+              <span>
                 {chainName || "Base Sepolia"}
               </span>
+              {!isCorrectNetwork && chainName && (
+                <AlertTriangle className="h-3 w-3" />
+              )}
             </div>
 
             {/* Wallet */}
@@ -355,6 +369,49 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <main className="flex-1 container px-4 md:px-8 py-6 md:py-8">
         {children}
       </main>
+
+      {/* Network Prompt Modal */}
+      {showNetworkPrompt && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowNetworkPrompt(false)}
+          />
+          <div className="relative bg-card border border-border rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 animate-scale-in">
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-500/20 flex items-center justify-center">
+                <AlertTriangle className="h-8 w-8 text-amber-500" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">Wrong Network</h3>
+              <p className="text-muted-foreground mb-6">
+                Please switch to <span className="font-semibold text-foreground">Base Sepolia</span> to use this application.
+              </p>
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    switchNetwork(84532);
+                    setShowNetworkPrompt(false);
+                  }}
+                  className="w-full btn-primary py-3 gap-2"
+                >
+                  <Layers className="h-4 w-4" />
+                  Switch to Base Sepolia
+                </button>
+                <button
+                  onClick={() => {
+                    switchNetwork(11155111);
+                    setShowNetworkPrompt(false);
+                  }}
+                  className="w-full btn-secondary py-3 gap-2"
+                >
+                  <Layers className="h-4 w-4" />
+                  Switch to Ethereum Sepolia
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="border-t border-border/50 py-8">

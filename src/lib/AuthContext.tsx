@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { ethers, providers } from 'ethers';
 
@@ -23,6 +23,9 @@ interface AuthContextType {
   switchNetwork: (chainId: number) => Promise<void>;
   switchAccount: () => Promise<void>;
   isCorrectNetwork: boolean;
+  showNetworkPrompt: boolean;
+  setShowNetworkPrompt: (show: boolean) => void;
+  connectedWallet: any;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -41,6 +44,8 @@ const CHAIN_ID_TO_NAME: Record<number, string> = {
   420: 'Optimism Goerli',
 };
 
+const BASE_SEPOLIA_CHAIN_ID = 84532;
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { ready, authenticated, login, logout, user } = usePrivy();
   const { wallets } = useWallets();
@@ -49,42 +54,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [chainName, setChainName] = useState<string | null>(null);
   const [provider, setProvider] = useState<Web3Provider | null>(null);
   const [isWalletModalOpen, setWalletModalOpen] = useState(false);
+  const [showNetworkPrompt, setShowNetworkPrompt] = useState(false);
+  const [connectedWallet, setConnectedWallet] = useState<any>(null);
 
-  const address = wallets[0]?.address || null;
+  const address = connectedWallet?.address || wallets[0]?.address || null;
+
+  const fetchBalanceAndChain = useCallback(async (wallet: any) => {
+    if (!wallet) {
+      setBalance(null);
+      setChainId(null);
+      setChainName(null);
+      setProvider(null);
+      return;
+    }
+
+    try {
+      const ethProvider = await wallet.getEthereumProvider();
+      if (ethProvider) {
+        const ethersProvider = new providers.Web3Provider(ethProvider, 'any');
+        setProvider(ethersProvider);
+        
+        const balanceWei = await ethersProvider.getBalance(wallet.address);
+        const balanceEth = formatEther(balanceWei);
+        setBalance(parseFloat(balanceEth).toFixed(4));
+
+        const network = await ethersProvider.getNetwork();
+        const currentChainId = Number(network.chainId);
+        setChainId(currentChainId);
+        setChainName(CHAIN_ID_TO_NAME[currentChainId] || `Chain ${currentChainId}`);
+        
+        if (authenticated && address && currentChainId !== BASE_SEPOLIA_CHAIN_ID && currentChainId !== 11155111) {
+          setShowNetworkPrompt(true);
+        } else {
+          setShowNetworkPrompt(false);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching balance/chain:', error);
+    }
+  }, [authenticated, address]);
 
   useEffect(() => {
-    const updateBalanceAndChain = async () => {
-      if (!wallets[0]) {
-        setBalance(null);
-        setChainId(null);
-        setChainName(null);
-        setProvider(null);
-        return;
-      }
+    if (wallets.length > 0 && authenticated) {
+      const wallet = wallets[wallets.length - 1];
+      setConnectedWallet(wallet);
+      fetchBalanceAndChain(wallet);
+    } else if (!authenticated) {
+      setConnectedWallet(null);
+      setBalance(null);
+      setChainId(null);
+      setChainName(null);
+      setProvider(null);
+    }
+  }, [wallets, authenticated, fetchBalanceAndChain]);
 
-      try {
-        const ethProvider = await wallets[0].getEthereumProvider();
-        if (ethProvider) {
-          const ethersProvider = new providers.Web3Provider(ethProvider);
-          setProvider(ethersProvider);
-          
-          const balanceWei = await ethersProvider.getBalance(wallets[0].address);
-          const balanceEth = formatEther(balanceWei);
-          setBalance(parseFloat(balanceEth).toFixed(4));
-
-          const network = await ethersProvider.getNetwork();
-          setChainId(Number(network.chainId));
-          setChainName(CHAIN_ID_TO_NAME[Number(network.chainId)] || `Chain ${Number(network.chainId)}`);
-        }
-      } catch (error) {
-        console.error('Error fetching balance/chain:', error);
-      }
-    };
-
-    updateBalanceAndChain();
-    const interval = setInterval(updateBalanceAndChain, 10000);
-    return () => clearInterval(interval);
-  }, [wallets]);
+  useEffect(() => {
+    if (connectedWallet) {
+      fetchBalanceAndChain(connectedWallet);
+      const interval = setInterval(() => fetchBalanceAndChain(connectedWallet), 10000);
+      return () => clearInterval(interval);
+    }
+  }, [connectedWallet, fetchBalanceAndChain]);
 
   const connectWallet = () => {
     if (!authenticated) {
@@ -95,14 +125,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const switchNetwork = async (targetChainId: number) => {
-    if (!wallets[0]) return;
+    if (!connectedWallet) return;
     try {
-      const ethProvider = await wallets[0].getEthereumProvider();
+      const ethProvider = await connectedWallet.getEthereumProvider();
       if (ethProvider) {
         await ethProvider.request({
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: `0x${targetChainId.toString(16)}` }],
         });
+        await fetchBalanceAndChain(connectedWallet);
       }
     } catch (error) {
       console.error('Error switching network:', error);
@@ -111,9 +142,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const switchAccount = async () => {
-    if (!wallets[0]) return;
+    if (!connectedWallet) return;
     try {
-      const ethProvider = await wallets[0].getEthereumProvider();
+      const ethProvider = await connectedWallet.getEthereumProvider();
       if (ethProvider) {
         await ethProvider.request({
           method: 'wallet_requestAccounts',
@@ -125,22 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const isCorrectNetwork = chainId === 84532 || chainId === 11155111;
-
-  const BASE_SEPOLIA_CHAIN_ID = 84532;
-
-  useEffect(() => {
-    if (authenticated && address && !isCorrectNetwork) {
-      const switchToBaseSepolia = async () => {
-        try {
-          await switchNetwork(BASE_SEPOLIA_CHAIN_ID);
-        } catch (error) {
-          console.log('Could not auto-switch to Base Sepolia');
-        }
-      };
-      switchToBaseSepolia();
-    }
-  }, [authenticated, address, isCorrectNetwork]);
+  const isCorrectNetwork = chainId === BASE_SEPOLIA_CHAIN_ID || chainId === 11155111;
 
   return (
     <AuthContext.Provider
@@ -161,6 +177,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         switchNetwork,
         switchAccount,
         isCorrectNetwork,
+        showNetworkPrompt,
+        setShowNetworkPrompt,
+        connectedWallet,
       }}
     >
       {children}
