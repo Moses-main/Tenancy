@@ -1,6 +1,10 @@
 # TENANCY Protocol
 
 <p align="center">
+  <img src="./public/Logo.png" alt="TENANCY Protocol Logo" width="200" />
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/Chainlink-CRE-blue?style=for-the-badge" alt="Chainlink CRE">
   <img src="https://img.shields.io/badge/Solidity-0.8.19-yellow?style=for-the-badge" alt="Solidity">
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge" alt="React">
@@ -27,7 +31,11 @@ Built for the **Chainlink Convergence Hackathon** — a fully functional DeFi pr
 - [Chainlink Integration](#chainlink-integration)
 - [Frontend](#frontend)
 - [Backend](#backend)
-- [Deployment](#deployment)
+- [Deployment Options](#deployment-options)
+- [Thirdweb Integration](#thirdweb-integration)
+- [Tenderly Virtual TestNet](#tenderly-virtual-testnet)
+- [World ID Integration](#world-id-integration)
+- [CRE Workflow](#cre-workflow)
 - [Testing](#testing)
 - [Security](#security)
 - [Roadmap](#roadmap)
@@ -39,81 +47,24 @@ Built for the **Chainlink Convergence Hackathon** — a fully functional DeFi pr
 
 ## 🏗️ System Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                                    TENANCY Protocol                                 │
-├─────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                     │
-│  ┌─────────────────────────────────────────────────────────────────────────────--┐  │
-│  │                              FRONTEND (React/Vite)                            │  │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │  │
-│  │  │    Home     │  │   Investor   │  │   Issuer    │  │  Dashboard  │          │  │
-│  │  │   Page     │  │   Portal     │  │   Portal    │  │   (Auth)    │           │  │
-│  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘           │  │
-│  │         │                │                │                │                  │  │
-│  │         └────────────────┼────────────────┼────────────────┘                  │  │
-│  │                          │                │                                   │  │
-│  │                    ┌─────▼────-┐     ┌────▼───┐                               │  │
-│  │                    │   Privy   │     │  Wagmi  │                              │  │
-│  │                    │  Auth     │     │  Config │                              │  │
-│  │                    └───────────┘     └─────────┘                              │  │
-│  └─────────────────────────────────────────────────────────────────────────────┘    │
-│                                        │                                            │
-│                                        ▼                                            │
-│  ┌─────────────────────────────────────────────────────────────────────────────┐    │
-│  │                        BLOCKCHAIN (Ethereum/Sepolia)                        │
-│  │                                                                             │
-│  │  ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────────┐    │
-│  │  │  PropertyRegistry │  │   TENToken        │  │  YieldDistributor     │    │
-│  │  │                   │  │                   │  │                       │    │
-│  │  │ - createProperty  │  │ - mint            │  │ - depositYield        │    │
-│  │  │ - getProperty     │  │ - transfer        │  │ - distributeYield     │    │
-│  │  │ - getAllProperties│  │ - balanceOf       │  │ - claimYield          │    │
-│  │  │ - burnTokens      │  │ - approve         │  │ - pendingYield        │    │
-│  │  └─────────┬─────────┘  └─────────┬─────────┘  └───────────┬───────────────┘  │
-│  │            │                      │                       │                   │
-│  │            └──────────────────────┼───────────────────────┘                   │
-│  │                                   │                                           │
-│  │                    ┌──────────────▼──────────────┐                            │
-│  │                    │    PropertyToken (ERC-20)  │                             │
-│  │                    │  - Per Property Fractional  │                            │
-│  │                    │    Rental Income Rights    │                             │
-│  │                    └─────────────────────────────┘                            │
-│  │                                                                               │
-│  │  ┌──────────────────────────────────────────────────────────────────────┐     │
-│  │  │                     Chainlink Price Feeds                            │     │
-│  │  │  ETH/USD: 0x694580A4e26D2b2e2dEk42D32D8d5f0F27C3B92 (Sepolia)        │     │
-│  │  │  Used for: Property Valuation, Yield Calculation in USD              │     │
-│  │  └──────────────────────────────────────────────────────────────────────┘     │
-│  └─────────────────────────────────────────────────────────────────────────────┘ │
-│                                        │                                         │
-│                                        ▼                                         │
-│  ┌─────────────────────────────────────────────────────────────────────────────┐ │
-│  │                     CHAINLINK CRE WORKFLOW                                  │ |
-│  │                                                                             │ |
-│  │   ┌───────────┐     ┌─────────────┐     ┌──────────────┐     ┌───────────┐    │
-│  │   │  Trigger  │─-──▶│  HTTP Fetch │───▶│  Consensus    │───▶│  On-Chain │    │
-│  │   │ Cron/Event│     │  Payment    │     │  Validation  │     │  Execute  │    │
-│  │   └───────────┘     │  Verify     │     └──────────────┘     └───────────┘    │
-│  │        │            └─────────────┘            │                │             │
-│  │        │                  │                    │                ▼             │
-│  │        │                  ▼                    │        ┌───────────────┐     │
-│  │        │           ┌─────────────┐             │        │ YieldDistributor│   │
-│  │        │           │ Mock API    │             │        │ depositYield() │    │
-│  │        │           │ (Backend)   │             │        └───────────────┘     │
-│  │        │           └─────────────┘             │                              │
-│  └─────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                  │
-│  ┌─────────────────────────────────────────────────────────────────────────────┐ │
-│  │                          BACKEND (Express Mock)                               │
-│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────┐        │
-│  │  │ /verify-payment │  │ /verifications  │  │ /trigger-chainlink      │        │
-│  │  │ POST            │  │ GET             │  │ POST                    │        │
-│  │  └─────────────────┘  └─────────────────┘  └─────────────────────────┘        │
-│  └─────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                  │
-└──────────────────────────────────────────────────────────────────────────────────┘
-```
+### Visual Design
+
+<p align="center">
+  <img src="./public/architecture.png" alt="TENANCY Architecture Design" width="800" />
+</p>
+
+### Flowchart Design
+
+<p align="center">
+  <img src="./public/flowchart.png" alt="TENANCY Flowchart Design" width="800" />
+</p>
+
+### Deployment Design
+
+<p align="center">
+  <img src="./public/tenderly_&_thirdweb.png" alt="Tenderly & Thirdweb Deployment" width="800" />
+</p>
+
 
 ---
 
@@ -257,6 +208,8 @@ STEP 4: ON-CHAIN EXECUTE
 | **Frontend** | React 19, Vite, TypeScript, Tailwind CSS |
 | **UI Components** | Radix UI, Lucide React |
 | **Authentication** | Privy |
+| **Identity** | World ID (Sybil resistance) |
+| **Deployment** | Thirdweb, Tenderly Virtual TestNet |
 | **Backend** | Express.js (Mock) |
 | **Workflow** | TypeScript, Node.js |
 
@@ -752,6 +705,308 @@ API_KEY=your_api_key
 | `/verify-payment` | POST | Request payment verification |
 | `/verifications/:id` | GET | Get verification status |
 | `/trigger-chainlink` | POST | Trigger mock Chainlink job |
+
+---
+
+## 🚀 Deployment Options
+
+### Quick Comparison
+
+| Feature | Thirdweb | Tenderly Virtual TestNet |
+|---------|----------|--------------------------|
+| **Purpose** | Mainnet/Testnet Deployment | Testing & Forking |
+| **Cost** | Gas fees only | Free (sandbox) |
+| **Verification** | Auto Etherscan verify | Built-in debugger |
+| **Dashboard** | Thirdweb Dashboard | Tenderly Dashboard |
+| **Use Case** | Production deploys | Testing, debugging, demos |
+
+---
+
+## 🔧 Thirdweb Integration
+
+### Overview
+
+Thirdweb provides a streamlined deployment experience with:
+- **One-command deployment** to any EVM network
+- **Auto-verification** on block explorers
+- **Dashboard management** for contract interactions
+- **TypeScript SDK** for frontend integration
+
+### Installation
+
+```bash
+# Already in package.json
+npm install @thirdweb-dev/sdk ethers
+```
+
+### Configuration
+
+Create `.env` in project root:
+
+```env
+# Required
+PRIVATE_KEY=your_wallet_private_key
+
+# Network (sepolia or base-sepolia)
+NETWORK=sepolia
+
+# RPC URLs (optional - defaults provided)
+SEPOLIA_RPC_URL=https://rpc.sepolia.org
+BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
+```
+
+### Deploy Commands
+
+```bash
+# Deploy to Ethereum Sepolia
+npm run deploy:thirdweb
+
+# Deploy to Base Sepolia
+NETWORK=base-sepolia npm run deploy:thirdweb
+```
+
+### What Happens During Deployment
+
+1. **SDK Initialization** - Thirdweb SDK connects using your private key
+2. **Contract Compilation** - All Solidity contracts compiled to bytecode
+3. **Network Deployment** - Contracts deployed to selected network
+4. **Verification** - Auto-verified on Etherscan/Blockscout
+5. **Configuration** - Owner roles set, initial configuration applied
+6. **Output** - Results saved to `deployment-results.json`
+
+### Using Deployed Contracts in Frontend
+
+After deployment, update your `.env`:
+
+```env
+VITE_PROPERTY_REGISTRY_SEPOLIA=0x...
+VITE_TEN_TOKEN_SEPOLIA=0x...
+VITE_YIELD_DISTRIBUTOR_SEPOLIA=0x...
+```
+
+### Thirdweb Dashboard
+
+After deployment, manage your contracts at:
+- **https://thirdweb.com/dashboard**
+
+Features:
+- View all deployed contracts
+- Interact with contract functions
+- Monitor transactions
+- Manage contract permissions
+
+### Script Location
+
+See [`scripts/thirdweb-deploy.ts`](scripts/thirdweb-deploy.ts) for full implementation.
+
+---
+
+## 🧪 Tenderly Virtual TestNet
+
+### Overview
+
+Tenderly Virtual TestNet (VTN) provides:
+- **Fork any network** - Sepolia, Mainnet, Base, etc.
+- **Free testing** - No gas costs
+- **Real-time debugging** - Transaction simulation with stack traces
+- **Fork state** - Test against real DeFi protocols
+- **Shareable URLs** - Share test scenarios with team
+
+### Why Use Tenderly?
+
+1. **Cost-free development** - Test without spending testnet ETH
+2. **Fork realism** - Test against real protocol states (e.g., current TVL, prices)
+3. **Debugging** - Step-through debugging with Tenderly debugger
+4. **CI/CD integration** - Automated testing in pipelines
+
+### Installation
+
+```bash
+# Dependencies already installed
+npm install ethers dotenv ts-node
+```
+
+### Configuration
+
+Create `.env`:
+
+```env
+# Required
+PRIVATE_KEY=your_wallet_private_key
+
+# Tenderly Credentials
+TENDERLY_API_KEY=your_tenderly_api_key
+TENDERLY_ACCOUNT_ID=your_account_id
+TENDERLY_PROJECT=tenancy
+
+# Network to fork
+NETWORK=sepolia  # or base-sepolia
+```
+
+### Getting Tenderly Credentials
+
+1. Go to [Tenderly Dashboard](https://dashboard.tenderly.co)
+2. Create account / Sign in
+3. Go to Settings → API Keys
+4. Create new API key
+5. Your Account ID is in the URL: `dashboard.tenderly.co/{account_id}/{project}`
+
+### Deploy Commands
+
+```bash
+# Create VTN and deploy contracts
+npm run deploy:tenderly
+
+# Run tests on VTN
+npm run test:tenderly
+```
+
+### What Happens During Deployment
+
+1. **VTN Creation** - Tenderly creates a virtual network forked from Sepolia
+2. **RPC URL Generation** - You get a unique RPC URL for the VTN
+3. **Contract Deployment** - All contracts deployed to the VTN
+4. **Configuration** - Roles and initial setup applied
+5. **Results Saved** - `tenderly-deployment.json` contains all details
+
+### Using Tenderly VTN
+
+#### In Hardhat/Foundry
+
+```bash
+# Add to hardhat.config.js or foundry.toml
+tenderly:
+  url: https://virtual.tenderly.co/{your-vtn-id}
+```
+
+#### In Frontend
+
+```env
+# Update .env
+VITE_RPC_URL=https://virtual.tenderly.co/{your-vtn-id}
+```
+
+#### In Scripts
+
+```typescript
+const provider = new ethers.JsonRpcProvider(
+  "https://virtual.tenderly.co/{your-vtn-id}"
+);
+```
+
+### Tenderly Dashboard Features
+
+Access at: `https://dashboard.tenderly.co/{account}/{project}/virtual-networks`
+
+| Feature | Description |
+|---------|-------------|
+| **Transactions** | View all VTN transactions |
+| **Debugging** | Step-through with stack traces |
+| **Fork State** | View current state of any address |
+| **Share** | Generate shareable URLs |
+| **Analytics** | Gas usage, contract calls |
+
+### Script Location
+
+See [`scripts/tenderly-deploy.ts`](scripts/tenderly-deploy.ts) for full implementation.
+
+### Best Practices
+
+1. **Use for Integration Tests** - Test contract interactions
+2. **Fork Real State** - Test against current DeFi prices/TVL
+3. **Debug Failed TX** - Paste transaction hash to debug
+4. **Share with Team** - Generate URLs for code reviews
+
+---
+
+## 🛡️ World ID Integration
+
+### Overview
+
+World ID provides sybil resistance for yield claims:
+- **Proof of Personhood** - Ensures one person, one vote/claim
+- **Privacy-preserving** - Zero-knowledge proofs
+- **Decentralized** - Powered by Worldcoin protocol
+
+### How World ID Works in TENANCY
+
+```mermaid
+flowchart TB
+    subgraph Verification["World ID Verification"]
+        User["User"]
+        Widget["World ID Widget"]
+        WLD["Worldcoin Protocol"]
+        Proof["ZK Proof"]
+    end
+    
+    subgraph Contract["Smart Contract"]
+        Verify["verifyProof"]
+        Claim["Claim Yield"]
+    end
+    
+    User -->|1. Click Verify| Widget
+    Widget -->|2. Scan Iris| WLD
+    WLD -->|3. Generate Proof| Proof
+    Proof -->|4. Submit TX| Verify
+    Verify -->|5. On Success| Claim
+```
+
+### Configuration
+
+```env
+# Get from https://developer.worldcoin.org
+VITE_WORLD_ID_APP_ID=rp_xxxxxxxxxxxxxxxx
+```
+
+### Setting Up World ID
+
+1. Go to [Worldcoin Developer Portal](https://developer.worldcoin.org)
+2. Create new app
+3. Configure action name (e.g., `tenancy-verify`)
+4. Copy App ID to `.env`
+
+### Implementation
+
+The WorldIdVerify component provides:
+
+```typescript
+import WorldIdVerify from './components/WorldIdVerify';
+
+// In your component
+<WorldIdVerify 
+  actionName="tenancy-verify"  // Your World ID action
+  signal={userAddress}         // Optional: prevent replay
+  onVerified={() => {
+    // Enable yield claiming
+    setCanClaimYield(true);
+  }}
+/>
+```
+
+### World ID Actions in TENANCY
+
+| Action | Purpose | Trigger |
+|--------|---------|---------|
+| `tenancy-verify` | Initial KYC | Before first yield claim |
+| `yield-claim` | Per-claim verification | Each yield claim |
+| `property-create` | Issuer verification | Creating properties |
+
+### Privacy Features
+
+- **Signal** - Prevents proof replay (use user address)
+- **Nullifier hash** - Ensures one proof per action per person
+- **No data collection** - Worldcoin doesn't share identity data
+
+### Fallback Behavior
+
+If World ID fails (user doesn't have Worldcoin app):
+- Show error message
+- Option to skip (for testing)
+- Record unverified claims separately
+
+### Component Location
+
+See [`src/components/WorldIdVerify.tsx`](src/components/WorldIdVerify.tsx) for full implementation.
 
 ---
 
