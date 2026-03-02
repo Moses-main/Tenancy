@@ -191,8 +191,8 @@ export const useContracts = () => {
       }
       
       const yieldDist = new Contract(addrs.yieldDistributor, ABIS.yieldDistributor, provider);
-      const pending = await yieldDist.getUserTotalPendingYield(userAddress || address);
-      return formatUnits(pending, 18);
+      const totalPool = await yieldDist.totalYieldPool();
+      return formatUnits(totalPool, 18);
     } catch (err: any) {
       console.error('Error getting pending yield:', err?.message || err);
       return '0';
