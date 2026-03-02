@@ -10,23 +10,6 @@ import { useAuth } from '../lib/AuthContext';
 import { ethers } from 'ethers';
 const { formatUnits } = ethers.utils;
 
-const generateYieldHistory = (): { name: string; yield: number }[] => {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const currentMonth = new Date().getMonth();
-  const history: { name: string; yield: number }[] = [];
-  
-  for (let i = 6; i >= 0; i--) {
-    const monthIndex = (currentMonth - i + 12) % 12;
-    const baseYield = 4 + Math.random() * 3;
-    history.push({
-      name: months[monthIndex],
-      yield: parseFloat(baseYield.toFixed(2))
-    });
-  }
-  
-  return history;
-};
-
 export default function Home() {
   const { isAuthenticated, address, isCorrectNetwork } = useAuth();
   const { getAllProperties, getTENBalance, getPendingYield, getYieldStats, chainId } = useContracts();
@@ -34,7 +17,7 @@ export default function Home() {
   const [tenBalance, setTenBalance] = useState('0');
   const [pendingYield, setPendingYield] = useState('0');
   const [yieldStats, setYieldStats] = useState<any>(null);
-  const [yieldHistory, setYieldHistory] = useState<{ name: string; yield: number }[]>(generateYieldHistory());
+  const [yieldHistory, setYieldHistory] = useState<{ name: string; yield: number }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -55,9 +38,18 @@ export default function Home() {
         if (stats) {
           setYieldStats(stats);
           if (stats.totalDistributed && parseFloat(stats.totalDistributed) > 0) {
-            const history = generateYieldHistory();
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const currentMonth = new Date().getMonth();
+            const history: { name: string; yield: number }[] = [];
             const totalDistributed = parseFloat(stats.totalDistributed);
-            history[history.length - 1].yield = parseFloat((totalDistributed * 12).toFixed(2));
+            
+            for (let i = 6; i >= 0; i--) {
+              const monthIndex = (currentMonth - i + 12) % 12;
+              history.push({
+                name: months[monthIndex],
+                yield: i === 0 ? parseFloat((totalDistributed).toFixed(2)) : 0
+              });
+            }
             setYieldHistory(history);
           }
         }
@@ -80,9 +72,11 @@ export default function Home() {
     fetchData();
   }, [isAuthenticated, address, isCorrectNetwork, chainId, getAllProperties, getYieldStats, getTENBalance, getPendingYield]);
 
-  const formatPropertyValue = (supply: bigint) => {
+  const formatPropertyValue = (supply: bigint, rent: bigint) => {
     try {
-      return `$${(parseFloat(formatUnits(supply, 18)) * 1.05).toFixed(1)}M`;
+      const rentUsd = parseFloat(formatUnits(rent, 6));
+      const propertyValue = rentUsd * 12 * 10;
+      return `$${(propertyValue / 1000000).toFixed(2)}M`;
     } catch {
       return '$0';
     }
@@ -90,7 +84,7 @@ export default function Home() {
 
   const formatRent = (rent: bigint) => {
     try {
-      return `$${(parseFloat(formatUnits(rent, 6)) / 100).toFixed(0)}`;
+      return `$${parseFloat(formatUnits(rent, 6)).toLocaleString()}`;
     } catch {
       return '$0';
     }
@@ -103,6 +97,31 @@ export default function Home() {
       return '0';
     }
   };
+
+  const calculateApy = (supply: bigint, rent: bigint) => {
+    try {
+      const rentUsd = parseFloat(formatUnits(rent, 6));
+      const propertyValue = rentUsd * 12 * 10;
+      if (propertyValue > 0) {
+        return ((rentUsd * 12) / propertyValue * 100).toFixed(1);
+      }
+      return '0';
+    } catch {
+      return '0';
+    }
+  };
+
+  const totalValue = properties.reduce((sum, p) => {
+    const rentUsd = parseFloat(formatUnits(p.rentAmount, 6));
+    return sum + (rentUsd * 12 * 10);
+  }, 0);
+
+  const averageApy = properties.length > 0 
+    ? properties.reduce((sum, p) => {
+        const apy = parseFloat(calculateApy(p.totalSupply, p.rentAmount));
+        return sum + apy;
+      }, 0) / properties.length
+    : 0;
 
   return (
     <Layout>
@@ -139,7 +158,7 @@ export default function Home() {
         <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total Value Tokenized"
-            value={properties.length > 0 ? `$${(properties.length * 2400000).toLocaleString()}` : '$0'}
+            value={properties.length > 0 ? `$${(totalValue / 1000000).toFixed(2)}M` : '$0'}
             icon={Building}
             trend="+14%"
             trendUp={true}
@@ -147,7 +166,7 @@ export default function Home() {
           />
           <StatCard
             title="TEN Token Price"
-            value="0"
+            value="$1.05"
             icon={DollarSign}
             trend="+2.1%"
             trendUp={true}
@@ -155,7 +174,7 @@ export default function Home() {
           />
           <StatCard
             title="Average APY"
-            value="0"
+            value={`${averageApy.toFixed(1)}%`}
             icon={Activity}
             trend="+0.4%"
             trendUp={true}
@@ -163,7 +182,7 @@ export default function Home() {
           />
           <StatCard
             title="Active Properties"
-            value={properties.length > 0 ? properties.length.toString() : '0'}
+            value={properties.filter((p: any) => p.isActive).length.toString()}
             icon={Users}
             description="verified off-chain"
           />
@@ -206,18 +225,35 @@ export default function Home() {
               {properties && properties.length > 0 ? (
                 properties.slice(0, 4).map((property: any, i: number) => (
                   <div key={i} className="flex items-center gap-3 md:gap-4 p-2 md:p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                    <div className="relative flex h-8 md:h-10 w-8 md:w-10 items-center justify-center rounded-full bg-primary/10 shrink-0">
-                      <LinkIcon className="h-3 md:h-4 w-3 md:w-4 text-primary" />
-                      <div className="absolute -bottom-0.5 -right-0.5 flex h-3 md:h-4 w-3 md:w-4 items-center justify-center rounded-full bg-background">
-                        <div className="h-1.5 md:h-2 w-1.5 md:w-2 rounded-full bg-green-500"></div>
+                    {property.uri && (property.uri.startsWith('http') || property.uri.startsWith('ipfs://')) ? (
+                      <div className="relative flex h-8 md:h-10 w-8 md:w-10 rounded-full overflow-hidden shrink-0">
+                        <img 
+                          src={property.uri} 
+                          alt=""
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                        <div className="hidden absolute inset-0 flex items-center justify-center bg-primary/10">
+                          <LinkIcon className="h-3 md:h-4 w-3 md:w-4 text-primary" />
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="relative flex h-8 md:h-10 w-8 md:w-10 items-center justify-center rounded-full bg-primary/10 shrink-0">
+                        <LinkIcon className="h-3 md:h-4 w-3 md:w-4 text-primary" />
+                        <div className="absolute -bottom-0.5 -right-0.5 flex h-3 md:h-4 w-3 md:w-4 items-center justify-center rounded-full bg-background">
+                          <div className="h-1.5 md:h-2 w-1.5 md:w-2 rounded-full bg-green-500"></div>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{property.uri || `Property #${Number(property.id)}`}</p>
                       <p className="text-xs text-muted-foreground">ID: {property.id.toString()}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="font-medium text-sm md:text-base">${(parseFloat(formatUnits(property.rentAmount, 6)) / 100).toFixed(0)}</p>
+                      <p className="font-medium text-sm md:text-base">${parseFloat(formatUnits(property.rentAmount, 6)).toLocaleString()}</p>
                       <p className="text-xs text-green-500">{property.isActive ? 'Active' : 'Inactive'}</p>
                     </div>
                   </div>
@@ -246,19 +282,32 @@ export default function Home() {
             {properties.length > 0 ? (
               properties.slice(0, 3).map((property: any) => (
               <div key={property.id} className="group rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/50 transition-all hover:shadow-xl hover:-translate-y-1 card-hover">
-                <div className="h-28 md:h-40 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                  <Building className="h-10 md:h-12 w-10 md:w-12 text-primary/40" />
-                </div>
+                {property.uri && (property.uri.startsWith('http') || property.uri.startsWith('ipfs://')) ? (
+                  <div className="h-28 md:h-40">
+                    <img 
+                      src={property.uri} 
+                      alt={`Property #${property.id}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="h-28 md:h-40 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                    <Building className="h-10 md:h-12 w-10 md:w-12 text-primary/40" />
+                  </div>
+                )}
                 <div className="p-4 md:p-6">
                   <h3 className="font-semibold text-base md:text-lg mb-3 md:mb-4">Property #{property.id}</h3>
                   <div className="grid grid-cols-3 gap-2 md:gap-4 text-center">
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">APY</p>
-                      <p className="font-semibold text-green-500 text-sm md:text-base">0%</p>
+                      <p className="font-semibold text-green-500 text-sm md:text-base">{calculateApy(property.totalSupply, property.rentAmount)}%</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Value</p>
-                      <p className="font-semibold text-sm md:text-base">{formatPropertyValue(property.totalSupply)}</p>
+                      <p className="font-semibold text-sm md:text-base">{formatPropertyValue(property.totalSupply, property.rentAmount)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Tokens</p>

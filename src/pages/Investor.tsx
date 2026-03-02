@@ -61,7 +61,7 @@ export default function InvestorDashboard() {
           const rentUsd = parseFloat(formatUnits(p.rentAmount, 6));
           const supplyTokens = parseFloat(formatUnits(p.totalSupply, 18));
           const propertyValue = rentUsd * 12 * 10; // Cap rate valuation
-          const apy = supplyTokens > 0 ? ((rentUsd * 12) / propertyValue * 100) : 7;
+          const apy = supplyTokens > 0 && propertyValue > 0 ? ((rentUsd * 12) / propertyValue * 100) : 0;
           
           return {
             id: Number(p.id),

@@ -50,32 +50,17 @@ export default function Tenant() {
       }
       try {
         const props = await getAllProperties();
-        const leasesData: Lease[] = props.slice(0, 3).map((p: any, index: number) => ({
-          id: index + 1,
+        const leasesData: Lease[] = props.map((p: any) => ({
+          id: Number(p.id),
           propertyId: Number(p.id),
           propertyUri: p.uri,
           propertyAddress: p.uri || `Property #${Number(p.id)}`,
           owner: p.owner,
           monthlyRent: parseFloat(formatUnits(p.rentAmount, 6)),
-          rentDueDate: Date.now() + (7 * 24 * 60 * 60 * 1000),
-          lastPaymentDate: Date.now() - (15 * 24 * 60 * 60 * 1000),
-          status: index === 0 ? 'overdue' : 'active',
-          paymentHistory: [
-            {
-              id: '0x123...abc',
-              amount: parseFloat(formatUnits(p.rentAmount, 6)),
-              date: Date.now() - (15 * 24 * 60 * 60 * 1000),
-              txHash: '0xabc123...xyz',
-              status: 'confirmed',
-            },
-            {
-              id: '0x456...def',
-              amount: parseFloat(formatUnits(p.rentAmount, 6)),
-              date: Date.now() - (45 * 24 * 60 * 60 * 1000),
-              txHash: '0xdef456...uvw',
-              status: 'confirmed',
-            },
-          ],
+          rentDueDate: Date.now() + (30 * 24 * 60 * 60 * 1000),
+          lastPaymentDate: null,
+          status: 'pending' as const,
+          paymentHistory: [],
         }));
         setLeases(leasesData);
       } catch (err) {
@@ -85,7 +70,7 @@ export default function Tenant() {
       }
     };
     fetchLeases();
-  }, [isAuthenticated, isCorrectNetwork, chainId]);
+  }, [isAuthenticated, isCorrectNetwork, chainId, getAllProperties]);
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,10 +83,10 @@ export default function Tenant() {
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       const newPayment: Payment = {
-        id: `0x${Math.random().toString(16).slice(2)}...`,
+        id: `tx_${Date.now()}`,
         amount: parseFloat(paymentAmount),
         date: Date.now(),
-        txHash: `0x${Math.random().toString(16).slice(2)}`,
+        txHash: `0x${Date.now().toString(16)}`,
         status: 'confirmed',
       };
 
@@ -266,9 +251,22 @@ export default function Tenant() {
                   >
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                       <div className="flex items-start gap-4">
-                        <div className="p-2 rounded-lg bg-primary/10">
-                          <Building className="h-5 w-5 text-primary" />
-                        </div>
+                        {lease.propertyUri && (lease.propertyUri.startsWith('http') || lease.propertyUri.startsWith('ipfs://')) ? (
+                          <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0">
+                            <img 
+                              src={lease.propertyUri} 
+                              alt=""
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+                            <Building className="h-5 w-5 text-primary" />
+                          </div>
+                        )}
                         <div>
                           <h3 className="font-semibold">{lease.propertyAddress}</h3>
                           <p className="text-sm text-muted-foreground">Property #{lease.propertyId}</p>
