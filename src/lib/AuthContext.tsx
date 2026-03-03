@@ -72,9 +72,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const ethProvider = await wallet.getEthereumProvider();
       if (ethProvider) {
         const ethersProvider = new providers.Web3Provider(ethProvider, 'any');
+        
+        // Wait for the provider to be ready
+        await ethersProvider.ready;
+        
         setProvider(ethersProvider);
         
-        const balanceWei = await ethersProvider.getBalance(wallet.address);
+        const walletAddress = wallet.address || await ethersProvider.getSigner().getAddress();
+        if (!walletAddress) return;
+        
+        const balanceWei = await ethersProvider.getBalance(walletAddress);
         const balanceEth = formatEther(balanceWei);
         setBalance(parseFloat(balanceEth).toFixed(4));
 
@@ -89,8 +96,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setShowNetworkPrompt(false);
         }
       }
-    } catch (error) {
-      console.error('Error fetching balance/chain:', error);
+    } catch (error: any) {
+      console.error('Error fetching balance/chain:', error?.message || error);
+      // Don't crash - just log the error and keep existing state
     }
   }, [authenticated, address]);
 

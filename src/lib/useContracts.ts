@@ -60,6 +60,11 @@ export const useContracts = () => {
     if (!provider) return [];
     
     try {
+      // Wait for provider to be ready
+      if (!provider.ready) {
+        await provider.ready;
+      }
+      
       const isBaseSepolia = chainId === 84532;
       const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
       const registry = new Contract(addrs.propertyRegistry, ABIS.propertyRegistry, provider);
@@ -74,8 +79,8 @@ export const useContracts = () => {
         owner: p.owner,
         isActive: p.isActive,
       }));
-    } catch (err) {
-      console.error('Error fetching properties:', err);
+    } catch (err: any) {
+      console.error('Error fetching properties:', err?.message || err);
       return [];
     }
   }, [provider, chainId]);
@@ -685,6 +690,11 @@ export const useContracts = () => {
     if (!provider) return null;
     
     try {
+      // Wait for provider to be ready
+      if (!provider.ready) {
+        await provider.ready;
+      }
+      
       const isBaseSepolia = chainId === 84532;
       const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
       const yieldDistributor = new Contract(addrs.yieldDistributor, ABIS.yieldDistributor, provider);
@@ -707,8 +717,8 @@ export const useContracts = () => {
         totalDefaults: Number(risk.totalDefaults),
         safeguardActive: risk.safeguardActive,
       };
-    } catch (err) {
-      console.error('Error fetching yield stats:', err);
+    } catch (err: any) {
+      console.error('Error fetching yield stats:', err?.message || err);
       return null;
     }
   }, [provider, chainId]);
