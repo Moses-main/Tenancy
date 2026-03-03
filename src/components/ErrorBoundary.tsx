@@ -1,6 +1,5 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
-import { Link } from 'react-router-dom';
 
 interface Props {
   children: ReactNode;
@@ -39,6 +38,10 @@ class ErrorBoundary extends Component<Props, State> {
     window.location.reload();
   };
 
+  private handleGoHome = () => {
+    window.location.href = '/';
+  };
+
   public render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
@@ -46,7 +49,7 @@ class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="min-h-[400px] flex items-center justify-center p-8">
+        <div className="min-h-screen flex items-center justify-center p-8 bg-background">
           <div className="max-w-md w-full text-center">
             <div className="mx-auto w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center mb-6">
               <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
@@ -71,13 +74,13 @@ class ErrorBoundary extends Component<Props, State> {
                 <RefreshCw className="w-4 h-4" />
                 Refresh Page
               </button>
-              <Link
-                to="/"
+              <button
+                onClick={this.handleGoHome}
                 className="inline-flex items-center justify-center rounded-lg text-sm font-medium border border-input bg-background hover:bg-muted h-10 px-4 gap-2"
               >
                 <Home className="w-4 h-4" />
                 Go Home
-              </Link>
+              </button>
             </div>
           </div>
         </div>

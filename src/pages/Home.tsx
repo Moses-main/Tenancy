@@ -249,8 +249,8 @@ export default function Home() {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{property.uri || `Property #${Number(property.id)}`}</p>
-                      <p className="text-xs text-muted-foreground">ID: {property.id.toString()}</p>
+                      <p className="text-sm font-medium truncate">{property.uri || `Property #${String(property.id)}`}</p>
+                      <p className="text-xs text-muted-foreground">ID: {String(property.id)}</p>
                     </div>
                     <div className="text-right shrink-0">
                       <p className="font-medium text-sm md:text-base">${parseFloat(formatUnits(property.rentAmount, 6)).toLocaleString()}</p>
@@ -286,7 +286,7 @@ export default function Home() {
                   <div className="h-28 md:h-40">
                     <img 
                       src={property.uri} 
-                      alt={`Property #${property.id}`}
+                      alt={`Property #${String(property.id)}`}
                       className="w-full h-full object-cover"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';
@@ -299,7 +299,7 @@ export default function Home() {
                   </div>
                 )}
                 <div className="p-4 md:p-6">
-                  <h3 className="font-semibold text-base md:text-lg mb-3 md:mb-4">Property #{property.id}</h3>
+                  <h3 className="font-semibold text-base md:text-lg mb-3 md:mb-4">Property #{String(property.id)}</h3>
                   <div className="grid grid-cols-3 gap-2 md:gap-4 text-center">
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">APY</p>

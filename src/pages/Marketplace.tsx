@@ -22,11 +22,18 @@ interface Listing {
   createdAt: number;
 }
 
+interface PropertyOption {
+  id: number;
+  name: string;
+  uri: string;
+}
+
 export default function Marketplace() {
   const { isAuthenticated, address, isCorrectNetwork } = useAuth();
   const { getAllProperties, buyPropertyTokens, chainId } = useContracts();
   
   const [listings, setListings] = useState<Listing[]>([]);
+  const [availableProperties, setAvailableProperties] = useState<PropertyOption[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'sold'>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'price-low' | 'price-high'>('newest');
@@ -35,7 +42,7 @@ export default function Marketplace() {
   const [showCreateListing, setShowCreateListing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [newListing, setNewListing] = useState({
-    propertyId: '1',
+    propertyId: '',
     amount: '',
     pricePerToken: '',
   });
@@ -48,6 +55,14 @@ export default function Marketplace() {
       }
       try {
         const props = await getAllProperties();
+        
+        const propertyOptions: PropertyOption[] = props.map((p: any) => ({
+          id: Number(p.id),
+          name: p.uri || `Property #${Number(p.id)}`,
+          uri: p.uri || '',
+        }));
+        setAvailableProperties(propertyOptions);
+        
         const listingsData: Listing[] = props.map((p: any, index: number) => ({
           id: index,
           propertyId: Number(p.id),
@@ -111,15 +126,17 @@ export default function Marketplace() {
 
   const handleCreateListing = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newListing.amount || !newListing.pricePerToken) return;
+    if (!newListing.propertyId || !newListing.amount || !newListing.pricePerToken) return;
 
+    const selectedProp = availableProperties.find(p => p.id === Number(newListing.propertyId));
+    
     const listing: Listing = {
       id: Date.now(),
       propertyId: parseInt(newListing.propertyId),
-      propertyName: `Property ${newListing.propertyId}`,
-      propertyUri: '',
+      propertyName: selectedProp?.name || `Property ${newListing.propertyId}`,
+      propertyUri: selectedProp?.uri || '',
       propertyToken: '0x0000000000000000000000000000000000000000',
-      seller: address || '0xYou...ABC1',
+      seller: address || '',
       amount: parseInt(newListing.amount),
       pricePerToken: parseFloat(newListing.pricePerToken),
       totalPrice: parseInt(newListing.amount) * parseFloat(newListing.pricePerToken),
@@ -129,7 +146,7 @@ export default function Marketplace() {
 
     setListings([listing, ...listings]);
     setShowCreateListing(false);
-    setNewListing({ propertyId: '1', amount: '', pricePerToken: '' });
+    setNewListing({ propertyId: '', amount: '', pricePerToken: '' });
     
     toast.success("Listing created successfully!");
   };
@@ -185,7 +202,10 @@ export default function Marketplace() {
             </p>
           </div>
           <button
-            onClick={() => setShowCreateListing(true)}
+            onClick={() => {
+              setNewListing({ propertyId: availableProperties[0]?.id?.toString() || '', amount: '', pricePerToken: '' });
+              setShowCreateListing(true);
+            }}
             className="inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-6 gap-2"
           >
             <Building className="h-4 w-4" />
@@ -202,21 +222,21 @@ export default function Marketplace() {
           />
           <StatCard
             title="Total Volume"
-            value="$18,520"
+            value="$0"
             icon={DollarSign}
-            trend="+12%"
-            trendUp={true}
+            description="Trading volume"
           />
           <StatCard
             title="Avg. Price"
-            value="$1.08"
+            value="$0"
             icon={TrendingUp}
             description="Per token"
           />
           <StatCard
             title="Active Traders"
-            value="48"
+            value="0"
             icon={Users}
+            description="Unique traders"
           />
         </div>
 
@@ -261,6 +281,22 @@ export default function Marketplace() {
               key={listing.id}
               className="group rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/50 transition-all hover:shadow-lg"
             >
+              <div className="h-40 bg-gradient-to-br from-primary/20 to-primary/5">
+                {listing.propertyUri && (listing.propertyUri.startsWith('http') || listing.propertyUri.startsWith('ipfs://')) ? (
+                  <img 
+                    src={listing.propertyUri} 
+                    alt={listing.propertyName}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Building className="h-12 w-12 text-primary/40" />
+                  </div>
+                )}
+              </div>
               <div className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div>
@@ -342,7 +378,10 @@ export default function Marketplace() {
             <h3 className="text-lg font-medium mb-2">No listings found</h3>
             <p className="text-muted-foreground mb-4">Try adjusting your search or filters.</p>
             <button
-              onClick={() => setShowCreateListing(true)}
+              onClick={() => {
+                setNewListing({ propertyId: availableProperties[0]?.id?.toString() || '', amount: '', pricePerToken: '' });
+                setShowCreateListing(true);
+              }}
               className="inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4"
             >
               Create the first listing
@@ -417,10 +456,12 @@ export default function Marketplace() {
                   value={newListing.propertyId}
                   onChange={(e) => setNewListing({ ...newListing, propertyId: e.target.value })}
                   className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  required
                 >
-                  <option value="1">Downtown Loft NYC</option>
-                  <option value="2">Beach House Miami</option>
-                  <option value="3">Urban Condo SF</option>
+                  <option value="">Select a property</option>
+                  {availableProperties.map((prop) => (
+                    <option key={prop.id} value={prop.id}>{prop.name}</option>
+                  ))}
                 </select>
               </div>
               
