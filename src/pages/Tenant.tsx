@@ -32,7 +32,7 @@ interface Payment {
 
 export default function Tenant() {
   const { isAuthenticated, address, isCorrectNetwork } = useAuth();
-  const { getAllProperties, chainId } = useContracts();
+  const { getAllProperties, chainId, payRent } = useContracts();
   
   const [leases, setLeases] = useState<Lease[]>([]);
   const [selectedLease, setSelectedLease] = useState<Lease | null>(null);
@@ -77,16 +77,16 @@ export default function Tenant() {
     if (!selectedLease || !paymentAmount) return;
 
     setIsProcessing(true);
-    const toastId = toast.loading("Processing payment...");
+    const toastId = toast.loading("Processing payment on blockchain...");
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const txHash = await payRent(selectedLease.propertyId, paymentAmount);
       
       const newPayment: Payment = {
         id: `tx_${Date.now()}`,
         amount: parseFloat(paymentAmount),
         date: Date.now(),
-        txHash: `0x${Date.now().toString(16)}`,
+        txHash: txHash,
         status: 'confirmed',
       };
 
