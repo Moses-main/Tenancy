@@ -217,6 +217,7 @@ export default function InvestorDashboard() {
             <div className="col-span-full">
               <WorldIdVerify
                 actionName="claim-yield"
+                signal={address || undefined}
                 onVerified={() => setWorldIdVerified(true)}
               />
             </div>

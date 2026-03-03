@@ -10,7 +10,7 @@ interface WorldIdVerifyProps {
 export default function WorldIdVerify({ 
   onVerified, 
   actionName = 'tenancy-verify',
-  signal = ''
+  signal
 }: WorldIdVerifyProps) {
   const [isVerified, setIsVerified] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
