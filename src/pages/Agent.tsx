@@ -137,7 +137,7 @@ const Agent: React.FC = () => {
     fetchData();
   }, [isAuthenticated, chainId, currentChainId, getAgentStatus, getAgentDecisions, getYieldStats, getAllProperties]);
 
-  const handleTriggerAgent = async () => {
+  const handleRefreshAgentData = async () => {
     if (!isAuthenticated) {
       toast.error('Please connect your wallet first');
       return;
@@ -146,31 +146,50 @@ const Agent: React.FC = () => {
     setIsTriggering(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      const [status, stats, properties] = await Promise.all([
+        getAgentStatus(),
+        getYieldStats(),
+        getAllProperties(),
+      ]);
+
+      if (status) {
+        setAgentStatus(prev => ({
+          ...prev,
+          lastRun: status.lastRun,
+          nextRun: status.nextRun,
+          isRunning: status.isRunning,
+          totalRuns: status.totalRuns,
+          totalYieldPool: status.totalYieldPool,
+          totalDistributed: status.totalDistributed,
+          ethUsdPrice: status.ethUsdPrice,
+        }));
+      }
+
+      if (stats) {
+        setYieldStats(stats);
+      }
+
+      if (properties && properties.length > 0) {
+        const propertyIds = properties.map((_, index) => index);
+        const agentDecisions = await getAgentDecisions(propertyIds);
+        
+        if (agentDecisions && agentDecisions.length > 0) {
+          const mappedDecisions: AgentDecision[] = agentDecisions.map((d: any) => ({
+            propertyId: d.propertyId,
+            propertyName: properties[Number(d.propertyId)]?.uri || `Property ${d.propertyId}`,
+            action: actionLabels[d.action] as AgentDecision['action'],
+            adjustmentPercent: d.adjustmentPercent,
+            reason: d.reason,
+            confidence: d.confidence,
+            timestamp: d.timestamp > 0 ? new Date(d.timestamp).toISOString() : new Date().toISOString(),
+          }));
+          setDecisions(mappedDecisions);
+        }
+      }
       
-      const newDecision: AgentDecision = {
-        propertyId: '3',
-        propertyName: 'New Analysis Property',
-        action: 'distribute_yield',
-        adjustmentPercent: 0,
-        reason: 'AI analysis complete - all systems operational',
-        confidence: 88,
-        timestamp: new Date().toISOString(),
-        txHash: '0x' + Math.random().toString(16).slice(2, 10) + '...' + Math.random().toString(16).slice(2, 6)
-      };
-
-      setAgentStatus(prev => ({
-        ...prev,
-        lastRun: new Date().toISOString(),
-        nextRun: new Date(Date.now() + 86400000).toISOString(),
-        totalRuns: prev.totalRuns + 1,
-        decisions: [newDecision, ...prev.decisions],
-        isRunning: false
-      }));
-
-      toast.success('Agent triggered successfully! New decisions generated.');
+      toast.success('Agent data refreshed successfully!');
     } catch (error) {
-      toast.error('Failed to trigger agent');
+      toast.error('Failed to refresh agent data');
     } finally {
       setIsTriggering(false);
     }
@@ -241,19 +260,19 @@ const Agent: React.FC = () => {
           </p>
         </div>
         <button
-          onClick={handleTriggerAgent}
+          onClick={handleRefreshAgentData}
           disabled={isTriggering || !isAuthenticated}
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2.5 font-medium transition-colors"
         >
           {isTriggering ? (
             <>
               <RefreshCw className="h-4 w-4 animate-spin" />
-              Running Analysis...
+              Refreshing...
             </>
           ) : (
             <>
-              <Zap className="h-4 w-4" />
-              Trigger Agent Now
+              <RefreshCw className="h-4 w-4" />
+              Refresh Agent Data
             </>
           )}
         </button>
