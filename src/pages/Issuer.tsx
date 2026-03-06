@@ -4,6 +4,7 @@ import { Building2, UploadCloud, CheckCircle2, AlertCircle, Loader2 } from 'luci
 import { toast } from 'react-toastify';
 import { useContracts } from '../lib/useContracts';
 import { useAuth } from '../lib/AuthContext';
+import { getAllPayments, type Payment } from '../lib/api';
 import { ethers } from 'ethers';
 const { formatUnits } = ethers.utils;
 
@@ -15,6 +16,16 @@ interface PropertyDisplay {
   totalSupply: string;
   owner: string;
   isActive: boolean;
+}
+
+interface PropertyPaymentHealth {
+  propertyId: number;
+  propertyName: string;
+  verified: number;
+  pending: number;
+  failed: number;
+  lastPaymentDate: string | null;
+  overdue: boolean;
 }
 
 export default function IssuerDashboard() {
@@ -33,18 +44,24 @@ export default function IssuerDashboard() {
   });
 
   const [properties, setProperties] = useState<PropertyDisplay[]>([]);
+  const [paymentHealth, setPaymentHealth] = useState<PropertyPaymentHealth[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingPayments, setIsLoadingPayments] = useState(true);
 
   useEffect(() => {
     const fetchProperties = async () => {
       if (!isAuthenticated || !isCorrectNetwork) {
         setIsLoading(false);
+        setIsLoadingPayments(false);
         return;
       }
       try {
-        const props = await getAllProperties();
+        const [props, paymentResponse] = await Promise.all([
+          getAllProperties(),
+          getAllPayments().catch(() => ({ data: [] as Payment[] })),
+        ]);
         const userProps = props.filter((p: any) => p.owner?.toLowerCase() === address?.toLowerCase());
-        setProperties(userProps.map((p: any) => ({
+        const propertyRows = userProps.map((p: any) => ({
           id: Number(p.id),
           uri: p.uri,
           imageUrl: p.uri && (p.uri.startsWith('http') || p.uri.startsWith('ipfs://')) ? p.uri : null,
@@ -52,15 +69,60 @@ export default function IssuerDashboard() {
           totalSupply: formatUnits(p.totalSupply, 18),
           owner: p.owner,
           isActive: p.isActive,
-        })));
+        }));
+        setProperties(propertyRows);
+
+        const issuerPropertyIds = new Set(propertyRows.map((p) => p.id));
+        const payments = (paymentResponse?.data || []).filter((payment) => issuerPropertyIds.has(Number(payment.propertyId)));
+        const nowMs = Date.now();
+        const THIRTY_FIVE_DAYS_MS = 35 * 24 * 60 * 60 * 1000;
+
+        const healthRows: PropertyPaymentHealth[] = propertyRows.map((property) => {
+          const propertyPayments = payments.filter((payment) => Number(payment.propertyId) === property.id);
+          const verified = propertyPayments.filter((payment) => payment.status === 'verified').length;
+          const pending = propertyPayments.filter((payment) => payment.status === 'pending').length;
+          const failed = propertyPayments.filter((payment) => payment.status === 'failed').length;
+
+          const latest = propertyPayments.reduce<number | null>((latestMs, payment) => {
+            const candidate = payment.paymentDate ? Date.parse(payment.paymentDate) : NaN;
+            if (!Number.isFinite(candidate)) return latestMs;
+            if (latestMs === null || candidate > latestMs) return candidate;
+            return latestMs;
+          }, null);
+
+          const overdue = property.isActive && (latest === null || (nowMs - latest) > THIRTY_FIVE_DAYS_MS);
+
+          return {
+            propertyId: property.id,
+            propertyName: property.uri || `Property #${property.id}`,
+            verified,
+            pending,
+            failed,
+            lastPaymentDate: latest ? new Date(latest).toISOString() : null,
+            overdue,
+          };
+        });
+
+        setPaymentHealth(healthRows);
       } catch (err) {
         console.error('Error fetching properties:', err);
       } finally {
         setIsLoading(false);
+        setIsLoadingPayments(false);
       }
     };
     fetchProperties();
   }, [isAuthenticated, isCorrectNetwork, chainId, address]);
+
+  const paymentTotals = paymentHealth.reduce(
+    (acc, row) => ({
+      verified: acc.verified + row.verified,
+      pending: acc.pending + row.pending,
+      failed: acc.failed + row.failed,
+      overdue: acc.overdue + (row.overdue ? 1 : 0),
+    }),
+    { verified: 0, pending: 0, failed: 0, overdue: 0 }
+  );
 
   const handleTokenize = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -304,6 +366,85 @@ export default function IssuerDashboard() {
           </div>
 
           <div className="lg:col-span-2 space-y-8">
+            <div className="rounded-2xl border border-border bg-card p-8">
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold tracking-tight">Payment Verification Monitor</h2>
+                <p className="text-sm text-muted-foreground mt-1">Live rent verification health across your properties.</p>
+              </div>
+              {isLoadingPayments ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-border p-3">
+                      <p className="text-xs text-muted-foreground">Verified</p>
+                      <p className="text-xl font-semibold text-green-500">{paymentTotals.verified}</p>
+                    </div>
+                    <div className="rounded-lg border border-border p-3">
+                      <p className="text-xs text-muted-foreground">Pending</p>
+                      <p className="text-xl font-semibold text-yellow-500">{paymentTotals.pending}</p>
+                    </div>
+                    <div className="rounded-lg border border-border p-3">
+                      <p className="text-xs text-muted-foreground">Failed</p>
+                      <p className="text-xl font-semibold text-red-500">{paymentTotals.failed}</p>
+                    </div>
+                    <div className="rounded-lg border border-border p-3">
+                      <p className="text-xs text-muted-foreground">Overdue Streams</p>
+                      <p className="text-xl font-semibold text-orange-500">{paymentTotals.overdue}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-border p-4">
+                    <p className="text-sm font-medium mb-3">Overdue Alerts</p>
+                    {paymentHealth.some((row) => row.overdue) ? (
+                      <div className="space-y-2">
+                        {paymentHealth
+                          .filter((row) => row.overdue)
+                          .map((row) => (
+                            <div key={row.propertyId} className="rounded-lg border border-orange-500/30 bg-orange-500/10 p-3 text-sm">
+                              <p className="font-medium">{row.propertyName}</p>
+                              <p className="text-muted-foreground">No verified rent in the last 35 days.</p>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No overdue streams right now.</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Per-Property Payment Health</p>
+                    {paymentHealth.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No payment data available yet for your properties.</p>
+                    ) : (
+                      paymentHealth.map((row) => (
+                        <div key={row.propertyId} className="rounded-lg border border-border p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-medium text-sm">{row.propertyName}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Last payment: {row.lastPaymentDate ? new Date(row.lastPaymentDate).toLocaleDateString() : 'No records'}
+                              </p>
+                            </div>
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${row.overdue ? 'bg-orange-500/10 text-orange-500' : 'bg-green-500/10 text-green-500'}`}>
+                              {row.overdue ? 'Overdue' : 'Healthy'}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex items-center gap-3 text-xs">
+                            <span className="text-green-500">V: {row.verified}</span>
+                            <span className="text-yellow-500">P: {row.pending}</span>
+                            <span className="text-red-500">F: {row.failed}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="rounded-2xl border border-border bg-card p-8">
               <div className="mb-6">
                 <h2 className="text-xl font-semibold tracking-tight">Your Active Streams</h2>
