@@ -31,6 +31,7 @@ export default function InvestorDashboard() {
     getPendingYield, 
     claimYield,
     buyPropertyTokens,
+    getMarketplaceListings,
     getUserDistributions,
     getClaimableDistributionIds,
     getUserPropertyTokens,
@@ -44,6 +45,7 @@ export default function InvestorDashboard() {
   const [pendingYield, setPendingYield] = useState('0');
   const [distributions, setDistributions] = useState<any[]>([]);
   const [claimableDistributionIds, setClaimableDistributionIds] = useState<number[]>([]);
+  const [listingPrices, setListingPrices] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [buyAmount, setBuyAmount] = useState('');
   const [isProcessingBuy, setIsProcessingBuy] = useState(false);
@@ -83,18 +85,26 @@ export default function InvestorDashboard() {
         
         setProperties(displayProps);
 
-        const [balance, yield_, userDists, userProps, claimableIds] = await Promise.all([
+        const [balance, yield_, userDists, userProps, claimableIds, listings] = await Promise.all([
           getTENBalance(),
           getPendingYield(),
           getUserDistributions(),
           getUserPropertyTokens(),
           getClaimableDistributionIds(),
+          getMarketplaceListings(),
         ]);
         setTenBalance(balance);
         setPendingYield(yield_);
         setDistributions(userDists || []);
         setUserPropertyTokens(userProps || []);
         setClaimableDistributionIds(claimableIds || []);
+        const pricesByToken = (listings || []).reduce((acc: Record<string, number>, listing: any) => {
+          if (listing?.isActive) {
+            acc[String(listing.propertyToken).toLowerCase()] = parseFloat(formatUnits(listing.pricePerToken, 6));
+          }
+          return acc;
+        }, {});
+        setListingPrices(pricesByToken);
       } catch (err) {
         console.error('Error fetching data:', err);
       } finally {
@@ -103,7 +113,7 @@ export default function InvestorDashboard() {
     };
 
     fetchData();
-  }, [isAuthenticated, isCorrectNetwork, chainId, getAllProperties, getTENBalance, getPendingYield, getUserDistributions, getUserPropertyTokens, getClaimableDistributionIds]);
+  }, [isAuthenticated, isCorrectNetwork, chainId, getAllProperties, getTENBalance, getPendingYield, getUserDistributions, getUserPropertyTokens, getClaimableDistributionIds, getMarketplaceListings]);
 
   const handleBuyTEN = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,10 +123,18 @@ export default function InvestorDashboard() {
     const toastId = toast.loading("Processing token purchase...");
     
     try {
+      const selectedPrice = listingPrices[selectedProperty.propertyToken.toLowerCase()];
+      if (!selectedPrice || selectedPrice <= 0) {
+        throw new Error('No active listing price found for this property');
+      }
+      const tokenAmount = parseFloat(buyAmount) / selectedPrice;
+      if (!Number.isFinite(tokenAmount) || tokenAmount <= 0) {
+        throw new Error('Unable to compute token amount from quote');
+      }
       const sellerAddress = selectedProperty.owner || '0x0000000000000000000000000000000000000000';
-      const txHash = await buyPropertyTokens(selectedProperty.propertyToken, buyAmount, sellerAddress);
+      await buyPropertyTokens(selectedProperty.propertyToken, tokenAmount.toFixed(8), sellerAddress);
       toast.update(toastId, { 
-        render: `Successfully purchased ${buyAmount} property tokens!`, 
+        render: `Successfully purchased ${tokenAmount.toFixed(4)} property tokens!`, 
         type: "success", 
         isLoading: false, 
         autoClose: 3000 
@@ -182,7 +200,15 @@ export default function InvestorDashboard() {
     }
   };
 
-  const tenValueUSD = (parseFloat(tenBalance) * 1.05).toFixed(2);
+  const activeListingPrices = Object.values(listingPrices).filter((price) => Number.isFinite(price) && price > 0);
+  const benchmarkTenPrice = activeListingPrices.length > 0
+    ? activeListingPrices.reduce((sum, price) => sum + price, 0) / activeListingPrices.length
+    : null;
+  const tenValueUSD = benchmarkTenPrice ? (parseFloat(tenBalance) * benchmarkTenPrice).toFixed(2) : null;
+  const selectedPrice = selectedProperty ? listingPrices[selectedProperty.propertyToken.toLowerCase()] : null;
+  const estimatedTen = buyAmount && selectedPrice && selectedPrice > 0
+    ? (parseFloat(buyAmount) / selectedPrice).toFixed(4)
+    : '';
 
   if (!isCorrectNetwork) {
     return (
@@ -219,7 +245,7 @@ export default function InvestorDashboard() {
             title="Your TEN Balance"
             value={`${parseFloat(tenBalance).toFixed(2)} TEN`}
             icon={Coins}
-            description={`≈ $${tenValueUSD} USD`}
+            description={tenValueUSD ? `≈ $${tenValueUSD} USD` : 'No live TEN quote'}
           />
           <StatCard
             title="Unclaimed Yield"
@@ -405,13 +431,13 @@ export default function InvestorDashboard() {
                 <div className="bg-muted/30 p-4 rounded-xl space-y-3 border border-border/50">
                   <div className="flex justify-between text-sm text-muted-foreground">
                     <span>You Receive (Estimated)</span>
-                    <span>1 TEN = 1.05 USDC</span>
+                    <span>{selectedPrice ? `1 TEN = ${selectedPrice.toFixed(4)} USDC` : 'Select priced property'}</span>
                   </div>
                   <div className="flex items-center gap-4">
                     <input 
                       type="text"
                       readOnly
-                      value={buyAmount ? (parseFloat(buyAmount) / 1.05).toFixed(4) : ''}
+                      value={estimatedTen}
                       className="bg-transparent text-3xl font-semibold outline-none w-full text-muted-foreground"
                       placeholder="0.0"
                     />
