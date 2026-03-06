@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import '@radix-ui/themes/styles.css';
 import { Theme as RadixTheme } from '@radix-ui/themes';
 import { ToastContainer } from 'react-toastify';
@@ -18,6 +18,10 @@ import { AuthProvider } from './src/lib/AuthContext.tsx';
 import { ThemeProvider, useTheme } from './src/lib/ThemeContext.tsx';
 import { KYCProvider } from './src/lib/KYCContext.tsx';
 import ErrorBoundary from './src/components/ErrorBoundary.tsx';
+import {
+  validateDeploymentConfigAtStartup,
+  type DeploymentValidationIssue,
+} from './src/lib/contracts.ts';
 
 
 const MissingConfigScreen: React.FC<{ missing: string[] }> = ({ missing }) => (
@@ -39,11 +43,46 @@ const MissingConfigScreen: React.FC<{ missing: string[] }> = ({ missing }) => (
 
 const AppContent: React.FC = () => {
   const { theme } = useTheme();
+  const [deploymentIssues, setDeploymentIssues] = useState<DeploymentValidationIssue[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    validateDeploymentConfigAtStartup()
+      .then((report) => {
+        if (!active) return;
+        setDeploymentIssues(report.issues);
+      })
+      .catch((err) => {
+        if (!active) return;
+        console.warn('Deployment validation check failed:', err);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const criticalIssues = deploymentIssues.filter((issue) => issue.severity === 'error');
   
   return (
     <RadixTheme appearance={theme} radius="medium" scaling="100%">
       <Router>
         <div className="font-sans antialiased text-foreground bg-background selection:bg-primary/30">
+          {deploymentIssues.length > 0 && (
+            <div className={`mx-4 mt-4 rounded-xl border p-4 ${criticalIssues.length > 0 ? 'border-red-500/40 bg-red-500/10' : 'border-yellow-500/40 bg-yellow-500/10'}`}>
+              <h2 className="text-sm font-semibold">
+                {criticalIssues.length > 0 ? 'Deployment Configuration Errors Detected' : 'Deployment Configuration Warnings'}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Contract startup health check found {deploymentIssues.length} issue(s). Verify contract addresses and network RPC settings.
+              </p>
+              <ul className="mt-2 space-y-1 text-xs">
+                {deploymentIssues.slice(0, 6).map((issue, idx) => (
+                  <li key={`${issue.chainId}-${issue.contractKey}-${idx}`}>
+                    Chain {issue.chainId} / {issue.contractKey}: {issue.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/issuer" element={<Issuer />} />

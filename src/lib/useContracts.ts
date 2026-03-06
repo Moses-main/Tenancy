@@ -50,6 +50,12 @@ const decodeDistributionInfo = (raw: any): DecodedDistributionInfo | null => {
   };
 };
 
+const isInvalidConfiguredAddress = (address?: string) => {
+  if (!address) return true;
+  if (!ethers.utils.isAddress(address)) return true;
+  return /^0x0{40}$/i.test(address);
+};
+
 export const useContracts = () => {
   const { address, provider } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
@@ -74,6 +80,12 @@ export const useContracts = () => {
     const signer = await provider.getSigner();
     const isBaseSepolia = chainId === 84532;
     const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
+    const invalidCore = ['propertyRegistry', 'tenToken', 'yieldDistributor'].filter((key) =>
+      isInvalidConfiguredAddress((addrs as any)[key])
+    );
+    if (invalidCore.length > 0) {
+      throw new Error(`Deployment config invalid for ${invalidCore.join(', ')} on this network.`);
+    }
 
     return {
       propertyRegistry: new Contract(addrs.propertyRegistry, ABIS.propertyRegistry, signer),
