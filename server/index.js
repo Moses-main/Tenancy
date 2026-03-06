@@ -278,7 +278,7 @@ app.get('/payments/:propertyId', async (req, res) => {
 // Request payment verification
 app.post('/verify-payment', async (req, res) => {
   try {
-    const { propertyId, amount, tenantName, proofUrl, tenantAddress } = req.body || {};
+    const { propertyId, amount, tenantName, proofUrl, tenantAddress, txHash } = req.body || {};
     
     if (!propertyId || !proofUrl) {
       return res.status(400).json({ error: 'propertyId and proofUrl are required' });
@@ -291,43 +291,50 @@ app.post('/verify-payment', async (req, res) => {
     
     const verificationId = crypto.randomUUID();
     
-    // Store in database
+    const normalizedProofUrl = String(proofUrl).trim();
+    const normalizedTenantAddress = String(tenantAddress || `0x${crypto.randomBytes(20).toString('hex')}`).toLowerCase();
+    const numericAmount = Number(amount || property.rentAmount);
+    const normalizedTxHash = txHash ? String(txHash).trim() : '';
+    const evidenceHash = crypto
+      .createHash('sha256')
+      .update(`${propertyId}|${numericAmount}|${normalizedTenantAddress}|${normalizedProofUrl}|${normalizedTxHash || 'no-tx'}`)
+      .digest('hex');
+
+    const hasValidAmount = Number.isFinite(numericAmount) && numericAmount > 0;
+    const hasSupportedProof = /^https?:\/\/|^ipfs:\/\//i.test(normalizedProofUrl);
+    const hasValidTxHash = !normalizedTxHash || /^0x[a-fA-F0-9]{64}$/.test(normalizedTxHash);
+    const isValid = hasValidAmount && hasSupportedProof && hasValidTxHash;
+
+    // Store verification request first
     await db.createVerification({
       verificationId,
       propertyId: parseInt(propertyId),
       propertyName: property.name,
-      amount: amount || property.rentAmount,
+      amount: numericAmount,
       tenantName: tenantName || 'Anonymous Tenant',
-      tenantAddress: tenantAddress || `0x${crypto.randomBytes(20).toString('hex')}`,
-      proofUrl,
+      tenantAddress: normalizedTenantAddress,
+      proofUrl: normalizedProofUrl,
       status: 'pending'
     });
-    
-    // Process verification asynchronously
-    setTimeout(async () => {
-      try {
-        const price = await fetchChainlinkPrice();
-        const isValid = Math.random() > 0.1;
-        
-        await db.updateVerification(verificationId, {
-          status: isValid ? 'verified' : 'failed',
-          verifiedAt: new Date(),
-          chainlinkJobId: `cljob_${crypto.randomBytes(6).toString('hex')}`,
-          priceFeedAtVerification: price,
-          errorMessage: isValid ? null : 'Payment verification failed'
-        });
-        
-        console.log(`[Verification] ${verificationId} -> ${isValid ? 'verified' : 'failed'} (price: $${price?.toFixed(2) || 'N/A'})`);
-      } catch (err) {
-        console.error('Verification error:', err);
-      }
-    }, 3000 + Math.floor(Math.random() * 2000));
-    
+
+    const price = await fetchChainlinkPrice();
+    await db.updateVerification(verificationId, {
+      status: isValid ? 'verified' : 'failed',
+      verifiedAt: new Date(),
+      chainlinkJobId: `det_${evidenceHash.slice(0, 12)}`,
+      providerReference: `evidence:${evidenceHash}`,
+      priceFeedAtVerification: price,
+      errorMessage: isValid ? null : 'Evidence validation failed'
+    });
+
+    console.log(`[Verification] ${verificationId} -> ${isValid ? 'verified' : 'failed'} evidence=${evidenceHash.slice(0, 12)}`);
+
     res.json({ 
       verificationId, 
-      status: 'pending',
-      message: 'Verification requested. Status will update asynchronously.',
-      property: property.name
+      status: isValid ? 'verified' : 'failed',
+      message: isValid ? 'Payment evidence verified.' : 'Payment evidence rejected.',
+      property: property.name,
+      evidenceHash
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to create verification', details: error.message });
@@ -540,12 +547,14 @@ app.post('/automation/trigger', requireRoles(['agent', 'admin']), async (req, re
     
     const results = [];
     for (const payment of pendingPayments) {
-      // Simulate Chainlink Automation checking payment status
-      const isVerified = Math.random() > 0.2;
+      const normalizedTxHash = payment.tx_hash ? String(payment.tx_hash).trim() : '';
+      const hasValidTxHash = /^0x[a-fA-F0-9]{64}$/.test(normalizedTxHash);
+      const hasValidAmount = Number(payment.amount) > 0;
+      const isVerified = hasValidAmount && hasValidTxHash;
       
       await db.updatePayment(payment.payment_id, {
         status: isVerified ? 'verified' : 'failed',
-        txHash: isVerified ? `0x${crypto.randomBytes(32).toString('hex')}` : null
+        txHash: isVerified ? normalizedTxHash : null
       });
       
       results.push({
