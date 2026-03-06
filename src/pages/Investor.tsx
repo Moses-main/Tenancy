@@ -6,6 +6,14 @@ import { Coins, ArrowDownToLine, ArrowRightLeft, TrendingUp, Building, ExternalL
 import { toast } from 'react-toastify';
 import { useContracts } from '../lib/useContracts';
 import { useAuth } from '../lib/AuthContext';
+import { getExplorerUrl } from '../lib/contracts';
+import {
+  createSettlementReceipt,
+  getSettlementReceiptsForWallet,
+  patchSettlementReceipt,
+  upsertSettlementReceipt,
+  type SettlementReceipt,
+} from '../lib/settlementReceipts';
 import { ethers } from 'ethers';
 const { formatUnits, parseUnits } = ethers.utils;
 import { Link } from 'react-router-dom';
@@ -53,6 +61,7 @@ export default function InvestorDashboard() {
   const [isProcessingClaim, setIsProcessingClaim] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<PropertyDisplay | null>(null);
   const [worldIdVerified, setWorldIdVerified] = useState(false);
+  const [settlementHistory, setSettlementHistory] = useState<SettlementReceipt[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -129,12 +138,21 @@ export default function InvestorDashboard() {
     fetchData();
   }, [isAuthenticated, isCorrectNetwork, chainId, getAllProperties, getTENBalance, getPendingYield, getUserDistributions, getUserPropertyTokens, getClaimableDistributionIds, getMarketplaceListings]);
 
+  useEffect(() => {
+    if (!address) {
+      setSettlementHistory([]);
+      return;
+    }
+    setSettlementHistory(getSettlementReceiptsForWallet(address));
+  }, [address]);
+
   const handleBuyTEN = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!buyAmount || parseFloat(buyAmount) <= 0 || !selectedProperty) return;
     
     setIsProcessingBuy(true);
     const toastId = toast.loading("Processing token purchase...");
+    let settlementId: string | null = null;
     
     try {
       const selectedPrice = listingPrices[selectedProperty.propertyToken.toLowerCase()];
@@ -150,7 +168,46 @@ export default function InvestorDashboard() {
         throw new Error(`Requested amount exceeds active listed inventory (${availableInventory.toFixed(4)} TEN)`);
       }
       const sellerAddress = selectedProperty.owner || '0x0000000000000000000000000000000000000000';
-      await buyPropertyTokens(selectedProperty.propertyToken, tokenAmount.toFixed(8), sellerAddress);
+      const settlement = address
+        ? createSettlementReceipt({
+            walletAddress: address,
+            chainId: chainId || 84532,
+            action: 'investor_buy',
+            title: `Buy ${selectedProperty.name}`,
+            subtitle: 'USDC -> TEN swap execution',
+            amountUsdc: parseFloat(buyAmount).toFixed(2),
+            amountTen: tokenAmount.toFixed(4),
+            counterparty: sellerAddress,
+            propertyToken: selectedProperty.propertyToken,
+          })
+        : null;
+      if (settlement) {
+        settlementId = settlement.id;
+        upsertSettlementReceipt(settlement);
+        setSettlementHistory(getSettlementReceiptsForWallet(address));
+      }
+
+      await buyPropertyTokens(
+        selectedProperty.propertyToken,
+        tokenAmount.toFixed(8),
+        sellerAddress,
+        {
+          onPendingTx: (txHash) => {
+            if (!settlement) return;
+            patchSettlementReceipt(settlement.id, { status: 'pending', txHash, chainId: chainId || 84532 });
+            setSettlementHistory(getSettlementReceiptsForWallet(address));
+          },
+          onConfirmedTx: (txHash) => {
+            if (!settlement) return;
+            patchSettlementReceipt(settlement.id, { status: 'confirmed', txHash, chainId: chainId || 84532 });
+            setSettlementHistory(getSettlementReceiptsForWallet(address));
+          },
+        }
+      );
+      if (settlement) {
+        patchSettlementReceipt(settlement.id, { status: 'settled' });
+        setSettlementHistory(getSettlementReceiptsForWallet(address));
+      }
       toast.update(toastId, { 
         render: `Successfully purchased ${tokenAmount.toFixed(4)} property tokens!`, 
         type: "success", 
@@ -165,6 +222,13 @@ export default function InvestorDashboard() {
       setBuyAmount('');
       setSelectedProperty(null);
     } catch (err: any) {
+      if (settlementId) {
+        patchSettlementReceipt(settlementId, {
+          status: 'failed',
+          errorMessage: err.message || 'Transaction failed',
+        });
+        setSettlementHistory(getSettlementReceiptsForWallet(address));
+      }
       toast.update(toastId, { 
         render: err.message || "Transaction failed", 
         type: "error", 
@@ -227,6 +291,13 @@ export default function InvestorDashboard() {
   const estimatedTen = buyAmount && selectedPrice && selectedPrice > 0
     ? (parseFloat(buyAmount) / selectedPrice).toFixed(4)
     : '';
+  const getStatusClass = (status: SettlementReceipt['status']) => {
+    if (status === 'settled') return 'bg-green-500/10 text-green-500';
+    if (status === 'failed') return 'bg-red-500/10 text-red-500';
+    if (status === 'confirmed') return 'bg-blue-500/10 text-blue-500';
+    if (status === 'pending') return 'bg-yellow-500/10 text-yellow-500';
+    return 'bg-muted text-muted-foreground';
+  };
 
   if (!isCorrectNetwork) {
     return (
@@ -519,6 +590,52 @@ export default function InvestorDashboard() {
                   <div className="text-center py-8">
                     <p className="text-muted-foreground">No yield history yet</p>
                     <p className="text-sm text-muted-foreground mt-1">Invest in properties to earn yield</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card p-6 md:p-8 card-shadow flex flex-col">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold tracking-tight">Settlement Timeline</h2>
+              <p className="text-sm text-muted-foreground mt-1">Track transaction lifecycle from initiation to settlement.</p>
+            </div>
+            <div className="flex-1 overflow-auto">
+              <div className="space-y-3">
+                {settlementHistory.length > 0 ? (
+                  settlementHistory.slice(0, 8).map((receipt) => (
+                    <div key={receipt.id} className="rounded-lg border border-border p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-sm">{receipt.title}</p>
+                          <p className="text-xs text-muted-foreground">{receipt.subtitle || 'Settlement update'}</p>
+                        </div>
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium capitalize ${getStatusClass(receipt.status)}`}>
+                          {receipt.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{new Date(receipt.updatedAt).toLocaleString()}</span>
+                        {receipt.txHash ? (
+                          <a
+                            href={receipt.txUrl || getExplorerUrl(chainId || 84532, undefined, receipt.txHash)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 hover:text-primary"
+                          >
+                            Tx <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ) : (
+                          <span>No tx hash yet</span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No settlement receipts yet</p>
+                    <p className="text-sm text-muted-foreground mt-1">Your buy transactions will appear here</p>
                   </div>
                 )}
               </div>
