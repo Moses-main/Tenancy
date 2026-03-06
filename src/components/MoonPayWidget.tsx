@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { MoonPayProvider, MoonPayBuyWidget } from '@moonpay/moonpay-react';
+import { featureStatus, getMoonPayPublishableKey } from '../lib/featureFlags';
 
-const MOONPAY_PUBLISHABLE_KEY = import.meta.env.VITE_MOONPAY_PUBLISHABLE_KEY || '';
+const MOONPAY_PUBLISHABLE_KEY = getMoonPayPublishableKey();
 
 interface MoonPayWidgetProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export function MoonPayWidget({
   amount = 100,
 }: MoonPayWidgetProps) {
   const [visible, setVisible] = useState(isOpen);
+  const moonpayStatus = featureStatus.moonpay();
 
   React.useEffect(() => {
     setVisible(isOpen);
@@ -34,12 +36,12 @@ export function MoonPayWidget({
 
   if (!isOpen) return null;
 
-  if (!MOONPAY_PUBLISHABLE_KEY) {
+  if (!moonpayStatus.enabled || !MOONPAY_PUBLISHABLE_KEY) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
         <div className="bg-gray-900 rounded-lg p-6 max-w-lg w-full mx-4 border border-gray-700">
-          <h2 className="text-lg font-semibold text-white mb-2">MoonPay not configured</h2>
-          <p className="text-sm text-gray-400 mb-4">Set <code>VITE_MOONPAY_PUBLISHABLE_KEY</code> to enable card/bank purchases.</p>
+          <h2 className="text-lg font-semibold text-white mb-2">MoonPay unavailable</h2>
+          <p className="text-sm text-gray-400 mb-4">{moonpayStatus.reason || 'MoonPay is disabled by configuration.'}</p>
           <button
             onClick={closeWidget}
             className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white"
