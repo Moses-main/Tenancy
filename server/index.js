@@ -33,7 +33,7 @@ app.use((req, _res, next) => {
 
 const PORT = process.env.PORT || 4010;
 const API_KEY = process.env.API_KEY || '';
-const CHAINLINK_FEED = process.env.CHAINLINK_ETH_USD_FEED || '0x4a5816300e0eE47A41DFcDB12A8C8bB6dD18C12';
+const CHAINLINK_FEED = process.env.CHAINLINK_ETH_USD_FEED || '0x71041dddad35a2F9D388c02D0DBE565255403061';
 const RPC_URL = process.env.RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
 const USE_REAL_PRICES = process.env.USE_REAL_PRICES === 'true';
 const WORLD_ID_APP_ID = process.env.WORLD_ID_APP_ID || '';
