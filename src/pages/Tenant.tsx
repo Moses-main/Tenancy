@@ -6,6 +6,7 @@ import { Home, CreditCard, Clock, CheckCircle, AlertCircle, Building, DollarSign
 import { toast } from 'react-toastify';
 import { useAuth } from '../lib/AuthContext';
 import { useContracts } from '../lib/useContracts';
+import { getExplorerUrl } from '../lib/contracts';
 import { ethers } from 'ethers';
 const { formatUnits, parseUnits } = ethers.utils;
 
@@ -343,7 +344,7 @@ export default function Tenant() {
                           <AlertCircle className="h-4 w-4 text-red-500" />
                         )}
                         <a
-                          href={`https://sepolia.basescan.org/tx/${payment.txHash}`}
+                          href={getExplorerUrl(chainId || 84532, undefined, payment.txHash)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-muted-foreground hover:text-foreground truncate"

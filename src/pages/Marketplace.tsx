@@ -5,6 +5,7 @@ import { Building, DollarSign, TrendingUp, Users, Search, Filter, ArrowUpDown, C
 import { toast } from 'react-toastify';
 import { useContracts } from '../lib/useContracts';
 import { useAuth } from '../lib/AuthContext';
+import { getExplorerUrl } from '../lib/contracts';
 import { ethers } from 'ethers';
 const { formatUnits, parseUnits } = ethers.utils;
 
@@ -534,7 +535,7 @@ export default function Marketplace() {
                     <Clock className="h-3 w-3" />
                     {formatTime(listing.createdAt)}
                   </div>
-                  <a href="#" className="flex items-center gap-1 hover:text-primary">
+                  <a href={getExplorerUrl(chainId || 84532, listing.propertyToken)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-primary">
                     View on Explorer <ExternalLink className="h-3 w-3" />
                   </a>
                 </div>
