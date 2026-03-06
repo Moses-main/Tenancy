@@ -5,7 +5,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { PrivyProvider } from '@privy-io/react-auth';
-import { sepolia } from 'viem/chains';
+import { sepolia, baseSepolia } from 'viem/chains';
 
 import Home from './src/pages/Home.tsx';
 import Issuer from './src/pages/Issuer.tsx';
@@ -22,6 +22,7 @@ import {
   validateDeploymentConfigAtStartup,
   type DeploymentValidationIssue,
 } from './src/lib/contracts.ts';
+import { DEFAULT_CHAIN_ID, getDefaultChainConfigError } from './src/lib/featureFlags.ts';
 
 
 const MissingConfigScreen: React.FC<{ missing: string[] }> = ({ missing }) => (
@@ -114,10 +115,16 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   const privyAppId = import.meta.env.VITE_PRIVY_APP_ID;
   const missingConfig: string[] = [];
+  const defaultChainError = getDefaultChainConfigError();
 
   if (!privyAppId) {
     missingConfig.push('VITE_PRIVY_APP_ID');
   }
+  if (defaultChainError) {
+    missingConfig.push(defaultChainError);
+  }
+
+  const privyDefaultChain = DEFAULT_CHAIN_ID === 84532 ? baseSepolia : sepolia;
 
   if (missingConfig.length > 0) {
     return (
@@ -138,7 +145,7 @@ const App: React.FC = () => {
               createOnLogin: 'all-users',
             },
           },
-          defaultChain: sepolia,
+          defaultChain: privyDefaultChain,
         }}
       >
         <AuthProvider>

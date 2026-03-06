@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Shield, CheckCircle, AlertCircle, Loader2, ExternalLink } from 'lucide-react';
 import { verifyWorldIdProof } from '../lib/api';
+import { featureStatus, getWorldIdAppId } from '../lib/featureFlags';
 
 interface WorldIdVerifyProps {
   onVerified: () => void;
@@ -17,15 +18,16 @@ export default function WorldIdVerify({
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const appId = import.meta.env.VITE_WORLD_ID_APP_ID;
+  const appId = getWorldIdAppId();
+  const worldIdStatus = featureStatus.worldId();
 
   const handleVerify = useCallback(async () => {
     setIsVerifying(true);
     setError(null);
 
     try {
-      if (!appId) {
-        throw new Error('World ID is not configured. Missing VITE_WORLD_ID_APP_ID.');
+      if (!worldIdStatus.enabled) {
+        throw new Error(worldIdStatus.reason || 'World ID feature is disabled.');
       }
 
       if (typeof window === 'undefined') {
@@ -120,6 +122,24 @@ export default function WorldIdVerify({
         <div className="flex items-center gap-3">
           <CheckCircle className="h-5 w-5 text-green-500" />
           <span className="text-green-500 font-medium">World ID Verified</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!worldIdStatus.enabled) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex items-start gap-3">
+          <div className="p-2 rounded-lg bg-muted">
+            <Shield className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div className="flex-1">
+            <h4 className="font-medium text-sm">World ID Unavailable</h4>
+            <p className="text-xs text-muted-foreground mt-1">
+              {worldIdStatus.reason || 'World ID is disabled by configuration.'}
+            </p>
+          </div>
         </div>
       </div>
     );
