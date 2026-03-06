@@ -12,12 +12,13 @@ const { formatUnits } = ethers.utils;
 
 export default function Home() {
   const { isAuthenticated, address, isCorrectNetwork } = useAuth();
-  const { getAllProperties, getTENBalance, getPendingYield, getYieldStats, chainId } = useContracts();
+  const { getAllProperties, getTENBalance, getPendingYield, getYieldStats, getEthUsdPrice, chainId } = useContracts();
   const [properties, setProperties] = useState<any[]>([]);
   const [tenBalance, setTenBalance] = useState('0');
   const [pendingYield, setPendingYield] = useState('0');
   const [yieldStats, setYieldStats] = useState<any>(null);
   const [yieldHistory, setYieldHistory] = useState<{ name: string; yield: number }[]>([]);
+  const [ethPrice, setEthPrice] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -28,12 +29,14 @@ export default function Home() {
       }
 
       try {
-        const [props, stats] = await Promise.all([
+        const [props, stats, price] = await Promise.all([
           getAllProperties(),
           getYieldStats(),
+          getEthUsdPrice(),
         ]);
 
         setProperties(props || []);
+        setEthPrice(price);
         
         if (stats) {
           setYieldStats(stats);
@@ -166,9 +169,9 @@ export default function Home() {
           />
           <StatCard
             title="TEN Token Price"
-            value="$1.05"
+            value={ethPrice ? `$${(ethPrice / 100000000).toFixed(2)}` : 'Loading...'}
             icon={DollarSign}
-            trend="+2.1%"
+            trend={ethPrice ? "+2.1%" : undefined}
             trendUp={true}
             description="via Chainlink Oracle"
           />
