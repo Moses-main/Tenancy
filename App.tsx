@@ -18,6 +18,24 @@ import { AuthProvider } from './src/lib/AuthContext.tsx';
 import { ThemeProvider, useTheme } from './src/lib/ThemeContext.tsx';
 import ErrorBoundary from './src/components/ErrorBoundary.tsx';
 
+
+const MissingConfigScreen: React.FC<{ missing: string[] }> = ({ missing }) => (
+  <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6">
+    <div className="max-w-2xl w-full rounded-2xl border border-red-500/30 bg-red-500/10 p-8">
+      <h1 className="text-2xl font-semibold mb-3">Configuration required</h1>
+      <p className="text-sm text-muted-foreground mb-4">
+        TENANCY is missing required environment configuration. Update your environment file and restart the app.
+      </p>
+      <ul className="list-disc pl-5 space-y-1 text-sm">
+        {missing.map((item) => (
+          <li key={item}><code>{item}</code></li>
+        ))}
+      </ul>
+    </div>
+  </div>
+);
+
+
 const AppContent: React.FC = () => {
   const { theme } = useTheme();
   
@@ -54,8 +72,21 @@ const AppContent: React.FC = () => {
 };
 
 const App: React.FC = () => {
-  const privyAppId = import.meta.env.VITE_PRIVY_APP_ID || 'your_privy_app_id';
-  
+  const privyAppId = import.meta.env.VITE_PRIVY_APP_ID;
+  const missingConfig: string[] = [];
+
+  if (!privyAppId) {
+    missingConfig.push('VITE_PRIVY_APP_ID');
+  }
+
+  if (missingConfig.length > 0) {
+    return (
+      <ErrorBoundary>
+        <MissingConfigScreen missing={missingConfig} />
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <PrivyProvider
