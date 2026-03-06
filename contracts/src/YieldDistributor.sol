@@ -268,7 +268,8 @@ contract YieldDistributor is Ownable, ReentrancyGuard, Pausable, AccessControl {
         uint256 distributedYield,
         uint256 status,
         uint256 distributionTimestamp,
-        uint256[] memory holderBalances
+        uint256[] memory holderBalances,
+        address[] memory holders
     ) {
         Distribution storage distribution = _distributions[distributionId];
         return (
@@ -277,8 +278,46 @@ contract YieldDistributor is Ownable, ReentrancyGuard, Pausable, AccessControl {
             distribution.distributedYield,
             uint256(distribution.status),
             distribution.distributionTimestamp,
-            distribution.holderBalances
+            distribution.holderBalances,
+            distribution.holders
         );
+    }
+
+    function distributionCount() external view returns (uint256) {
+        return _distributionCount;
+    }
+
+    function getClaimableDistributionIds(address holder) external view returns (uint256[] memory) {
+        uint256 count = 0;
+        for (uint256 i = 0; i < _distributionCount; i++) {
+            Distribution storage distribution = _distributions[i];
+            if (distribution.status != DistributionStatus.DISTRIBUTING) continue;
+
+            uint256 holderIndex = findHolderIndex(holder, distribution.holders);
+            if (
+                holderIndex != type(uint256).max &&
+                distribution.holderBalances[holderIndex] > 0
+            ) {
+                count++;
+            }
+        }
+
+        uint256[] memory ids = new uint256[](count);
+        uint256 cursor = 0;
+        for (uint256 i = 0; i < _distributionCount; i++) {
+            Distribution storage distribution = _distributions[i];
+            if (distribution.status != DistributionStatus.DISTRIBUTING) continue;
+
+            uint256 holderIndex = findHolderIndex(holder, distribution.holders);
+            if (
+                holderIndex != type(uint256).max &&
+                distribution.holderBalances[holderIndex] > 0
+            ) {
+                ids[cursor] = i;
+                cursor++;
+            }
+        }
+        return ids;
     }
     
     function isDistributionActive(uint256 distributionId) external view returns (bool) {

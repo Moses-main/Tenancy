@@ -361,8 +361,9 @@ export const useContracts = () => {
       const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
       const yieldDist = new Contract(addrs.yieldDistributor, ABIS.yieldDistributor, provider);
       
-      const properties = await getAllProperties();
-      const userAddr = userAddress || address;
+      const userAddr = (userAddress || address || '').toLowerCase();
+      if (!userAddr) return [];
+      const distributionCount = Number(await yieldDist.distributionCount());
       const distributions: Array<{
         distributionId: number;
         propertyId: bigint;
@@ -373,11 +374,14 @@ export const useContracts = () => {
         timestamp: number;
       }> = [];
       
-      for (let i = 0; i < properties.length; i++) {
+      for (let i = 0; i < distributionCount; i++) {
         try {
           const info = await yieldDist.getDistributionInfo(i);
-          if (info && info.holders.includes(userAddr)) {
-            const holderIndex = info.holders.indexOf(userAddr);
+          const holders = Array.isArray(info.holders)
+            ? info.holders.map((holder: string) => holder.toLowerCase())
+            : [];
+          const holderIndex = holders.indexOf(userAddr);
+          if (info && holderIndex >= 0) {
             distributions.push({
               distributionId: i,
               propertyId: info.propertyId,
@@ -398,25 +402,39 @@ export const useContracts = () => {
       console.error('Error getting user distributions:', err);
       return [];
     }
-  }, [provider, address, chainId, getAllProperties]);
+  }, [provider, address, chainId]);
+
+  const getClaimableDistributionIds = useCallback(async (userAddress?: string): Promise<number[]> => {
+    if (!provider) return [];
+    try {
+      const isBaseSepolia = chainId === 84532;
+      const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
+      const yieldDist = new Contract(addrs.yieldDistributor, ABIS.yieldDistributor, provider);
+      const userAddr = userAddress || address;
+      if (!userAddr) return [];
+      const distributionIds = await yieldDist.getClaimableDistributionIds(userAddr);
+      return distributionIds.map((id: any) => Number(id));
+    } catch (err) {
+      console.error('Error getting claimable distribution IDs:', err);
+      return [];
+    }
+  }, [provider, address, chainId]);
 
   const claimAllYields = useCallback(async (): Promise<string[]> => {
     setIsLoading(true);
     setError(null);
     try {
-      const distributions = await getUserDistributions();
+      const claimableIds = await getClaimableDistributionIds();
       const txHashes: string[] = [];
       
-      for (const dist of distributions) {
-        if (dist.status === 2) {
-          try {
-            const contracts = await getContracts();
-            const tx = await contracts.yieldDistributor.claimYield(dist.distributionId);
-            const receipt = await tx.wait();
-            txHashes.push(receipt.hash);
-          } catch (err) {
-            console.error(`Error claiming yield for distribution ${dist.distributionId}:`, err);
-          }
+      for (const distributionId of claimableIds) {
+        try {
+          const contracts = await getContracts();
+          const tx = await contracts.yieldDistributor.claimYield(distributionId);
+          const receipt = await tx.wait();
+          txHashes.push(receipt.hash);
+        } catch (err) {
+          console.error(`Error claiming yield for distribution ${distributionId}:`, err);
         }
       }
       
@@ -427,7 +445,7 @@ export const useContracts = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [getContracts, getUserDistributions]);
+  }, [getContracts, getClaimableDistributionIds]);
 
   const USDC_ADDRESSES = {
     baseSepolia: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
@@ -872,6 +890,7 @@ export const useContracts = () => {
     claimYield,
     buyPropertyTokens,
     getUserDistributions,
+    getClaimableDistributionIds,
     getMarketplaceListings,
     createMarketplaceListing,
     buyMarketplaceListing,

@@ -32,6 +32,7 @@ export default function InvestorDashboard() {
     claimYield,
     buyPropertyTokens,
     getUserDistributions,
+    getClaimableDistributionIds,
     getUserPropertyTokens,
     isLoading: contractLoading,
     chainId
@@ -42,6 +43,7 @@ export default function InvestorDashboard() {
   const [tenBalance, setTenBalance] = useState('0');
   const [pendingYield, setPendingYield] = useState('0');
   const [distributions, setDistributions] = useState<any[]>([]);
+  const [claimableDistributionIds, setClaimableDistributionIds] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [buyAmount, setBuyAmount] = useState('');
   const [isProcessingBuy, setIsProcessingBuy] = useState(false);
@@ -81,16 +83,18 @@ export default function InvestorDashboard() {
         
         setProperties(displayProps);
 
-        const [balance, yield_, userDists, userProps] = await Promise.all([
+        const [balance, yield_, userDists, userProps, claimableIds] = await Promise.all([
           getTENBalance(),
           getPendingYield(),
           getUserDistributions(),
           getUserPropertyTokens(),
+          getClaimableDistributionIds(),
         ]);
         setTenBalance(balance);
         setPendingYield(yield_);
         setDistributions(userDists || []);
         setUserPropertyTokens(userProps || []);
+        setClaimableDistributionIds(claimableIds || []);
       } catch (err) {
         console.error('Error fetching data:', err);
       } finally {
@@ -99,7 +103,7 @@ export default function InvestorDashboard() {
     };
 
     fetchData();
-  }, [isAuthenticated, isCorrectNetwork, chainId, getAllProperties, getTENBalance, getPendingYield, getUserDistributions, getUserPropertyTokens]);
+  }, [isAuthenticated, isCorrectNetwork, chainId, getAllProperties, getTENBalance, getPendingYield, getUserDistributions, getUserPropertyTokens, getClaimableDistributionIds]);
 
   const handleBuyTEN = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,25 +152,24 @@ export default function InvestorDashboard() {
     const toastId = toast.loading("Claiming yield...");
     
     try {
-      const claimableDistributions = (distributions || []).filter((dist) => Number(dist.status) === 1);
-
-      if (claimableDistributions.length === 0) {
+      if (claimableDistributionIds.length === 0) {
         throw new Error('No claimable distributions found.');
       }
 
-      for (const dist of claimableDistributions) {
-        await claimYield(Number(dist.distributionId));
+      for (const distributionId of claimableDistributionIds) {
+        await claimYield(distributionId);
       }
       toast.update(toastId, { 
-        render: `Yield claimed successfully from ${claimableDistributions.length} distribution${claimableDistributions.length > 1 ? 's' : ''}!`, 
+        render: `Yield claimed successfully from ${claimableDistributionIds.length} distribution${claimableDistributionIds.length > 1 ? 's' : ''}!`, 
         type: "success", 
         isLoading: false, 
         autoClose: 3000 
       });
       
       setWorldIdVerified(false);
-      const yield_ = await getPendingYield();
+      const [yield_, refreshedIds] = await Promise.all([getPendingYield(), getClaimableDistributionIds()]);
       setPendingYield(yield_);
+      setClaimableDistributionIds(refreshedIds || []);
     } catch (err: any) {
       toast.update(toastId, { 
         render: err.message || "Claim failed", 
@@ -237,7 +240,7 @@ export default function InvestorDashboard() {
           <div className="rounded-2xl border border-border bg-card p-6 flex flex-col justify-center stat-card">
             <button
               onClick={handleClaimYield}
-              disabled={isProcessingClaim || (distributions || []).filter((dist) => Number(dist.status) === 1).length === 0 || !worldIdVerified}
+              disabled={isProcessingClaim || claimableDistributionIds.length === 0 || !worldIdVerified}
               className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-12 px-6 gap-2 text-base"
             >
               {isProcessingClaim ? (
