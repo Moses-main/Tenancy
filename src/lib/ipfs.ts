@@ -2,7 +2,24 @@ import { ethers } from 'ethers';
 const { parseUnits, parseEther } = ethers.utils;
 
 const PINATA_JWT = import.meta.env.VITE_PINATA_JWT || '';
+const ALLOW_MOCK_IPFS = import.meta.env.VITE_ALLOW_MOCK_IPFS === 'true';
 const IPFS_GATEWAY = 'https://gateway.pinata.cloud/ipfs/';
+
+function ensureIpfsConfigured(operation: string) {
+  if (PINATA_JWT) return;
+
+  if (ALLOW_MOCK_IPFS) {
+    console.warn(`Pinata JWT not configured for ${operation}; using mock IPFS hash because VITE_ALLOW_MOCK_IPFS=true`);
+    return;
+  }
+
+  throw new Error(`IPFS is not configured for ${operation}. Set VITE_PINATA_JWT or enable VITE_ALLOW_MOCK_IPFS=true for demo mode.`);
+}
+
+function generateMockIpfsHash() {
+  const mockHash = 'Qm' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  return `ipfs://${mockHash}`;
+}
 
 export interface IPFSMetadata {
   name: string;
@@ -24,10 +41,10 @@ export interface PropertyProof {
 }
 
 export const uploadToIPFS = async (data: string): Promise<string> => {
+  ensureIpfsConfigured('metadata upload');
+
   if (!PINATA_JWT) {
-    console.warn('Pinata JWT not configured, using mock IPFS hash');
-    const mockHash = 'Qm' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    return `ipfs://${mockHash}`;
+    return generateMockIpfsHash();
   }
 
   try {
@@ -71,10 +88,10 @@ export const uploadPropertyProof = async (proof: PropertyProof): Promise<string>
 };
 
 export const uploadLeaseAgreement = async (file: File): Promise<string> => {
+  ensureIpfsConfigured('lease upload');
+
   if (!PINATA_JWT) {
-    console.warn('Pinata JWT not configured, using mock IPFS hash');
-    const mockHash = 'Qm' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    return `ipfs://${mockHash}`;
+    return generateMockIpfsHash();
   }
 
   try {
