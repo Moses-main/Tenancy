@@ -362,12 +362,33 @@ app.post('/world-id/verify', async (req, res) => {
 // Get all payments
 app.get('/payments', async (req, res) => {
   try {
-    const payments = await db.getAllPayments();
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 200);
+    const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+    const status = req.query.status ? String(req.query.status) : undefined;
+    const propertyId = req.query.propertyId !== undefined ? parseInt(req.query.propertyId, 10) : undefined;
+
+    const paymentsResult = await db.getPaymentsPaginated({
+      limit,
+      offset,
+      status,
+      propertyId: Number.isFinite(propertyId) ? propertyId : undefined,
+    });
+    const payments = paymentsResult.data;
     res.json({
-      total: payments.length,
+      total: paymentsResult.total,
       verified: payments.filter(p => p.status === 'verified').length,
       pending: payments.filter(p => p.status === 'pending').length,
-      data: payments
+      data: payments,
+      pagination: {
+        limit,
+        offset,
+        count: payments.length,
+        hasMore: offset + payments.length < paymentsResult.total,
+      },
+      filters: {
+        status: status || null,
+        propertyId: Number.isFinite(propertyId) ? propertyId : null,
+      },
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch payments', details: error.message });
@@ -554,8 +575,31 @@ app.get('/verifications/:verificationId', async (req, res) => {
 // Get all verifications
 app.get('/verifications', async (req, res) => {
   try {
-    const verifications = await db.getAllVerifications();
-    res.json(verifications);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 200);
+    const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+    const status = req.query.status ? String(req.query.status) : undefined;
+    const propertyId = req.query.propertyId !== undefined ? parseInt(req.query.propertyId, 10) : undefined;
+
+    const verifications = await db.getVerificationsPaginated({
+      limit,
+      offset,
+      status,
+      propertyId: Number.isFinite(propertyId) ? propertyId : undefined,
+    });
+    res.json({
+      total: verifications.total,
+      data: verifications.data,
+      pagination: {
+        limit,
+        offset,
+        count: verifications.data.length,
+        hasMore: offset + verifications.data.length < verifications.total,
+      },
+      filters: {
+        status: status || null,
+        propertyId: Number.isFinite(propertyId) ? propertyId : null,
+      },
+    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch verifications', details: error.message });
   }
