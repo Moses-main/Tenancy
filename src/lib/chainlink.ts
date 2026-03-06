@@ -163,8 +163,6 @@ export const simulateRentPayment = async (
   amount: number,
   tenantAddress: string
 ): Promise<VerificationResult> => {
-  console.log(`Simulating rent payment: Property ${propertyId}, Amount ${amount}, Tenant ${tenantAddress}`);
-  
   return simulateVerification({
     propertyId,
     propertyAddress: '',

@@ -481,43 +481,28 @@ export const useContracts = () => {
         // Approve marketplace to spend USDC
         const currentAllowance = await usdc.allowance(buyerAddress, addrs.marketplace);
         if (currentAllowance < totalCost) {
-          console.log('Approving USDC for marketplace...');
           const approveTx = await usdc.approve(addrs.marketplace, totalCost);
           await approveTx.wait();
-          console.log('USDC approved for marketplace');
         }
         
-        // For direct purchase, we'll use the fallback method
-        console.log('Using direct purchase method...');
-        
         // Direct USDC transfer to seller
-        console.log('Executing direct USDC transfer...');
         const transferTx = await usdc.transfer(sellerAddress, totalCost);
         await transferTx.wait();
-        console.log('USDC transferred to seller');
         
         // Mint property tokens to buyer
-        console.log('Minting property tokens...');
         const mintTx = await propertyToken.transfer(buyerAddress, amountWei);
         const receipt = await mintTx.wait();
-        console.log('Property tokens minted');
         
         return receipt.hash;
       } else {
         // Fallback to direct transfer if marketplace doesn't exist
-        console.log('Marketplace not found, using direct transfer...');
-        
         // Direct USDC transfer to seller
-        console.log('Executing direct USDC transfer...');
         const transferTx = await usdc.transfer(sellerAddress, totalCost);
         await transferTx.wait();
-        console.log('USDC transferred to seller');
         
         // Mint property tokens to buyer
-        console.log('Minting property tokens...');
         const mintTx = await propertyToken.transfer(buyerAddress, amountWei);
         const receipt = await mintTx.wait();
-        console.log('Property tokens minted');
         
         return receipt.hash;
       }
