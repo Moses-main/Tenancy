@@ -117,6 +117,63 @@ function requireRoles(allowedRoles) {
   };
 }
 
+function getIdempotencyKey(req) {
+  const key = String(req.headers['x-idempotency-key'] || '').trim();
+  return key || null;
+}
+
+function hashRequestBody(body) {
+  return crypto.createHash('sha256').update(JSON.stringify(body || {})).digest('hex');
+}
+
+async function handleIdempotentMutation(req, res, endpoint, handler) {
+  const idempotencyKey = getIdempotencyKey(req);
+  if (!idempotencyKey) {
+    const result = await handler();
+    return res.status(result.statusCode || 200).json(result.body);
+  }
+
+  const requestHash = hashRequestBody(req.body);
+  const existing = await db.getIdempotencyKey(idempotencyKey, endpoint);
+
+  if (existing) {
+    if (existing.request_hash !== requestHash) {
+      return res.status(409).json({
+        error: 'Idempotency key reuse with different payload is not allowed',
+      });
+    }
+    if (existing.status === 'completed' || existing.status === 'failed') {
+      return res.status(existing.status_code || 200).json(existing.response_body || {});
+    }
+    return res.status(202).json({ status: 'processing', idempotencyKey });
+  }
+
+  await db.createIdempotencyKey({ idempotencyKey, endpoint, requestHash });
+  const created = await db.getIdempotencyKey(idempotencyKey, endpoint);
+  if (!created) {
+    return res.status(409).json({ error: 'Unable to reserve idempotency key' });
+  }
+
+  try {
+    const result = await handler();
+    await db.completeIdempotencyKey(
+      idempotencyKey,
+      endpoint,
+      result.statusCode || 200,
+      result.body,
+      'completed'
+    );
+    return res.status(result.statusCode || 200).json(result.body);
+  } catch (error) {
+    const errorBody = {
+      error: 'Mutation failed',
+      details: error.message,
+    };
+    await db.completeIdempotencyKey(idempotencyKey, endpoint, 500, errorBody, 'failed');
+    return res.status(500).json(errorBody);
+  }
+}
+
 // Chainlink Price Feed Functions
 async function fetchChainlinkPrice() {
   if (!USE_REAL_PRICES) return null;
@@ -374,19 +431,19 @@ app.get('/payments/lifecycle/:paymentId', async (req, res) => {
 
 // Ingest a confirmed rent payment and execute verification -> distribution lifecycle
 app.post('/payments/ingest', async (req, res) => {
-  try {
+  return handleIdempotentMutation(req, res, 'payments_ingest', async () => {
     const { propertyId, amount, txHash, proofUrl, tenantName, tenantAddress } = req.body || {};
     if (!propertyId || !amount || !txHash || !proofUrl) {
-      return res.status(400).json({ error: 'propertyId, amount, txHash and proofUrl are required' });
+      return { statusCode: 400, body: { error: 'propertyId, amount, txHash and proofUrl are required' } };
     }
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-      return res.status(400).json({ error: 'amount must be a positive number' });
+      return { statusCode: 400, body: { error: 'amount must be a positive number' } };
     }
 
     const property = SAMPLE_PROPERTIES.find(p => p.id === parseInt(propertyId));
     if (!property) {
-      return res.status(404).json({ error: 'Property not found' });
+      return { statusCode: 404, body: { error: 'Property not found' } };
     }
 
     const paymentId = `pay_${crypto.randomBytes(8).toString('hex')}`;
@@ -427,32 +484,33 @@ app.post('/payments/ingest', async (req, res) => {
       });
     }
 
-    return res.json({
-      paymentId,
-      paymentStatus,
-      verificationId: verification.verificationId,
-      verificationStatus: verification.status,
-      distributionId: distribution?.distribution_id || null,
-      distributionStatus: distribution?.status || 'not_started',
-      txHash: String(txHash),
-    });
-  } catch (error) {
-    return res.status(500).json({ error: 'Failed to ingest payment lifecycle', details: error.message });
-  }
+    return {
+      statusCode: 200,
+      body: {
+        paymentId,
+        paymentStatus,
+        verificationId: verification.verificationId,
+        verificationStatus: verification.status,
+        distributionId: distribution?.distribution_id || null,
+        distributionStatus: distribution?.status || 'not_started',
+        txHash: String(txHash),
+      },
+    };
+  });
 });
 
 // Request payment verification
 app.post('/verify-payment', async (req, res) => {
-  try {
+  return handleIdempotentMutation(req, res, 'verify_payment', async () => {
     const { propertyId, amount, tenantName, proofUrl, tenantAddress, txHash } = req.body || {};
     
     if (!propertyId || !proofUrl) {
-      return res.status(400).json({ error: 'propertyId and proofUrl are required' });
+      return { statusCode: 400, body: { error: 'propertyId and proofUrl are required' } };
     }
     
     const property = SAMPLE_PROPERTIES.find(p => p.id === parseInt(propertyId));
     if (!property) {
-      return res.status(404).json({ error: 'Property not found' });
+      return { statusCode: 404, body: { error: 'Property not found' } };
     }
     
     const verification = await createAndResolveVerification({
@@ -465,16 +523,17 @@ app.post('/verify-payment', async (req, res) => {
       txHash,
     });
 
-    res.json({ 
-      verificationId: verification.verificationId,
-      status: verification.status,
-      message: verification.status === 'verified' ? 'Payment evidence verified.' : 'Payment evidence rejected.',
-      property: property.name,
-      evidenceHash: verification.evidenceHash
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create verification', details: error.message });
-  }
+    return {
+      statusCode: 200,
+      body: { 
+        verificationId: verification.verificationId,
+        status: verification.status,
+        message: verification.status === 'verified' ? 'Payment evidence verified.' : 'Payment evidence rejected.',
+        property: property.name,
+        evidenceHash: verification.evidenceHash
+      },
+    };
+  });
 });
 
 // Get verification status
@@ -504,11 +563,11 @@ app.get('/verifications', async (req, res) => {
 
 // Trigger Chainlink job (protected)
 app.post('/trigger-chainlink', requireRoles(['agent', 'admin']), async (req, res) => {
-  try {
+  return handleIdempotentMutation(req, res, 'trigger_chainlink', async () => {
     const { verificationId, propertyId, amount } = req.body || {};
     
     if (!verificationId && !propertyId) {
-      return res.status(400).json({ error: 'verificationId or propertyId is required' });
+      return { statusCode: 400, body: { error: 'verificationId or propertyId is required' } };
     }
     
     const txHash = `0x${crypto.randomBytes(32).toString('hex')}`;
@@ -520,25 +579,26 @@ app.post('/trigger-chainlink', requireRoles(['agent', 'admin']), async (req, res
       });
     }
     
-    res.json({
-      verificationId: verificationId || `v-${crypto.randomBytes(4).toString('hex')}`,
-      txHash,
-      message: 'Chainlink job triggered successfully',
-      chainlinkJobId: `cljob_${crypto.randomBytes(6).toString('hex')}`,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to trigger Chainlink job', details: error.message });
-  }
+    return {
+      statusCode: 200,
+      body: {
+        verificationId: verificationId || `v-${crypto.randomBytes(4).toString('hex')}`,
+        txHash,
+        message: 'Chainlink job triggered successfully',
+        chainlinkJobId: `cljob_${crypto.randomBytes(6).toString('hex')}`,
+        timestamp: new Date().toISOString()
+      },
+    };
+  });
 });
 
 // Create agent decision (Chainlink CRE)
 app.post('/agent/decisions', requireRoles(['agent', 'admin']), async (req, res) => {
-  try {
+  return handleIdempotentMutation(req, res, 'agent_decisions', async () => {
     const { propertyId, action, adjustmentPercent, reason, confidence } = req.body || {};
     
     if (!propertyId || !action) {
-      return res.status(400).json({ error: 'propertyId and action are required' });
+      return { statusCode: 400, body: { error: 'propertyId and action are required' } };
     }
     
     const decisionId = `decision_${crypto.randomBytes(8).toString('hex')}`;
@@ -553,16 +613,17 @@ app.post('/agent/decisions', requireRoles(['agent', 'admin']), async (req, res) 
       status: 'pending'
     });
     
-    res.json({
-      decisionId,
-      propertyId,
-      action,
-      status: 'pending',
-      message: 'Agent decision created'
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create agent decision', details: error.message });
-  }
+    return {
+      statusCode: 200,
+      body: {
+        decisionId,
+        propertyId,
+        action,
+        status: 'pending',
+        message: 'Agent decision created'
+      },
+    };
+  });
 });
 
 // Get agent decisions
@@ -585,11 +646,11 @@ app.get('/agent/decisions', async (req, res) => {
 
 // Execute agent decision on-chain
 app.post('/agent/execute', requireRoles(['agent', 'admin']), async (req, res) => {
-  try {
+  return handleIdempotentMutation(req, res, 'agent_execute', async () => {
     const { decisionId } = req.body || {};
     
     if (!decisionId) {
-      return res.status(400).json({ error: 'decisionId is required' });
+      return { statusCode: 400, body: { error: 'decisionId is required' } };
     }
     
     const txHash = `0x${crypto.randomBytes(32).toString('hex')}`;
@@ -600,25 +661,26 @@ app.post('/agent/execute', requireRoles(['agent', 'admin']), async (req, res) =>
       txHash
     });
     
-    res.json({
-      decisionId,
-      txHash,
-      status: 'executed',
-      message: 'Agent decision executed on-chain',
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to execute agent decision', details: error.message });
-  }
+    return {
+      statusCode: 200,
+      body: {
+        decisionId,
+        txHash,
+        status: 'executed',
+        message: 'Agent decision executed on-chain',
+        timestamp: new Date().toISOString()
+      },
+    };
+  });
 });
 
 // Create yield distribution
 app.post('/yield/distribute', requireRoles(['issuer', 'admin']), async (req, res) => {
-  try {
+  return handleIdempotentMutation(req, res, 'yield_distribute', async () => {
     const { propertyId, totalYield } = req.body || {};
     
     if (!propertyId || !totalYield) {
-      return res.status(400).json({ error: 'propertyId and totalYield are required' });
+      return { statusCode: 400, body: { error: 'propertyId and totalYield are required' } };
     }
     
     const distributionId = `dist_${crypto.randomBytes(8).toString('hex')}`;
@@ -633,17 +695,18 @@ app.post('/yield/distribute', requireRoles(['issuer', 'admin']), async (req, res
       txHash
     });
     
-    res.json({
-      distributionId,
-      propertyId,
-      totalYield,
-      txHash,
-      status: 'completed',
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create yield distribution', details: error.message });
-  }
+    return {
+      statusCode: 200,
+      body: {
+        distributionId,
+        propertyId,
+        totalYield,
+        txHash,
+        status: 'completed',
+        timestamp: new Date().toISOString()
+      },
+    };
+  });
 });
 
 // Get yield distributions
@@ -675,7 +738,7 @@ app.get('/stats', async (req, res) => {
 
 // Chainlink Automation - Trigger daily yield distribution check
 app.post('/automation/trigger', requireRoles(['agent', 'admin']), async (req, res) => {
-  try {
+  return handleIdempotentMutation(req, res, 'automation_trigger', async () => {
     console.log('[Automation] Triggering daily yield distribution check...');
     
     const payments = await db.getAllPayments();
@@ -699,15 +762,16 @@ app.post('/automation/trigger', requireRoles(['agent', 'admin']), async (req, re
       });
     }
     
-    res.json({
-      message: 'Automation trigger completed',
-      processed: results.length,
-      results,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Automation trigger failed', details: error.message });
-  }
+    return {
+      statusCode: 200,
+      body: {
+        message: 'Automation trigger completed',
+        processed: results.length,
+        results,
+        timestamp: new Date().toISOString()
+      },
+    };
+  });
 });
 
 // Start server
