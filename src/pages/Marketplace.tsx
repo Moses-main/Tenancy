@@ -138,6 +138,52 @@ export default function Marketplace() {
     };
   }, [listings]);
 
+  const refreshListings = async () => {
+    try {
+      const marketplaceListings = await getMarketplaceListings();
+      
+      if (marketplaceListings.length === 0) {
+        setListings([]);
+        setAvailableProperties([]);
+        return;
+      }
+      
+      const allProps = await getAllProperties();
+      const propertyMap = new Map(allProps.map((p: any) => [p.propertyToken.toLowerCase(), p]));
+      
+      const propertyOptions: PropertyOption[] = [];
+      const listingsData: Listing[] = marketplaceListings.map((l: any, index: number) => {
+        const prop = propertyMap.get(l.propertyToken.toLowerCase());
+        if (prop && !propertyOptions.find(po => po.id === Number(prop.id))) {
+          propertyOptions.push({
+            id: Number(prop.id),
+            name: prop.uri || `Property #${Number(prop.id)}`,
+            uri: prop.uri || '',
+          });
+        }
+        
+        return {
+          id: Number(l.id),
+          propertyId: prop ? Number(prop.id) : 0,
+          propertyName: prop?.uri || `Property #${prop?.id || index}`,
+          propertyUri: prop?.uri || '',
+          propertyToken: l.propertyToken,
+          seller: l.seller,
+          amount: parseFloat(formatUnits(l.amount, 18)),
+          pricePerToken: parseFloat(formatUnits(l.pricePerToken, 6)),
+          totalPrice: parseFloat(formatUnits(l.totalPrice, 6)),
+          status: l.isActive ? 'active' : 'sold',
+          createdAt: Number(l.createdAt) * 1000,
+        };
+      });
+      
+      setListings(listingsData);
+      setAvailableProperties(propertyOptions);
+    } catch (err) {
+      console.error('Error refreshing listings:', err);
+    }
+  };
+
   const handleBuy = async (listing: Listing) => {
     setIsProcessing(true);
     const toastId = toast.loading("Processing purchase...");
@@ -152,10 +198,7 @@ export default function Marketplace() {
       });
       setSelectedListing(null);
       
-      // Refresh listings to show updated status
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      refreshListings();
     } catch (err: any) {
       toast.update(toastId, {
         render: err.message || "Transaction failed",
@@ -202,10 +245,7 @@ export default function Marketplace() {
       
       toast.success("Listing created successfully!");
       
-      // Refresh listings to show the new one
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      refreshListings();
       
     } catch (err: any) {
       toast.error(err.message || "Failed to create listing");
@@ -220,10 +260,7 @@ export default function Marketplace() {
       await cancelMarketplaceListing(id);
       toast.info("Listing cancelled");
       
-      // Refresh listings to show updated status
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      refreshListings();
     } catch (err: any) {
       toast.error(err.message || "Failed to cancel listing");
     } finally {
@@ -358,54 +395,8 @@ export default function Marketplace() {
             <button
               onClick={async () => {
                 setIsLoading(true);
-                try {
-                  // Fetch real marketplace listings
-                  const marketplaceListings = await getMarketplaceListings();
-                  
-                  if (marketplaceListings.length === 0) {
-                    setListings([]);
-                    setAvailableProperties([]);
-                    setIsLoading(false);
-                    return;
-                  }
-                  
-                  // Get property details for each listing
-                  const allProps = await getAllProperties();
-                  const propertyMap = new Map(allProps.map((p: any) => [p.propertyToken.toLowerCase(), p]));
-                  
-                  const propertyOptions: PropertyOption[] = [];
-                  const listingsData: Listing[] = marketplaceListings.map((l: any, index: number) => {
-                    const prop = propertyMap.get(l.propertyToken.toLowerCase());
-                    if (prop && !propertyOptions.find(po => po.id === Number(prop.id))) {
-                      propertyOptions.push({
-                        id: Number(prop.id),
-                        name: prop.uri || `Property #${Number(prop.id)}`,
-                        uri: prop.uri || '',
-                      });
-                    }
-                    
-                    return {
-                      id: Number(l.id),
-                      propertyId: prop ? Number(prop.id) : 0,
-                      propertyName: prop?.uri || `Property #${prop?.id || index}`,
-                      propertyUri: prop?.uri || '',
-                      propertyToken: l.propertyToken,
-                      seller: l.seller,
-                      amount: parseFloat(formatUnits(l.amount, 18)),
-                      pricePerToken: parseFloat(formatUnits(l.pricePerToken, 6)),
-                      totalPrice: parseFloat(formatUnits(l.totalPrice, 6)),
-                      status: l.isActive ? 'active' : 'sold',
-                      createdAt: Number(l.createdAt) * 1000,
-                    };
-                  });
-                  
-                  setListings(listingsData);
-                  setAvailableProperties(propertyOptions);
-                } catch (err) {
-                  console.error('Error refreshing listings:', err);
-                } finally {
-                  setIsLoading(false);
-                }
+                await refreshListings();
+                setIsLoading(false);
               }}
               className="inline-flex items-center justify-center rounded-lg text-sm font-medium border border-input bg-background hover:bg-muted h-11 px-4 gap-2"
             >
