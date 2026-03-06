@@ -31,6 +31,9 @@ const API_KEY = process.env.API_KEY || '';
 const CHAINLINK_FEED = process.env.CHAINLINK_ETH_USD_FEED || '0x4a5816300e0eE47A41DFcDB12A8C8bB6dD18C12';
 const RPC_URL = process.env.RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
 const USE_REAL_PRICES = process.env.USE_REAL_PRICES === 'true';
+const WORLD_ID_APP_ID = process.env.WORLD_ID_APP_ID || '';
+const WORLD_ID_API_KEY = process.env.WORLD_ID_API_KEY || '';
+const worldIdNullifiers = new Set();
 
 // Contract addresses (Base Sepolia)
 const CONTRACTS = {
@@ -79,6 +82,25 @@ async function fetchChainlinkPrice() {
   }
 }
 
+async function verifyWorldIdProofWithProvider(payload) {
+  const response = await fetch(`https://developer.worldcoin.org/api/v2/verify/${WORLD_ID_APP_ID}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${WORLD_ID_API_KEY}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.success) {
+    const errorMessage = data?.detail || data?.code || data?.message || 'World ID provider verification failed';
+    throw new Error(errorMessage);
+  }
+
+  return data;
+}
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({
@@ -114,6 +136,46 @@ app.get('/price-feed', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch price', details: error.message });
+  }
+});
+
+// World ID proof verification (fail-closed + replay protection)
+app.post('/world-id/verify', async (req, res) => {
+  try {
+    const {
+      merkle_root,
+      nullifier_hash,
+      proof,
+      verification_level,
+      action,
+      signal
+    } = req.body || {};
+
+    if (!merkle_root || !nullifier_hash || !proof) {
+      return res.status(400).json({ error: 'merkle_root, nullifier_hash and proof are required' });
+    }
+
+    if (!WORLD_ID_APP_ID || !WORLD_ID_API_KEY) {
+      return res.status(503).json({ error: 'World ID verification is not configured on the server' });
+    }
+
+    if (worldIdNullifiers.has(nullifier_hash)) {
+      return res.status(409).json({ error: 'This World ID proof has already been used' });
+    }
+
+    await verifyWorldIdProofWithProvider({
+      merkle_root,
+      nullifier_hash,
+      proof,
+      verification_level: verification_level || 'orb',
+      action,
+      signal,
+    });
+
+    worldIdNullifiers.add(nullifier_hash);
+    return res.json({ verified: true, nullifierHash: nullifier_hash });
+  } catch (error) {
+    return res.status(400).json({ error: error.message || 'World ID verification failed' });
   }
 });
 

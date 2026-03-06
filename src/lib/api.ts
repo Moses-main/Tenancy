@@ -38,6 +38,15 @@ export type Verification = {
       txHash?: string;
     };
 
+    export type WorldIdProofPayload = {
+      merkle_root: string;
+      nullifier_hash: string;
+      proof: string;
+      verification_level?: string;
+      action?: string;
+      signal?: string;
+    };
+
     const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) || 'http://localhost:4010';
     const API_KEY = (import.meta.env.VITE_API_KEY as string) || '';
     const ENABLE_CLIENT_ADMIN_API = import.meta.env.VITE_ENABLE_CLIENT_ADMIN_API === 'true';
@@ -94,6 +103,20 @@ export type Verification = {
       if (!res.ok) {
         const err = await safeJson(res);
         throw new Error(err?.error || err?.message || 'Failed to fetch verification');
+      }
+      return res.json();
+    }
+
+    export async function verifyWorldIdProof(payload: WorldIdProofPayload): Promise<{ verified: boolean; nullifierHash: string }> {
+      const res = await fetch(`${BACKEND_URL}/world-id/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await safeJson(res);
+        throw new Error(err?.error || err?.message || 'World ID proof verification failed');
       }
       return res.json();
     }

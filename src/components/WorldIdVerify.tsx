@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Shield, CheckCircle, AlertCircle, Loader2, ExternalLink } from 'lucide-react';
+import { verifyWorldIdProof } from '../lib/api';
 
 interface WorldIdVerifyProps {
   onVerified: () => void;
@@ -60,14 +61,28 @@ export default function WorldIdVerify({
       });
 
       if (widget) {
-        widget.on('success', (result: any) => {
-          if (result?.verified) {
+        widget.on('success', async (result: any) => {
+          try {
+            if (!result?.proof) {
+              throw new Error('Invalid World ID proof payload');
+            }
+
+            await verifyWorldIdProof({
+              merkle_root: result.merkle_root || result.merkleRoot,
+              nullifier_hash: result.nullifier_hash || result.nullifierHash,
+              proof: result.proof,
+              verification_level: result.verification_level || result.verificationLevel,
+              action: actionName,
+              signal,
+            });
+
             setIsVerified(true);
             onVerified();
-          } else {
-            setError('World ID verification failed');
+          } catch (verifyErr: any) {
+            setError(verifyErr?.message || 'World ID proof verification failed');
+          } finally {
+            setIsVerifying(false);
           }
-          setIsVerifying(false);
         });
 
         widget.on('cancel', () => {
