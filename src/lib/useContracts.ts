@@ -14,6 +14,42 @@ import {
   type Lease
 } from './contracts';
 
+type DecodedDistributionInfo = {
+  propertyId: bigint;
+  totalYield: any;
+  distributedYield: any;
+  status: number;
+  distributionTimestamp: any;
+  holderBalances: any[];
+  holders: string[];
+};
+
+const decodeDistributionInfo = (raw: any): DecodedDistributionInfo | null => {
+  if (!raw) return null;
+  const holders = Array.isArray(raw.holders) ? raw.holders : [];
+  const holderBalances = Array.isArray(raw.holderBalances) ? raw.holderBalances : [];
+  if (holders.length !== holderBalances.length) return null;
+  if (
+    raw.propertyId === undefined ||
+    raw.totalYield === undefined ||
+    raw.distributedYield === undefined ||
+    raw.status === undefined ||
+    raw.distributionTimestamp === undefined
+  ) {
+    return null;
+  }
+
+  return {
+    propertyId: raw.propertyId,
+    totalYield: raw.totalYield,
+    distributedYield: raw.distributedYield,
+    status: Number(raw.status),
+    distributionTimestamp: raw.distributionTimestamp,
+    holderBalances,
+    holders: holders.map((holder: string) => holder.toLowerCase()),
+  };
+};
+
 export const useContracts = () => {
   const { address, provider } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
@@ -257,14 +293,13 @@ export const useContracts = () => {
 
       for (const distributionId of claimableIds) {
         try {
-          const info = await yieldDist.getDistributionInfo(distributionId);
-          const holders: string[] = Array.isArray(info.holders) ? info.holders : [];
-          const holderBalances = Array.isArray(info.holderBalances) ? info.holderBalances : [];
-          if (holders.length === 0) continue;
+          const rawInfo = await yieldDist.getDistributionInfo(distributionId);
+          const info = decodeDistributionInfo(rawInfo);
+          if (!info || info.holders.length === 0) continue;
 
-          const holderIndex = holders.findIndex((holder) => holder.toLowerCase() === userAddr);
-          if (holderIndex < 0 || !holderBalances[holderIndex]) continue;
-          pendingTotal = pendingTotal.add(holderBalances[holderIndex]);
+          const holderIndex = info.holders.findIndex((holder) => holder === userAddr);
+          if (holderIndex < 0 || !info.holderBalances[holderIndex]) continue;
+          pendingTotal = pendingTotal.add(info.holderBalances[holderIndex]);
         } catch {
           continue;
         }
@@ -366,12 +401,11 @@ export const useContracts = () => {
       
       for (let i = 0; i < distributionCount; i++) {
         try {
-          const info = await yieldDist.getDistributionInfo(i);
-          const holders = Array.isArray(info.holders)
-            ? info.holders.map((holder: string) => holder.toLowerCase())
-            : [];
-          const holderIndex = holders.indexOf(userAddr);
-          if (info && holderIndex >= 0) {
+          const rawInfo = await yieldDist.getDistributionInfo(i);
+          const info = decodeDistributionInfo(rawInfo);
+          if (!info) continue;
+          const holderIndex = info.holders.indexOf(userAddr);
+          if (holderIndex >= 0) {
             distributions.push({
               distributionId: i,
               propertyId: info.propertyId,
