@@ -34,6 +34,7 @@ const USE_REAL_PRICES = process.env.USE_REAL_PRICES === 'true';
 const WORLD_ID_APP_ID = process.env.WORLD_ID_APP_ID || '';
 const WORLD_ID_API_KEY = process.env.WORLD_ID_API_KEY || '';
 const worldIdNullifiers = new Set();
+const requestNonces = new Set();
 
 // Contract addresses (Base Sepolia)
 const CONTRACTS = {
@@ -50,18 +51,71 @@ const SAMPLE_PROPERTIES = [
   { id: 4, name: 'Denver Mountain View', rentAmount: 2200, currency: 'USD', tenantCount: 6 },
 ];
 
-// Middleware
-const requireApiKey = (req, res, next) => {
-  if (!API_KEY) {
-    return res.status(503).json({ error: 'API key protection is not configured on the server' });
+function getNonceFromMessage(message) {
+  if (!message) return null;
+  const match = String(message).match(/nonce:([A-Za-z0-9_-]{8,128})/);
+  return match ? match[1] : null;
+}
+
+function authenticateMutationRequest(req) {
+  const requestId = req.headers['x-request-id'] || crypto.randomUUID();
+  const apiKey = req.headers['x-api-key'];
+
+  if (API_KEY && apiKey && apiKey === API_KEY) {
+    return { ok: true, role: 'admin', actor: 'service-api-key', requestId };
   }
 
-  const key = req.headers['x-api-key'];
-  if (!key || key !== API_KEY) {
-    return res.status(401).json({ error: 'Invalid or missing API key' });
+  const walletAddress = req.headers['x-wallet-address'];
+  const walletSignature = req.headers['x-wallet-signature'];
+  const walletMessage = req.headers['x-wallet-message'];
+  const walletRole = String(req.headers['x-wallet-role'] || 'user').toLowerCase();
+
+  if (!walletAddress || !walletSignature || !walletMessage) {
+    return { ok: false, status: 401, error: 'Missing mutation authorization credentials' };
   }
-  next();
-};
+
+  let recoveredAddress;
+  try {
+    recoveredAddress = ethers.verifyMessage(String(walletMessage), String(walletSignature));
+  } catch {
+    return { ok: false, status: 401, error: 'Invalid signature format' };
+  }
+
+  if (String(recoveredAddress).toLowerCase() !== String(walletAddress).toLowerCase()) {
+    return { ok: false, status: 401, error: 'Signature does not match wallet address' };
+  }
+
+  const nonce = getNonceFromMessage(walletMessage);
+  if (!nonce) {
+    return { ok: false, status: 400, error: 'Signed message must include a nonce:<value> field' };
+  }
+
+  const nonceKey = `${String(walletAddress).toLowerCase()}:${nonce}`;
+  if (requestNonces.has(nonceKey)) {
+    return { ok: false, status: 409, error: 'Replay detected: nonce has already been used' };
+  }
+
+  requestNonces.add(nonceKey);
+  return { ok: true, role: walletRole, actor: String(walletAddress).toLowerCase(), requestId };
+}
+
+function requireRoles(allowedRoles) {
+  const allowed = new Set(allowedRoles.map((role) => String(role).toLowerCase()));
+  return (req, res, next) => {
+    const auth = authenticateMutationRequest(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ error: auth.error });
+    }
+
+    const role = String(auth.role || '').toLowerCase();
+    if (!allowed.has(role)) {
+      return res.status(403).json({ error: `Role ${role || 'unknown'} is not allowed for this action` });
+    }
+
+    req.auth = auth;
+    next();
+  };
+}
 
 // Chainlink Price Feed Functions
 async function fetchChainlinkPrice() {
@@ -306,7 +360,7 @@ app.get('/verifications', async (req, res) => {
 });
 
 // Trigger Chainlink job (protected)
-app.post('/trigger-chainlink', requireApiKey, async (req, res) => {
+app.post('/trigger-chainlink', requireRoles(['agent', 'admin']), async (req, res) => {
   try {
     const { verificationId, propertyId, amount } = req.body || {};
     
@@ -336,7 +390,7 @@ app.post('/trigger-chainlink', requireApiKey, async (req, res) => {
 });
 
 // Create agent decision (Chainlink CRE)
-app.post('/agent/decisions', requireApiKey, async (req, res) => {
+app.post('/agent/decisions', requireRoles(['agent', 'admin']), async (req, res) => {
   try {
     const { propertyId, action, adjustmentPercent, reason, confidence } = req.body || {};
     
@@ -387,7 +441,7 @@ app.get('/agent/decisions', async (req, res) => {
 });
 
 // Execute agent decision on-chain
-app.post('/agent/execute', requireApiKey, async (req, res) => {
+app.post('/agent/execute', requireRoles(['agent', 'admin']), async (req, res) => {
   try {
     const { decisionId } = req.body || {};
     
@@ -416,7 +470,7 @@ app.post('/agent/execute', requireApiKey, async (req, res) => {
 });
 
 // Create yield distribution
-app.post('/yield/distribute', requireApiKey, async (req, res) => {
+app.post('/yield/distribute', requireRoles(['issuer', 'admin']), async (req, res) => {
   try {
     const { propertyId, totalYield } = req.body || {};
     
@@ -477,7 +531,7 @@ app.get('/stats', async (req, res) => {
 });
 
 // Chainlink Automation - Trigger daily yield distribution check
-app.post('/automation/trigger', requireApiKey, async (req, res) => {
+app.post('/automation/trigger', requireRoles(['agent', 'admin']), async (req, res) => {
   try {
     console.log('[Automation] Triggering daily yield distribution check...');
     
