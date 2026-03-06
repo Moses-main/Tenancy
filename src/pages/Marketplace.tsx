@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
 import { Building, DollarSign, TrendingUp, Users, Search, Filter, ArrowUpDown, Clock, CheckCircle, XCircle, ExternalLink, Wallet, Loader2, RefreshCw } from 'lucide-react';
@@ -116,6 +116,27 @@ export default function Marketplace() {
       if (sortBy === 'price-low') return a.totalPrice - b.totalPrice;
       return b.totalPrice - a.totalPrice;
     });
+
+  const stats = useMemo(() => {
+    const activeListings = listings.filter(l => l.status === 'active');
+    const totalVolume = listings
+      .filter(l => l.status === 'sold')
+      .reduce((sum, l) => sum + l.totalPrice, 0);
+    const activeListingsWithPrice = activeListings.filter(l => l.pricePerToken > 0);
+    const avgPrice = activeListingsWithPrice.length > 0
+      ? activeListingsWithPrice.reduce((sum, l) => sum + l.pricePerToken, 0) / activeListingsWithPrice.length
+      : 0;
+    const uniqueTraders = new Set([
+      ...listings.map(l => l.seller.toLowerCase()),
+      ...listings.filter(l => l.status === 'sold').map(l => l.seller.toLowerCase())
+    ]).size;
+    
+    return {
+      totalVolume,
+      avgPrice,
+      activeTraders: uniqueTraders
+    };
+  }, [listings]);
 
   const handleBuy = async (listing: Listing) => {
     setIsProcessing(true);
@@ -413,19 +434,19 @@ export default function Marketplace() {
           />
           <StatCard
             title="Total Volume"
-            value="$0"
+            value={`$${stats.totalVolume.toLocaleString()}`}
             icon={DollarSign}
             description="Trading volume"
           />
           <StatCard
             title="Avg. Price"
-            value="$0"
+            value={`$${stats.avgPrice.toFixed(2)}`}
             icon={TrendingUp}
             description="Per token"
           />
           <StatCard
             title="Active Traders"
-            value="0"
+            value={stats.activeTraders.toString()}
             icon={Users}
             description="Unique traders"
           />
