@@ -734,6 +734,55 @@ contract TENANCYTest is Test {
         assertTrue(yieldDistributor.isDistributionActive(0));
     }
 
+    function testGetPropertyForUnknownIdReturnsInactiveStruct() public view {
+        PropertyRegistry.Property memory prop = propertyRegistry.getProperty(999);
+        assertEq(prop.id, 0);
+        assertEq(prop.owner, address(0));
+        assertFalse(prop.isActive);
+    }
+
+    function testPropertyTokenApproveAndTransferFrom() public {
+        vm.prank(issuer);
+        (address propertyToken,) = _createProperty(0);
+
+        vm.prank(issuer);
+        propertyRegistry.mintTokens(0, investor, 1000e18);
+
+        PropertyToken token = PropertyToken(propertyToken);
+        vm.prank(investor);
+        token.approve(investor2, 400e18);
+
+        vm.prank(investor2);
+        token.transferFrom(investor, investor2, 400e18);
+
+        assertEq(token.balanceOf(investor), 600e18);
+        assertEq(token.balanceOf(investor2), 400e18);
+    }
+
+    function testDistributionCountAndReserveHealth() public {
+        vm.prank(owner);
+        tenToken.mint(issuer, 10000e18);
+
+        vm.prank(issuer);
+        _createProperty(0);
+
+        address[] memory holders = new address[](1);
+        holders[0] = investor;
+        uint256[] memory balances = new uint256[](1);
+        balances[0] = 1000e18;
+
+        vm.prank(owner);
+        yieldDistributor.createDistribution(0, 100e18, balances, holders);
+        assertEq(yieldDistributor.distributionCount(), 1);
+
+        vm.prank(owner);
+        yieldDistributor.startDistribution(0);
+
+        (bool isHealthy, uint256 totalReserve, uint256 requiredReserve) = yieldDistributor.checkReserveHealth();
+        assertEq(isHealthy, true);
+        assertGe(totalReserve, requiredReserve);
+    }
+
     // Fuzz tests for property creation (with reasonable bounds)
     function testFuzz_CreateProperty(uint256 rentAmount, uint256 supply) public {
         vm.assume(rentAmount <= 100000000e18);
