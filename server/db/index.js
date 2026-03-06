@@ -2,16 +2,123 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 const DATABASE_URL = process.env.DATABASE_URL;
+const SSL_MODE_REQUIRES_COMPAT = 'require';
+
+function withLibpqCompat(url) {
+  if (!url) return url;
+  try {
+    const parsed = new URL(url);
+    const sslMode = String(parsed.searchParams.get('sslmode') || '').toLowerCase();
+    if (sslMode === SSL_MODE_REQUIRES_COMPAT && !parsed.searchParams.has('uselibpqcompat')) {
+      parsed.searchParams.set('uselibpqcompat', 'true');
+    }
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
 
 const pool = new Pool({
-  connectionString: DATABASE_URL,
+  connectionString: withLibpqCompat(DATABASE_URL),
   ssl: { rejectUnauthorized: false }
 });
+pool.on('error', (error) => {
+  console.error('Unexpected PostgreSQL pool error:', error.message);
+});
+
+function toDbColumnName(key) {
+  return String(key).replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`);
+}
 
 const inMemoryIdempotency = new Map();
 
 async function ensureSchema() {
   try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS verifications (
+        id SERIAL PRIMARY KEY,
+        verification_id VARCHAR(255) UNIQUE NOT NULL,
+        property_id INTEGER NOT NULL,
+        property_name VARCHAR(255),
+        amount DECIMAL(20, 8) NOT NULL,
+        tenant_name VARCHAR(255),
+        tenant_address VARCHAR(42),
+        proof_url TEXT,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        verified_at TIMESTAMP,
+        chainlink_job_id VARCHAR(255),
+        chainlink_tx VARCHAR(255),
+        provider_reference VARCHAR(255),
+        chainlink_triggered_at TIMESTAMP,
+        price_feed_at_verification DECIMAL(20, 8),
+        error_message TEXT
+      )
+    `);
+    await pool.query(`
+      ALTER TABLE verifications ADD COLUMN IF NOT EXISTS property_name VARCHAR(255);
+      ALTER TABLE verifications ADD COLUMN IF NOT EXISTS tenant_name VARCHAR(255);
+      ALTER TABLE verifications ADD COLUMN IF NOT EXISTS tenant_address VARCHAR(42);
+      ALTER TABLE verifications ADD COLUMN IF NOT EXISTS proof_url TEXT;
+      ALTER TABLE verifications ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP;
+      ALTER TABLE verifications ADD COLUMN IF NOT EXISTS chainlink_job_id VARCHAR(255);
+      ALTER TABLE verifications ADD COLUMN IF NOT EXISTS chainlink_tx VARCHAR(255);
+      ALTER TABLE verifications ADD COLUMN IF NOT EXISTS provider_reference VARCHAR(255);
+      ALTER TABLE verifications ADD COLUMN IF NOT EXISTS chainlink_triggered_at TIMESTAMP;
+      ALTER TABLE verifications ADD COLUMN IF NOT EXISTS price_feed_at_verification DECIMAL(20, 8);
+      ALTER TABLE verifications ADD COLUMN IF NOT EXISTS error_message TEXT;
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id SERIAL PRIMARY KEY,
+        payment_id VARCHAR(255) UNIQUE NOT NULL,
+        property_id INTEGER NOT NULL,
+        property_name VARCHAR(255),
+        amount DECIMAL(20, 8) NOT NULL,
+        currency VARCHAR(10) DEFAULT 'USD',
+        tenant_address VARCHAR(42),
+        status VARCHAR(50) DEFAULT 'pending',
+        payment_date TIMESTAMP,
+        tx_hash VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS agent_decisions (
+        id SERIAL PRIMARY KEY,
+        decision_id VARCHAR(255) UNIQUE NOT NULL,
+        property_id INTEGER NOT NULL,
+        action VARCHAR(50) NOT NULL,
+        adjustment_percent INTEGER DEFAULT 0,
+        reason TEXT,
+        confidence INTEGER,
+        status VARCHAR(50) DEFAULT 'pending',
+        executed_at TIMESTAMP,
+        tx_hash VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`
+      ALTER TABLE agent_decisions ADD COLUMN IF NOT EXISTS executed_at TIMESTAMP;
+      ALTER TABLE agent_decisions ADD COLUMN IF NOT EXISTS tx_hash VARCHAR(255);
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS yield_distributions (
+        id SERIAL PRIMARY KEY,
+        distribution_id VARCHAR(255) UNIQUE NOT NULL,
+        property_id INTEGER NOT NULL,
+        total_yield DECIMAL(20, 8) NOT NULL,
+        status VARCHAR(50) DEFAULT 'pending',
+        distribution_date TIMESTAMP,
+        tx_hash VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS idempotency_keys (
         idempotency_key TEXT PRIMARY KEY,
@@ -23,6 +130,12 @@ async function ensureSchema() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_verifications_property_id ON verifications(property_id);
+      CREATE INDEX IF NOT EXISTS idx_verifications_status ON verifications(status);
+      CREATE INDEX IF NOT EXISTS idx_payments_property_id ON payments(property_id);
+      CREATE INDEX IF NOT EXISTS idx_agent_decisions_property_id ON agent_decisions(property_id);
     `);
   } catch (error) {
     console.warn('Failed to ensure idempotency schema. Falling back to in-memory idempotency store.', error.message);
@@ -75,7 +188,7 @@ const db = {
 
     Object.entries(updates).forEach(([key, value]) => {
       if (value !== undefined) {
-        fields.push(`${key} = $${paramCount}`);
+        fields.push(`${toDbColumnName(key)} = $${paramCount}`);
         values.push(value);
         paramCount++;
       }
@@ -219,7 +332,7 @@ const db = {
 
     Object.entries(updates).forEach(([key, value]) => {
       if (value !== undefined) {
-        fields.push(`${key} = $${paramCount}`);
+        fields.push(`${toDbColumnName(key)} = $${paramCount}`);
         values.push(value);
         paramCount++;
       }
@@ -272,7 +385,7 @@ const db = {
 
     Object.entries(updates).forEach(([key, value]) => {
       if (value !== undefined) {
-        fields.push(`${key} = $${paramCount}`);
+        fields.push(`${toDbColumnName(key)} = $${paramCount}`);
         values.push(value);
         paramCount++;
       }
@@ -319,7 +432,7 @@ const db = {
 
     Object.entries(updates).forEach(([key, value]) => {
       if (value !== undefined) {
-        fields.push(`${key} = $${paramCount}`);
+        fields.push(`${toDbColumnName(key)} = $${paramCount}`);
         values.push(value);
         paramCount++;
       }

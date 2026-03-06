@@ -25,6 +25,11 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+app.use((req, _res, next) => {
+  req.correlationId =
+    String(req.headers['x-correlation-id'] || req.headers['x-request-id'] || crypto.randomUUID());
+  next();
+});
 
 const PORT = process.env.PORT || 4010;
 const API_KEY = process.env.API_KEY || '';
@@ -76,7 +81,7 @@ function authenticateMutationRequest(req) {
 
   let recoveredAddress;
   try {
-    recoveredAddress = ethers.verifyMessage(String(walletMessage), String(walletSignature));
+    recoveredAddress = ethers.utils.verifyMessage(String(walletMessage), String(walletSignature));
   } catch {
     return { ok: false, status: 401, error: 'Invalid signature format' };
   }
@@ -122,6 +127,34 @@ function getIdempotencyKey(req) {
   return key || null;
 }
 
+function getActorFromRequest(req) {
+  return req?.auth?.actor || req?.headers?.['x-wallet-address'] || 'anonymous';
+}
+
+function auditLog(req, payload) {
+  const entry = {
+    timestamp: new Date().toISOString(),
+    category: payload.category || 'system',
+    event: payload.event || 'unknown',
+    outcome: payload.outcome || 'info',
+    severity: payload.severity || 'info',
+    correlationId: req?.correlationId || req?.auth?.requestId || null,
+    requestId: req?.auth?.requestId || null,
+    actor: payload.actor || getActorFromRequest(req),
+    targetId: payload.targetId || null,
+    details: payload.details || {},
+  };
+
+  const line = JSON.stringify(entry);
+  if (entry.severity === 'error') {
+    console.error(line);
+  } else if (entry.severity === 'warn' || entry.outcome === 'failed') {
+    console.warn(line);
+  } else {
+    console.log(line);
+  }
+}
+
 function hashRequestBody(body) {
   return crypto.createHash('sha256').update(JSON.stringify(body || {})).digest('hex');
 }
@@ -129,8 +162,22 @@ function hashRequestBody(body) {
 async function handleIdempotentMutation(req, res, endpoint, handler) {
   const idempotencyKey = getIdempotencyKey(req);
   if (!idempotencyKey) {
-    const result = await handler();
-    return res.status(result.statusCode || 200).json(result.body);
+    try {
+      const result = await handler();
+      return res.status(result.statusCode || 200).json(result.body);
+    } catch (error) {
+      auditLog(req, {
+        category: 'mutation',
+        event: 'request.failed',
+        outcome: 'failed',
+        severity: 'error',
+        details: { endpoint, error: error.message },
+      });
+      return res.status(500).json({
+        error: 'Mutation failed',
+        details: error.message,
+      });
+    }
   }
 
   const requestHash = hashRequestBody(req.body);
@@ -138,19 +185,45 @@ async function handleIdempotentMutation(req, res, endpoint, handler) {
 
   if (existing) {
     if (existing.request_hash !== requestHash) {
+      auditLog(req, {
+        category: 'idempotency',
+        event: 'request.conflict',
+        outcome: 'failed',
+        severity: 'warn',
+        details: { endpoint, idempotencyKey, reason: 'payload_mismatch' },
+      });
       return res.status(409).json({
         error: 'Idempotency key reuse with different payload is not allowed',
       });
     }
     if (existing.status === 'completed' || existing.status === 'failed') {
+      auditLog(req, {
+        category: 'idempotency',
+        event: 'request.replayed',
+        outcome: existing.status === 'completed' ? 'success' : 'failed',
+        details: { endpoint, idempotencyKey, status: existing.status },
+      });
       return res.status(existing.status_code || 200).json(existing.response_body || {});
     }
+    auditLog(req, {
+      category: 'idempotency',
+      event: 'request.processing',
+      outcome: 'pending',
+      details: { endpoint, idempotencyKey },
+    });
     return res.status(202).json({ status: 'processing', idempotencyKey });
   }
 
   await db.createIdempotencyKey({ idempotencyKey, endpoint, requestHash });
   const created = await db.getIdempotencyKey(idempotencyKey, endpoint);
   if (!created) {
+    auditLog(req, {
+      category: 'idempotency',
+      event: 'request.reserve_failed',
+      outcome: 'failed',
+      severity: 'warn',
+      details: { endpoint, idempotencyKey },
+    });
     return res.status(409).json({ error: 'Unable to reserve idempotency key' });
   }
 
@@ -163,6 +236,12 @@ async function handleIdempotentMutation(req, res, endpoint, handler) {
       result.body,
       'completed'
     );
+    auditLog(req, {
+      category: 'idempotency',
+      event: 'request.completed',
+      outcome: 'success',
+      details: { endpoint, idempotencyKey, statusCode: result.statusCode || 200 },
+    });
     return res.status(result.statusCode || 200).json(result.body);
   } catch (error) {
     const errorBody = {
@@ -170,6 +249,13 @@ async function handleIdempotentMutation(req, res, endpoint, handler) {
       details: error.message,
     };
     await db.completeIdempotencyKey(idempotencyKey, endpoint, 500, errorBody, 'failed');
+    auditLog(req, {
+      category: 'idempotency',
+      event: 'request.failed',
+      outcome: 'failed',
+      severity: 'error',
+      details: { endpoint, idempotencyKey, error: error.message },
+    });
     return res.status(500).json(errorBody);
   }
 }
@@ -177,9 +263,13 @@ async function handleIdempotentMutation(req, res, endpoint, handler) {
 // Chainlink Price Feed Functions
 async function fetchChainlinkPrice() {
   if (!USE_REAL_PRICES) return null;
+  if (!ethers.utils.isAddress(CHAINLINK_FEED)) {
+    console.warn('Invalid CHAINLINK_ETH_USD_FEED address configured. Falling back to mock pricing.');
+    return null;
+  }
   
   try {
-    const provider = new ethers.JsonRpcProvider(RPC_URL);
+    const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
     const priceFeed = new ethers.Contract(
       CHAINLINK_FEED,
       ['function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80)'],
@@ -246,6 +336,7 @@ async function createAndResolveVerification({
   proofUrl,
   txHash,
   providerReference,
+  context,
 }) {
   const verificationId = crypto.randomUUID();
   const evidence = evaluatePaymentEvidence({ propertyId, amount, tenantAddress, proofUrl, txHash });
@@ -260,6 +351,18 @@ async function createAndResolveVerification({
     proofUrl: evidence.normalizedProofUrl,
     status: 'pending'
   });
+  auditLog(context?.req, {
+    category: 'verification',
+    event: 'verification.created',
+    outcome: 'pending',
+    targetId: verificationId,
+    actor: context?.actor,
+    details: {
+      propertyId: parseInt(propertyId),
+      providerReference: providerReference || null,
+      evidenceHash: evidence.evidenceHash,
+    },
+  });
 
   const price = await fetchChainlinkPrice();
   await db.updateVerification(verificationId, {
@@ -269,6 +372,19 @@ async function createAndResolveVerification({
     providerReference: providerReference || `evidence:${evidence.evidenceHash}`,
     priceFeedAtVerification: price,
     errorMessage: evidence.isValid ? null : 'Evidence validation failed'
+  });
+  auditLog(context?.req, {
+    category: 'verification',
+    event: 'verification.resolved',
+    outcome: evidence.isValid ? 'success' : 'failed',
+    severity: evidence.isValid ? 'info' : 'warn',
+    targetId: verificationId,
+    actor: context?.actor,
+    details: {
+      propertyId: parseInt(propertyId),
+      evidenceHash: evidence.evidenceHash,
+      status: evidence.isValid ? 'verified' : 'failed',
+    },
   });
 
   return {
@@ -340,6 +456,13 @@ app.post('/world-id/verify', async (req, res) => {
     }
 
     if (worldIdNullifiers.has(nullifier_hash)) {
+      auditLog(req, {
+        category: 'identity',
+        event: 'world_id.replay_detected',
+        outcome: 'failed',
+        severity: 'warn',
+        details: { nullifierHash: nullifier_hash },
+      });
       return res.status(409).json({ error: 'This World ID proof has already been used' });
     }
 
@@ -353,8 +476,21 @@ app.post('/world-id/verify', async (req, res) => {
     });
 
     worldIdNullifiers.add(nullifier_hash);
+    auditLog(req, {
+      category: 'identity',
+      event: 'world_id.verified',
+      outcome: 'success',
+      details: { nullifierHash: nullifier_hash, action: action || null },
+    });
     return res.json({ verified: true, nullifierHash: nullifier_hash });
   } catch (error) {
+    auditLog(req, {
+      category: 'identity',
+      event: 'world_id.verification_failed',
+      outcome: 'failed',
+      severity: 'warn',
+      details: { error: error.message },
+    });
     return res.status(400).json({ error: error.message || 'World ID verification failed' });
   }
 });
@@ -479,6 +615,13 @@ app.post('/payments/ingest', async (req, res) => {
       paymentDate: new Date(),
       txHash: String(txHash),
     });
+    auditLog(req, {
+      category: 'payment',
+      event: 'payment.ingested',
+      outcome: 'pending',
+      targetId: paymentId,
+      details: { propertyId: parseInt(propertyId), amount: numericAmount, txHash: String(txHash) },
+    });
 
     const verification = await createAndResolveVerification({
       propertyId,
@@ -489,10 +632,18 @@ app.post('/payments/ingest', async (req, res) => {
       proofUrl,
       txHash,
       providerReference: `payment:${paymentId}`,
+      context: { req, actor: getActorFromRequest(req) },
     });
 
     const paymentStatus = verification.status === 'verified' ? 'verified' : 'failed';
     await db.updatePayment(paymentId, { status: paymentStatus, txHash: String(txHash) });
+    auditLog(req, {
+      category: 'payment',
+      event: 'payment.status_updated',
+      outcome: paymentStatus === 'verified' ? 'success' : 'failed',
+      targetId: paymentId,
+      details: { status: paymentStatus, verificationId: verification.verificationId },
+    });
 
     let distribution = null;
     if (verification.status === 'verified') {
@@ -502,6 +653,13 @@ app.post('/payments/ingest', async (req, res) => {
         propertyId: parseInt(propertyId),
         totalYield: Number(amount),
         status: 'queued',
+      });
+      auditLog(req, {
+        category: 'distribution',
+        event: 'distribution.queued',
+        outcome: 'success',
+        targetId: distributionId,
+        details: { paymentId, propertyId: parseInt(propertyId), totalYield: Number(amount) },
       });
     }
 
@@ -542,6 +700,7 @@ app.post('/verify-payment', async (req, res) => {
       tenantAddress,
       proofUrl,
       txHash,
+      context: { req, actor: getActorFromRequest(req) },
     });
 
     return {
@@ -622,6 +781,13 @@ app.post('/trigger-chainlink', requireRoles(['agent', 'admin']), async (req, res
         chainlinkTx: txHash
       });
     }
+    auditLog(req, {
+      category: 'verification',
+      event: 'chainlink.triggered',
+      outcome: 'success',
+      targetId: verificationId || null,
+      details: { propertyId: propertyId || null, txHash },
+    });
     
     return {
       statusCode: 200,
@@ -655,6 +821,13 @@ app.post('/agent/decisions', requireRoles(['agent', 'admin']), async (req, res) 
       reason,
       confidence: confidence || 0,
       status: 'pending'
+    });
+    auditLog(req, {
+      category: 'agent',
+      event: 'decision.created',
+      outcome: 'success',
+      targetId: decisionId,
+      details: { propertyId: parseInt(propertyId), action },
     });
     
     return {
@@ -704,6 +877,13 @@ app.post('/agent/execute', requireRoles(['agent', 'admin']), async (req, res) =>
       executedAt: new Date(),
       txHash
     });
+    auditLog(req, {
+      category: 'agent',
+      event: 'decision.executed',
+      outcome: 'success',
+      targetId: decisionId,
+      details: { txHash },
+    });
     
     return {
       statusCode: 200,
@@ -737,6 +917,13 @@ app.post('/yield/distribute', requireRoles(['issuer', 'admin']), async (req, res
       status: 'completed',
       distributionDate: new Date(),
       txHash
+    });
+    auditLog(req, {
+      category: 'distribution',
+      event: 'distribution.created',
+      outcome: 'success',
+      targetId: distributionId,
+      details: { propertyId: parseInt(propertyId), totalYield, txHash },
     });
     
     return {
@@ -803,6 +990,13 @@ app.post('/automation/trigger', requireRoles(['agent', 'admin']), async (req, re
       results.push({
         paymentId: payment.payment_id,
         status: isVerified ? 'verified' : 'failed'
+      });
+      auditLog(req, {
+        category: 'automation',
+        event: 'payment.reconciled',
+        outcome: isVerified ? 'success' : 'failed',
+        targetId: payment.payment_id,
+        details: { txHash: normalizedTxHash || null },
       });
     }
     

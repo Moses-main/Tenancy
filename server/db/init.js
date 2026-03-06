@@ -2,6 +2,21 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 const DATABASE_URL = process.env.DATABASE_URL;
+const SSL_MODE_REQUIRES_COMPAT = 'require';
+
+function withLibpqCompat(url) {
+  if (!url) return url;
+  try {
+    const parsed = new URL(url);
+    const sslMode = String(parsed.searchParams.get('sslmode') || '').toLowerCase();
+    if (sslMode === SSL_MODE_REQUIRES_COMPAT && !parsed.searchParams.has('uselibpqcompat')) {
+      parsed.searchParams.set('uselibpqcompat', 'true');
+    }
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
 
 if (!DATABASE_URL) {
   console.error('DATABASE_URL is not set');
@@ -9,7 +24,7 @@ if (!DATABASE_URL) {
 }
 
 const pool = new Pool({
-  connectionString: DATABASE_URL,
+  connectionString: withLibpqCompat(DATABASE_URL),
   ssl: { rejectUnauthorized: false }
 });
 

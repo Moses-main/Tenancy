@@ -65,6 +65,7 @@ export type Verification = {
     };
 
     const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) || 'http://localhost:4010';
+    const API_KEY = (import.meta.env.VITE_API_KEY as string) || '';
     let authToken: string | null = null;
 
     export function setApiAuthToken(token: string | null) {
@@ -74,6 +75,7 @@ export type Verification = {
     function getPrivilegedHeaders() {
       return {
         'Content-Type': 'application/json',
+        ...(API_KEY ? { 'x-api-key': API_KEY } : {}),
         ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
       } as const;
     }
