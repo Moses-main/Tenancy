@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
@@ -29,6 +30,7 @@ contract PropertyMarketplace is Ownable, ReentrancyGuard {
     uint256 public listingCount;
     uint256 public offerCount;
     uint256 public platformFeePercent = 25;
+    IERC20 public immutable paymentToken;
     mapping(uint256 => Listing) public listings;
     mapping(uint256 => Offer[]) public listingOffers;
     mapping(address => uint256[]) public userListings;
@@ -59,7 +61,10 @@ contract PropertyMarketplace is Ownable, ReentrancyGuard {
     event OfferCancelled(uint256 indexed listingId, uint256 offerId);
     event PlatformFeeUpdated(uint256 newFeePercent);
 
-    constructor() Ownable(msg.sender) {}
+    constructor(address usdcToken) Ownable(msg.sender) {
+        require(usdcToken != address(0), "Invalid USDC token");
+        paymentToken = IERC20(usdcToken);
+    }
 
     modifier onlyValidListing(uint256 listingId) {
         require(listings[listingId].id != 0, "Listing does not exist");
@@ -109,30 +114,35 @@ contract PropertyMarketplace is Ownable, ReentrancyGuard {
         emit ListingCancelled(listingId);
     }
 
-    function buyListing(uint256 listingId) external payable nonReentrant onlyValidListing(listingId) {
+    function buyListing(uint256 listingId, uint256 amountToBuy) external nonReentrant onlyValidListing(listingId) {
         Listing storage listing = listings[listingId];
         require(listing.seller != msg.sender, "Cannot buy own listing");
+        require(amountToBuy > 0, "Amount must be greater than 0");
+        require(amountToBuy <= listing.amount, "Insufficient listed amount");
 
-        uint256 totalCost = listing.totalPrice;
-        require(msg.value >= totalCost, "Insufficient payment");
+        uint256 totalCost = (amountToBuy * listing.pricePerToken) / 1e18;
 
         uint256 platformFee = (totalCost * platformFeePercent) / 1000;
         uint256 sellerProceeds = totalCost - platformFee;
+        require(paymentToken.transferFrom(msg.sender, address(this), totalCost), "USDC transfer failed");
 
         ERC20 token = ERC20(listing.propertyToken);
-        require(token.transfer(msg.sender, listing.amount), "Token transfer failed");
+        require(token.transfer(msg.sender, amountToBuy), "Token transfer failed");
+        require(paymentToken.transfer(listing.seller, sellerProceeds), "Seller transfer failed");
 
-        (bool sent,) = payable(listing.seller).call{value: sellerProceeds}("");
-        require(sent, "Failed to send ETH to seller");
-
-        if (msg.value > totalCost) {
-            (bool refund,) = payable(msg.sender).call{value: msg.value - totalCost}("");
-            require(refund, "Refund failed");
+        if (platformFee > 0) {
+            require(paymentToken.transfer(owner(), platformFee), "Fee transfer failed");
         }
 
-        listing.isActive = false;
+        listing.amount -= amountToBuy;
+        if (listing.amount == 0) {
+            listing.isActive = false;
+            listing.totalPrice = 0;
+        } else {
+            listing.totalPrice = (listing.amount * listing.pricePerToken) / 1e18;
+        }
 
-        emit ListingFilled(listingId, msg.sender, listing.seller, listing.amount, totalCost);
+        emit ListingFilled(listingId, msg.sender, listing.seller, amountToBuy, totalCost);
     }
 
     function makeOffer(
@@ -174,21 +184,23 @@ contract PropertyMarketplace is Ownable, ReentrancyGuard {
         uint256 platformFee = (totalCost * platformFeePercent) / 1000;
         uint256 sellerProceeds = totalCost - platformFee;
 
-        require(address(this).balance >= totalCost, "Contract insufficient balance");
-
-        ERC20 token = ERC20(listing.propertyToken);
-        require(token.transfer(offer.buyer, offer.amount), "Token transfer failed");
-
-        (bool sent,) = payable(listing.seller).call{value: sellerProceeds}("");
-        require(sent, "Failed to send ETH");
+        require(paymentToken.transferFrom(offer.buyer, address(this), totalCost), "USDC transfer failed");
 
         offer.accepted = true;
 
-        if (offer.amount == listing.amount) {
+        ERC20 token = ERC20(listing.propertyToken);
+        require(token.transfer(offer.buyer, offer.amount), "Token transfer failed");
+        require(paymentToken.transfer(listing.seller, sellerProceeds), "Seller transfer failed");
+        if (platformFee > 0) {
+            require(paymentToken.transfer(owner(), platformFee), "Fee transfer failed");
+        }
+
+        listing.amount -= offer.amount;
+        if (listing.amount == 0) {
             listing.isActive = false;
+            listing.totalPrice = 0;
         } else {
-            listing.amount -= offer.amount;
-            listing.totalPrice = listing.amount * listing.pricePerToken / 1e18;
+            listing.totalPrice = (listing.amount * listing.pricePerToken) / 1e18;
         }
 
         emit OfferAccepted(listingId, offerId);
@@ -251,9 +263,7 @@ contract PropertyMarketplace is Ownable, ReentrancyGuard {
         emit PlatformFeeUpdated(newFeePercent);
     }
 
-    function withdrawFunds() external onlyOwner {
-        payable(owner()).transfer(address(this).balance);
+    function withdrawFees(uint256 amount) external onlyOwner {
+        require(paymentToken.transfer(owner(), amount), "Withdraw failed");
     }
-
-    receive() external payable {}
 }
