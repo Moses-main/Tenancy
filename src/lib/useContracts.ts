@@ -252,40 +252,30 @@ export const useContracts = () => {
       if (!userAddr) return '0';
 
       const yieldDist = new Contract(addrs.yieldDistributor, ABIS.yieldDistributor, provider);
-      const properties = await getAllProperties();
+      const claimableIds = await yieldDist.getClaimableDistributionIds(userAddr);
+      let pendingTotal = ethers.BigNumber.from(0);
 
-      let pendingTotal = 0;
-
-      for (let i = 0; i < properties.length; i++) {
+      for (const distributionId of claimableIds) {
         try {
-          const info = await yieldDist.getDistributionInfo(i);
-          const status = Number(info.status);
+          const info = await yieldDist.getDistributionInfo(distributionId);
           const holders: string[] = Array.isArray(info.holders) ? info.holders : [];
           const holderBalances = Array.isArray(info.holderBalances) ? info.holderBalances : [];
-
-          if (status !== 1 || holders.length === 0) continue;
+          if (holders.length === 0) continue;
 
           const holderIndex = holders.findIndex((holder) => holder.toLowerCase() === userAddr);
           if (holderIndex < 0 || !holderBalances[holderIndex]) continue;
-
-          const totalYield = Number(formatUnits(info.totalYield, 18));
-          const propertyTotal = Number(formatUnits(properties[i].totalSupply, 18));
-          const userBalance = Number(formatUnits(holderBalances[holderIndex], 18));
-
-          if (propertyTotal > 0 && totalYield > 0 && userBalance > 0) {
-            pendingTotal += (userBalance / propertyTotal) * totalYield;
-          }
+          pendingTotal = pendingTotal.add(holderBalances[holderIndex]);
         } catch {
           continue;
         }
       }
 
-      return pendingTotal.toString();
+      return formatUnits(pendingTotal, 18);
     } catch (err: any) {
       console.error('Error getting pending yield:', err?.message || err);
       return '0';
     }
-  }, [provider, chainId, address, getAllProperties]);
+  }, [provider, chainId, address]);
 
   const claimYield = useCallback(async (distributionId: number): Promise<string> => {
     setIsLoading(true);
