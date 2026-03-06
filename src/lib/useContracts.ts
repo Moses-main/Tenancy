@@ -486,7 +486,11 @@ export const useContracts = () => {
   const buyPropertyTokens = useCallback(async (
     propertyTokenAddress: string,
     amount: string,
-    _sellerAddress: string
+    _sellerAddress: string,
+    callbacks?: {
+      onPendingTx?: (txHash: string) => void;
+      onConfirmedTx?: (txHash: string) => void;
+    }
   ): Promise<string> => {
     setIsLoading(true);
     setError(null);
@@ -530,7 +534,9 @@ export const useContracts = () => {
       }
 
       const tx = await marketplace.buyListing(matchingListing.id, amountWei);
+      callbacks?.onPendingTx?.(tx.hash);
       const receipt = await tx.wait();
+      callbacks?.onConfirmedTx?.(receipt.hash);
       return receipt.hash;
     } catch (err: any) {
       console.error('Error in buyPropertyTokens:', err);
@@ -636,7 +642,14 @@ export const useContracts = () => {
     }
   }, [provider, address, chainId, getContracts]);
 
-  const buyMarketplaceListing = useCallback(async (listingId: number, amount?: string): Promise<string> => {
+  const buyMarketplaceListing = useCallback(async (
+    listingId: number,
+    amount?: string,
+    callbacks?: {
+      onPendingTx?: (txHash: string) => void;
+      onConfirmedTx?: (txHash: string) => void;
+    }
+  ): Promise<string> => {
     setIsLoading(true);
     setError(null);
     try {
@@ -677,7 +690,9 @@ export const useContracts = () => {
       }
 
       const tx = await contracts.marketplace.buyListing(listingId, amountWei);
+      callbacks?.onPendingTx?.(tx.hash);
       const receipt = await tx.wait();
+      callbacks?.onConfirmedTx?.(receipt.hash);
       return receipt.hash;
     } catch (err: any) {
       setError(err.message);

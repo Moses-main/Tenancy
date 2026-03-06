@@ -7,6 +7,13 @@ import { toast } from 'react-toastify';
 import { useContracts } from '../lib/useContracts';
 import { useAuth } from '../lib/AuthContext';
 import { getExplorerUrl } from '../lib/contracts';
+import {
+  createSettlementReceipt,
+  getSettlementReceiptsForWallet,
+  patchSettlementReceipt,
+  upsertSettlementReceipt,
+  type SettlementReceipt,
+} from '../lib/settlementReceipts';
 import { ethers } from 'ethers';
 const { formatUnits, parseUnits } = ethers.utils;
 
@@ -43,6 +50,7 @@ export default function Marketplace() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCreateListing, setShowCreateListing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [settlementHistory, setSettlementHistory] = useState<SettlementReceipt[]>([]);
   const [newListing, setNewListing] = useState({
     propertyId: '',
     amount: '',
@@ -96,6 +104,14 @@ export default function Marketplace() {
     };
     fetchListings();
   }, [isAuthenticated, isCorrectNetwork, chainId, getMarketplaceListings, getAllProperties, getUserPropertyTokens]);
+
+  useEffect(() => {
+    if (!address) {
+      setSettlementHistory([]);
+      return;
+    }
+    setSettlementHistory(getSettlementReceiptsForWallet(address));
+  }, [address]);
 
   const filteredListings = listings
     .filter(l => {
@@ -172,9 +188,43 @@ export default function Marketplace() {
   const handleBuy = async (listing: Listing) => {
     setIsProcessing(true);
     const toastId = toast.loading("Processing purchase...");
+    let settlementId: string | null = null;
     
     try {
-      await buyMarketplaceListing(listing.id, listing.amount.toString());
+      if (address) {
+        const settlement = createSettlementReceipt({
+          walletAddress: address,
+          chainId: chainId || 84532,
+          action: 'marketplace_buy',
+          title: `Buy listing #${listing.id}`,
+          subtitle: listing.propertyName,
+          amountTen: listing.amount.toFixed(4),
+          amountUsdc: listing.totalPrice.toFixed(2),
+          counterparty: listing.seller,
+          listingId: listing.id,
+          propertyToken: listing.propertyToken,
+        });
+        settlementId = settlement.id;
+        upsertSettlementReceipt(settlement);
+        setSettlementHistory(getSettlementReceiptsForWallet(address));
+      }
+
+      await buyMarketplaceListing(listing.id, listing.amount.toString(), {
+        onPendingTx: (txHash) => {
+          if (!settlementId) return;
+          patchSettlementReceipt(settlementId, { status: 'pending', txHash, chainId: chainId || 84532 });
+          setSettlementHistory(getSettlementReceiptsForWallet(address));
+        },
+        onConfirmedTx: (txHash) => {
+          if (!settlementId) return;
+          patchSettlementReceipt(settlementId, { status: 'confirmed', txHash, chainId: chainId || 84532 });
+          setSettlementHistory(getSettlementReceiptsForWallet(address));
+        },
+      });
+      if (settlementId) {
+        patchSettlementReceipt(settlementId, { status: 'settled' });
+        setSettlementHistory(getSettlementReceiptsForWallet(address));
+      }
       toast.update(toastId, {
         render: `Successfully purchased ${listing.amount} tokens for ${listing.totalPrice.toFixed(2)} USDC!`,
         type: "success",
@@ -183,8 +233,15 @@ export default function Marketplace() {
       });
       setSelectedListing(null);
       
-      refreshListings();
+      await refreshListings();
     } catch (err: any) {
+      if (settlementId) {
+        patchSettlementReceipt(settlementId, {
+          status: 'failed',
+          errorMessage: err.message || 'Transaction failed',
+        });
+        setSettlementHistory(getSettlementReceiptsForWallet(address));
+      }
       toast.update(toastId, {
         render: err.message || "Transaction failed",
         type: "error",
@@ -263,6 +320,13 @@ export default function Marketplace() {
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
     return `${Math.floor(diff / 86400000)}d ago`;
+  };
+  const getStatusClass = (status: SettlementReceipt['status']) => {
+    if (status === 'settled') return 'bg-green-500/10 text-green-500';
+    if (status === 'failed') return 'bg-red-500/10 text-red-500';
+    if (status === 'confirmed') return 'bg-blue-500/10 text-blue-500';
+    if (status === 'pending') return 'bg-yellow-500/10 text-yellow-500';
+    return 'bg-muted text-muted-foreground';
   };
 
   if (!isCorrectNetwork) {
@@ -460,6 +524,47 @@ export default function Marketplace() {
               <option value="price-low">Price: Low to High</option>
               <option value="price-high">Price: High to Low</option>
             </select>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold tracking-tight">Settlement Timeline</h2>
+            <p className="text-sm text-muted-foreground mt-1">Status track for your marketplace settlements.</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {settlementHistory.length > 0 ? (
+              settlementHistory.slice(0, 6).map((receipt) => (
+                <div key={receipt.id} className="rounded-lg border border-border p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-sm">{receipt.title}</p>
+                      <p className="text-xs text-muted-foreground">{receipt.subtitle || 'Settlement event'}</p>
+                    </div>
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium capitalize ${getStatusClass(receipt.status)}`}>
+                      {receipt.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{new Date(receipt.updatedAt).toLocaleString()}</span>
+                    {receipt.txHash ? (
+                      <a
+                        href={receipt.txUrl || getExplorerUrl(chainId || 84532, undefined, receipt.txHash)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 hover:text-primary"
+                      >
+                        Tx <ExternalLink className="h-3 w-3" />
+                      </a>
+                    ) : (
+                      <span>No tx hash yet</span>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-sm text-muted-foreground">No settlement receipts yet. Buy a listing to generate timeline entries.</div>
+            )}
           </div>
         </div>
 
