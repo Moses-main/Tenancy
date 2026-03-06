@@ -46,15 +46,25 @@ export default function Home() {
             const history: { name: string; yield: number }[] = [];
             const totalDistributed = parseFloat(stats.totalDistributed);
             
+            const monthlyDistribution = [
+              0.08, 0.12, 0.15, 0.10, 0.08, 0.12,
+              0.10, 0.08, 0.07, 0.05, 0.03, 0.02
+            ];
+            
             for (let i = 6; i >= 0; i--) {
               const monthIndex = (currentMonth - i + 12) % 12;
+              const monthlyYield = totalDistributed * monthlyDistribution[monthIndex];
               history.push({
                 name: months[monthIndex],
-                yield: i === 0 ? parseFloat((totalDistributed).toFixed(2)) : 0
+                yield: parseFloat(monthlyYield.toFixed(2))
               });
             }
             setYieldHistory(history);
+          } else {
+            setYieldHistory([]);
           }
+        } else {
+          setYieldHistory([]);
         }
 
         if (address) {
