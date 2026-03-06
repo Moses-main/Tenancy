@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ethers, Contract } from 'ethers';
 
-const { formatEther, formatUnits, parseEther, parseUnits } = ethers.utils;
+const { formatEther, formatUnits, parseUnits } = ethers.utils;
 
 type Web3Provider = ethers.providers.Web3Provider;
 import { useAuth } from './AuthContext';
@@ -433,79 +433,63 @@ export const useContracts = () => {
     baseSepolia: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
     sepolia: '0xda0d3FA677B08D2Afd00D8e23c4A79DC9eBd8C2',
   };
+  const USDC_ABI = [
+    'function transfer(address to, uint256 amount) returns (bool)',
+    'function transferFrom(address from, address to, uint256 amount) returns (bool)',
+    'function approve(address spender, uint256 amount) returns (bool)',
+    'function allowance(address owner, address spender) view returns (uint256)',
+    'function balanceOf(address account) view returns (uint256)',
+  ];
 
   const buyPropertyTokens = useCallback(async (
     propertyTokenAddress: string,
     amount: string,
-    sellerAddress: string
+    _sellerAddress: string
   ): Promise<string> => {
     setIsLoading(true);
     setError(null);
     try {
+      if (!provider) throw new Error('Wallet not connected');
       const signer = await provider.getSigner();
       const buyerAddress = await signer.getAddress();
-      
+
       const isBaseSepolia = chainId === 84532;
       const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
       const usdcAddress = isBaseSepolia ? USDC_ADDRESSES.baseSepolia : USDC_ADDRESSES.sepolia;
-      
-      const propertyToken = new Contract(propertyTokenAddress, ABIS.erc20, signer);
+
+      if (!addrs.marketplace || addrs.marketplace === '0x0000000000000000000000000000000000000000') {
+        throw new Error('Marketplace is not deployed on this network');
+      }
+
+      const marketplace = new Contract(addrs.marketplace, ABIS.marketplace, signer);
       const amountWei = parseUnits(amount, 18);
-      
-      const pricePerToken = parseUnits('1.05', 6);
-      const totalCost = (amountWei * pricePerToken) / parseUnits('1', 18);
-      
-      const usdcABI = [
-        'function transfer(address to, uint256 amount) returns (bool)',
-        'function transferFrom(address from, address to, uint256 amount) returns (bool)',
-        'function approve(address spender, uint256 amount) returns (bool)',
-        'function allowance(address owner, address spender) view returns (uint256)',
-        'function balanceOf(address account) view returns (uint256)',
-      ];
-      
-      const usdc = new Contract(usdcAddress, usdcABI, signer);
-      
+      const listings = await marketplace.getActiveListings();
+      const matchingListing = listings.find((listing: any) =>
+        listing.propertyToken.toLowerCase() === propertyTokenAddress.toLowerCase() &&
+        listing.seller.toLowerCase() !== buyerAddress.toLowerCase() &&
+        listing.amount.gte(amountWei)
+      );
+
+      if (!matchingListing) {
+        throw new Error('No active listing has enough tokens for this purchase');
+      }
+
+      const totalCost = (amountWei * matchingListing.pricePerToken) / parseUnits('1', 18);
+      const usdc = new Contract(usdcAddress, USDC_ABI, signer);
       const buyerUSDCBalance = await usdc.balanceOf(buyerAddress);
       if (buyerUSDCBalance < totalCost) {
         throw new Error('Insufficient USDC balance. Please get USDC to proceed.');
       }
-      
-      // Check if marketplace exists, if not use direct transfer
-      if (addrs.marketplace && addrs.marketplace !== '0x0000000000000000000000000000000000000000') {
-        // Use marketplace contract for the purchase
-        const marketplace = new Contract(addrs.marketplace, ABIS.marketplace, signer);
-        
-        // First, create a listing from the seller (if it doesn't exist)
-        // For now, we'll use direct transfer as marketplace requires listing creation
-        
-        // Approve marketplace to spend USDC
-        const currentAllowance = await usdc.allowance(buyerAddress, addrs.marketplace);
-        if (currentAllowance < totalCost) {
-          const approveTx = await usdc.approve(addrs.marketplace, totalCost);
-          await approveTx.wait();
-        }
-        
-        // Direct USDC transfer to seller
-        const transferTx = await usdc.transfer(sellerAddress, totalCost);
-        await transferTx.wait();
-        
-        // Mint property tokens to buyer
-        const mintTx = await propertyToken.transfer(buyerAddress, amountWei);
-        const receipt = await mintTx.wait();
-        
-        return receipt.hash;
-      } else {
-        // Fallback to direct transfer if marketplace doesn't exist
-        // Direct USDC transfer to seller
-        const transferTx = await usdc.transfer(sellerAddress, totalCost);
-        await transferTx.wait();
-        
-        // Mint property tokens to buyer
-        const mintTx = await propertyToken.transfer(buyerAddress, amountWei);
-        const receipt = await mintTx.wait();
-        
-        return receipt.hash;
+
+      const currentAllowance = await usdc.allowance(buyerAddress, addrs.marketplace);
+      if (currentAllowance < totalCost) {
+        const approveTx = await usdc.approve(addrs.marketplace, totalCost);
+        await approveTx.wait();
       }
+
+      const tx = await marketplace.buyListing(matchingListing.id, amountWei);
+      const receipt = await tx.wait();
+      return receipt.hash;
     } catch (err: any) {
       console.error('Error in buyPropertyTokens:', err);
       setError(err.message);
@@ -557,7 +541,7 @@ export const useContracts = () => {
       }
       
       const marketplace = new Contract(addrs.marketplace, ABIS.marketplace, provider);
-      const listings = await marketplace.getListings();
+      const listings = await marketplace.getActiveListings();
       
       return listings.map((l: any) => ({
         id: l.id,
@@ -590,11 +574,12 @@ export const useContracts = () => {
       
       const propertyTokenContract = new Contract(propertyToken, ABIS.erc20, await provider.getSigner());
       const amountWei = parseUnits(amount, 18);
-      const priceWei = parseUnits(pricePerToken, 18);
+      const priceWei = parseUnits(pricePerToken, 6);
       
-      const allowance = await propertyTokenContract.allowance(address, contracts.marketplace.target);
-      if (allowance < amountWei) {
-        const approveTx = await propertyTokenContract.approve(contracts.marketplace.target, amountWei);
+      const marketplaceAddress = contracts.marketplace.address || contracts.marketplace.target;
+      const allowance = await propertyTokenContract.allowance(address, marketplaceAddress);
+      if (allowance.lt(amountWei)) {
+        const approveTx = await propertyTokenContract.approve(marketplaceAddress, amountWei);
         await approveTx.wait();
       }
       
@@ -609,16 +594,47 @@ export const useContracts = () => {
     }
   }, [provider, address, chainId, getContracts]);
 
-  const buyMarketplaceListing = useCallback(async (listingId: number): Promise<string> => {
+  const buyMarketplaceListing = useCallback(async (listingId: number, amount?: string): Promise<string> => {
     setIsLoading(true);
     setError(null);
     try {
+      if (!provider) throw new Error('Wallet not connected');
       const contracts = await getContracts();
       if (!contracts.marketplace) {
         throw new Error('Marketplace not deployed');
       }
-      
-      const tx = await contracts.marketplace.buyListing(listingId, { value: parseEther('0.01') });
+
+      const signer = await provider.getSigner();
+      const buyerAddress = await signer.getAddress();
+      const isBaseSepolia = chainId === 84532;
+      const usdcAddress = isBaseSepolia ? USDC_ADDRESSES.baseSepolia : USDC_ADDRESSES.sepolia;
+      const usdc = new Contract(usdcAddress, USDC_ABI, signer);
+
+      const listings = await contracts.marketplace.getListings();
+      const listing = listings.find((l: any) => Number(l.id) === listingId && Boolean(l.isActive));
+      if (!listing) {
+        throw new Error('Listing not found or inactive');
+      }
+
+      const amountWei = amount ? parseUnits(amount, 18) : listing.amount;
+      if (amountWei.lte(0) || amountWei.gt(listing.amount)) {
+        throw new Error('Invalid buy amount');
+      }
+
+      const totalCost = (amountWei * listing.pricePerToken) / parseUnits('1', 18);
+      const balance = await usdc.balanceOf(buyerAddress);
+      if (balance < totalCost) {
+        throw new Error('Insufficient USDC balance');
+      }
+
+      const marketplaceAddress = contracts.marketplace.address || contracts.marketplace.target;
+      const allowance = await usdc.allowance(buyerAddress, marketplaceAddress);
+      if (allowance.lt(totalCost)) {
+        const approveTx = await usdc.approve(marketplaceAddress, totalCost);
+        await approveTx.wait();
+      }
+
+      const tx = await contracts.marketplace.buyListing(listingId, amountWei);
       const receipt = await tx.wait();
       return receipt.hash;
     } catch (err: any) {
@@ -627,7 +643,7 @@ export const useContracts = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [getContracts]);
+  }, [provider, chainId, getContracts]);
 
   const cancelMarketplaceListing = useCallback(async (listingId: number): Promise<string> => {
     setIsLoading(true);

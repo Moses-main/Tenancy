@@ -96,7 +96,7 @@ export const ABIS = {
   marketplace: [
     "function createListing(address propertyToken, uint256 amount, uint256 pricePerToken) returns (uint256)",
     "function cancelListing(uint256 listingId)",
-    "function buyListing(uint256 listingId) payable",
+    "function buyListing(uint256 listingId, uint256 amountToBuy)",
     "function makeOffer(uint256 listingId, uint256 amount, uint256 offeredPrice)",
     "function acceptOffer(uint256 listingId, uint256 offerId)",
     "function cancelOffer(uint256 listingId, uint256 offerId)",
@@ -105,6 +105,7 @@ export const ABIS = {
     "function getUserListings(address user) view returns (tuple(uint256 id, address seller, address propertyToken, uint256 amount, uint256 pricePerToken, uint256 totalPrice, bool isActive, uint256 createdAt)[])",
     "function listingCount() view returns (uint256)",
     "function platformFeePercent() view returns (uint256)",
+    "function paymentToken() view returns (address)",
   ],
 };
 

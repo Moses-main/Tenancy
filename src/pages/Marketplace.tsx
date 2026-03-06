@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
+import { PropertyCardSkeleton } from '../components/Loading';
 import { Building, DollarSign, TrendingUp, Users, Search, Filter, ArrowUpDown, Clock, CheckCircle, XCircle, ExternalLink, Wallet, Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useContracts } from '../lib/useContracts';
@@ -189,7 +190,7 @@ export default function Marketplace() {
     const toastId = toast.loading("Processing purchase...");
     
     try {
-      await buyMarketplaceListing(listing.id);
+      await buyMarketplaceListing(listing.id, listing.amount.toString());
       toast.update(toastId, {
         render: `Successfully purchased ${listing.amount} tokens for ${listing.totalPrice.toFixed(2)} USDC!`,
         type: "success",
@@ -479,11 +480,18 @@ export default function Marketplace() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredListings.map((listing) => (
-            <div
-              key={listing.id}
-              className="group rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/50 transition-all hover:shadow-lg"
-            >
+          {isLoading ? (
+            <>
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <PropertyCardSkeleton key={i} />
+              ))}
+            </>
+          ) : (
+            filteredListings.map((listing) => (
+              <div
+                key={listing.id}
+                className="group rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/50 transition-all hover:shadow-lg"
+              >
               <div className="h-40 bg-gradient-to-br from-primary/20 to-primary/5">
                 {listing.propertyUri && (listing.propertyUri.startsWith('http') || listing.propertyUri.startsWith('ipfs://')) ? (
                   <img 
@@ -572,7 +580,8 @@ export default function Marketplace() {
                 )}
               </div>
             </div>
-          ))}
+          ))
+          )}
         </div>
 
         {filteredListings.length === 0 && (
