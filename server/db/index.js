@@ -8,6 +8,29 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+const inMemoryIdempotency = new Map();
+
+async function ensureSchema() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS idempotency_keys (
+        idempotency_key TEXT PRIMARY KEY,
+        endpoint TEXT NOT NULL,
+        request_hash TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        status_code INTEGER,
+        response_body JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (error) {
+    console.warn('Failed to ensure idempotency schema. Falling back to in-memory idempotency store.', error.message);
+  }
+}
+
+ensureSchema();
+
 const db = {
   // Verifications
   async createVerification(verification) {
@@ -269,6 +292,73 @@ const db = {
       payments: payments.rows,
       agentDecisions: agentDecisions.rows
     };
+  },
+
+  // Idempotency keys
+  async getIdempotencyKey(idempotencyKey, endpoint) {
+    try {
+      const result = await pool.query(
+        'SELECT * FROM idempotency_keys WHERE idempotency_key = $1 AND endpoint = $2',
+        [idempotencyKey, endpoint]
+      );
+      return result.rows[0];
+    } catch {
+      const entry = inMemoryIdempotency.get(`${endpoint}:${idempotencyKey}`);
+      return entry || null;
+    }
+  },
+
+  async createIdempotencyKey(record) {
+    const { idempotencyKey, endpoint, requestHash } = record;
+    try {
+      const result = await pool.query(
+        `INSERT INTO idempotency_keys (idempotency_key, endpoint, request_hash, status)
+         VALUES ($1, $2, $3, 'pending')
+         ON CONFLICT (idempotency_key)
+         DO NOTHING
+         RETURNING *`,
+        [idempotencyKey, endpoint, requestHash]
+      );
+      return result.rows[0] || null;
+    } catch {
+      const key = `${endpoint}:${idempotencyKey}`;
+      if (inMemoryIdempotency.has(key)) return null;
+      const row = {
+        idempotency_key: idempotencyKey,
+        endpoint,
+        request_hash: requestHash,
+        status: 'pending',
+        status_code: null,
+        response_body: null,
+      };
+      inMemoryIdempotency.set(key, row);
+      return row;
+    }
+  },
+
+  async completeIdempotencyKey(idempotencyKey, endpoint, statusCode, responseBody, status = 'completed') {
+    try {
+      const result = await pool.query(
+        `UPDATE idempotency_keys
+         SET status = $3, status_code = $4, response_body = $5::jsonb, updated_at = CURRENT_TIMESTAMP
+         WHERE idempotency_key = $1 AND endpoint = $2
+         RETURNING *`,
+        [idempotencyKey, endpoint, status, statusCode, JSON.stringify(responseBody || {})]
+      );
+      return result.rows[0] || null;
+    } catch {
+      const key = `${endpoint}:${idempotencyKey}`;
+      const existing = inMemoryIdempotency.get(key);
+      if (!existing) return null;
+      const updated = {
+        ...existing,
+        status,
+        status_code: statusCode,
+        response_body: responseBody || {},
+      };
+      inMemoryIdempotency.set(key, updated);
+      return updated;
+    }
   }
 };
 
