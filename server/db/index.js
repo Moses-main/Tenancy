@@ -96,6 +96,39 @@ const db = {
     return result.rows;
   },
 
+  async getVerificationsPaginated({ limit = 20, offset = 0, status, propertyId }) {
+    const clauses = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (status) {
+      clauses.push(`status = $${paramIndex++}`);
+      values.push(status);
+    }
+    if (propertyId !== undefined && propertyId !== null) {
+      clauses.push(`property_id = $${paramIndex++}`);
+      values.push(propertyId);
+    }
+
+    const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+    const totalQuery = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM verifications ${whereClause}`,
+      values
+    );
+
+    values.push(limit);
+    values.push(offset);
+    const rowsQuery = await pool.query(
+      `SELECT * FROM verifications ${whereClause} ORDER BY created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`,
+      values
+    );
+
+    return {
+      data: rowsQuery.rows,
+      total: totalQuery.rows[0]?.count || 0,
+    };
+  },
+
   async getVerificationByProviderReference(providerReference) {
     const result = await pool.query(
       'SELECT * FROM verifications WHERE provider_reference = $1 ORDER BY created_at DESC LIMIT 1',
@@ -136,6 +169,39 @@ const db = {
   async getAllPayments() {
     const result = await pool.query('SELECT * FROM payments ORDER BY created_at DESC');
     return result.rows;
+  },
+
+  async getPaymentsPaginated({ limit = 20, offset = 0, status, propertyId }) {
+    const clauses = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (status) {
+      clauses.push(`status = $${paramIndex++}`);
+      values.push(status);
+    }
+    if (propertyId !== undefined && propertyId !== null) {
+      clauses.push(`property_id = $${paramIndex++}`);
+      values.push(propertyId);
+    }
+
+    const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+    const totalQuery = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM payments ${whereClause}`,
+      values
+    );
+
+    values.push(limit);
+    values.push(offset);
+    const rowsQuery = await pool.query(
+      `SELECT * FROM payments ${whereClause} ORDER BY created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`,
+      values
+    );
+
+    return {
+      data: rowsQuery.rows,
+      total: totalQuery.rows[0]?.count || 0,
+    };
   },
 
   async getPayment(paymentId) {

@@ -57,6 +57,13 @@ export type Verification = {
       signal?: string;
     };
 
+    export type PaginationQuery = {
+      limit?: number;
+      offset?: number;
+      status?: string;
+      propertyId?: number;
+    };
+
     const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) || 'http://localhost:4010';
     let authToken: string | null = null;
 
@@ -162,8 +169,14 @@ export type Verification = {
       return res.json();
     }
 
-    export async function getAllVerifications(): Promise<Verification[]> {
-      const res = await fetch(`${BACKEND_URL}/verifications`, {
+    export async function getAllVerifications(params?: PaginationQuery): Promise<{ data: Verification[]; total: number; pagination?: any; filters?: any }> {
+      const query = new URLSearchParams();
+      if (params?.limit !== undefined) query.set('limit', String(params.limit));
+      if (params?.offset !== undefined) query.set('offset', String(params.offset));
+      if (params?.status) query.set('status', params.status);
+      if (params?.propertyId !== undefined) query.set('propertyId', String(params.propertyId));
+      const suffix = query.toString() ? `?${query.toString()}` : '';
+      const res = await fetch(`${BACKEND_URL}/verifications${suffix}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -172,7 +185,11 @@ export type Verification = {
         const err = await safeJson(res);
         throw new Error(err?.error || err?.message || 'Failed to fetch verifications');
       }
-      return res.json();
+      const payload = await res.json();
+      if (Array.isArray(payload)) {
+        return { data: payload, total: payload.length };
+      }
+      return payload;
     }
 
     /**
@@ -214,8 +231,14 @@ export type Verification = {
     /**
      * Get all payments
      */
-    export async function getAllPayments(): Promise<{ data: Payment[]; total: number; verified: number; pending: number }> {
-      const res = await fetch(`${BACKEND_URL}/payments`, {
+    export async function getAllPayments(params?: PaginationQuery): Promise<{ data: Payment[]; total: number; verified: number; pending: number; pagination?: any; filters?: any }> {
+      const query = new URLSearchParams();
+      if (params?.limit !== undefined) query.set('limit', String(params.limit));
+      if (params?.offset !== undefined) query.set('offset', String(params.offset));
+      if (params?.status) query.set('status', params.status);
+      if (params?.propertyId !== undefined) query.set('propertyId', String(params.propertyId));
+      const suffix = query.toString() ? `?${query.toString()}` : '';
+      const res = await fetch(`${BACKEND_URL}/payments${suffix}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
