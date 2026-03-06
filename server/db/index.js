@@ -73,6 +73,14 @@ const db = {
     return result.rows;
   },
 
+  async getVerificationByProviderReference(providerReference) {
+    const result = await pool.query(
+      'SELECT * FROM verifications WHERE provider_reference = $1 ORDER BY created_at DESC LIMIT 1',
+      [providerReference]
+    );
+    return result.rows[0];
+  },
+
   // Payments
   async createPayment(payment) {
     const result = await pool.query(
@@ -105,6 +113,14 @@ const db = {
   async getAllPayments() {
     const result = await pool.query('SELECT * FROM payments ORDER BY created_at DESC');
     return result.rows;
+  },
+
+  async getPayment(paymentId) {
+    const result = await pool.query(
+      'SELECT * FROM payments WHERE payment_id = $1',
+      [paymentId]
+    );
+    return result.rows[0];
   },
 
   async updatePayment(paymentId, updates) {
@@ -224,6 +240,14 @@ const db = {
     const result = await pool.query(
       `UPDATE yield_distributions SET ${fields.join(', ')} WHERE distribution_id = $${paramCount} RETURNING *`,
       values
+    );
+    return result.rows[0];
+  },
+
+  async getYieldDistribution(distributionId) {
+    const result = await pool.query(
+      'SELECT * FROM yield_distributions WHERE distribution_id = $1',
+      [distributionId]
     );
     return result.rows[0];
   },

@@ -155,6 +155,75 @@ async function verifyWorldIdProofWithProvider(payload) {
   return data;
 }
 
+function evaluatePaymentEvidence({ propertyId, amount, tenantAddress, proofUrl, txHash }) {
+  const normalizedProofUrl = String(proofUrl || '').trim();
+  const normalizedTenantAddress = String(tenantAddress || `0x${crypto.randomBytes(20).toString('hex')}`).toLowerCase();
+  const numericAmount = Number(amount);
+  const normalizedTxHash = txHash ? String(txHash).trim() : '';
+
+  const evidenceHash = crypto
+    .createHash('sha256')
+    .update(`${propertyId}|${numericAmount}|${normalizedTenantAddress}|${normalizedProofUrl}|${normalizedTxHash || 'no-tx'}`)
+    .digest('hex');
+
+  const hasValidAmount = Number.isFinite(numericAmount) && numericAmount > 0;
+  const hasSupportedProof = /^https?:\/\/|^ipfs:\/\//i.test(normalizedProofUrl);
+  const hasValidTxHash = !normalizedTxHash || /^0x[a-fA-F0-9]{64}$/.test(normalizedTxHash);
+
+  return {
+    normalizedProofUrl,
+    normalizedTenantAddress,
+    numericAmount,
+    normalizedTxHash,
+    evidenceHash,
+    isValid: hasValidAmount && hasSupportedProof && hasValidTxHash,
+  };
+}
+
+async function createAndResolveVerification({
+  propertyId,
+  propertyName,
+  amount,
+  tenantName,
+  tenantAddress,
+  proofUrl,
+  txHash,
+  providerReference,
+}) {
+  const verificationId = crypto.randomUUID();
+  const evidence = evaluatePaymentEvidence({ propertyId, amount, tenantAddress, proofUrl, txHash });
+
+  await db.createVerification({
+    verificationId,
+    propertyId: parseInt(propertyId),
+    propertyName,
+    amount: evidence.numericAmount,
+    tenantName: tenantName || 'Anonymous Tenant',
+    tenantAddress: evidence.normalizedTenantAddress,
+    proofUrl: evidence.normalizedProofUrl,
+    status: 'pending'
+  });
+
+  const price = await fetchChainlinkPrice();
+  await db.updateVerification(verificationId, {
+    status: evidence.isValid ? 'verified' : 'failed',
+    verifiedAt: new Date(),
+    chainlinkJobId: `det_${evidence.evidenceHash.slice(0, 12)}`,
+    providerReference: providerReference || `evidence:${evidence.evidenceHash}`,
+    priceFeedAtVerification: price,
+    errorMessage: evidence.isValid ? null : 'Evidence validation failed'
+  });
+
+  return {
+    verificationId,
+    status: evidence.isValid ? 'verified' : 'failed',
+    evidenceHash: evidence.evidenceHash,
+    amount: evidence.numericAmount,
+    tenantAddress: evidence.normalizedTenantAddress,
+    proofUrl: evidence.normalizedProofUrl,
+  };
+}
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({
@@ -275,6 +344,103 @@ app.get('/payments/:propertyId', async (req, res) => {
   }
 });
 
+// Get end-to-end payment lifecycle by payment ID
+app.get('/payments/lifecycle/:paymentId', async (req, res) => {
+  try {
+    const paymentId = String(req.params.paymentId || '');
+    const payment = await db.getPayment(paymentId);
+    if (!payment) {
+      return res.status(404).json({ error: 'Payment not found' });
+    }
+
+    const verification = await db.getVerificationByProviderReference(`payment:${paymentId}`);
+    const distribution = await db.getYieldDistribution(`dist_${paymentId}`);
+
+    return res.json({
+      paymentId,
+      payment,
+      verification: verification || null,
+      distribution: distribution || null,
+      status: {
+        payment: payment.status,
+        verification: verification?.status || 'not_started',
+        distribution: distribution?.status || 'not_started',
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to fetch payment lifecycle', details: error.message });
+  }
+});
+
+// Ingest a confirmed rent payment and execute verification -> distribution lifecycle
+app.post('/payments/ingest', async (req, res) => {
+  try {
+    const { propertyId, amount, txHash, proofUrl, tenantName, tenantAddress } = req.body || {};
+    if (!propertyId || !amount || !txHash || !proofUrl) {
+      return res.status(400).json({ error: 'propertyId, amount, txHash and proofUrl are required' });
+    }
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      return res.status(400).json({ error: 'amount must be a positive number' });
+    }
+
+    const property = SAMPLE_PROPERTIES.find(p => p.id === parseInt(propertyId));
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found' });
+    }
+
+    const paymentId = `pay_${crypto.randomBytes(8).toString('hex')}`;
+    const payment = await db.createPayment({
+      paymentId,
+      propertyId: parseInt(propertyId),
+      propertyName: property.name,
+      amount: numericAmount,
+      currency: 'USDC',
+      tenantAddress: tenantAddress || null,
+      status: 'pending',
+      paymentDate: new Date(),
+      txHash: String(txHash),
+    });
+
+    const verification = await createAndResolveVerification({
+      propertyId,
+      propertyName: property.name,
+      amount: numericAmount,
+      tenantName,
+      tenantAddress,
+      proofUrl,
+      txHash,
+      providerReference: `payment:${paymentId}`,
+    });
+
+    const paymentStatus = verification.status === 'verified' ? 'verified' : 'failed';
+    await db.updatePayment(paymentId, { status: paymentStatus, txHash: String(txHash) });
+
+    let distribution = null;
+    if (verification.status === 'verified') {
+      const distributionId = `dist_${paymentId}`;
+      distribution = await db.createYieldDistribution({
+        distributionId,
+        propertyId: parseInt(propertyId),
+        totalYield: Number(amount),
+        status: 'queued',
+      });
+    }
+
+    return res.json({
+      paymentId,
+      paymentStatus,
+      verificationId: verification.verificationId,
+      verificationStatus: verification.status,
+      distributionId: distribution?.distribution_id || null,
+      distributionStatus: distribution?.status || 'not_started',
+      txHash: String(txHash),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to ingest payment lifecycle', details: error.message });
+  }
+});
+
 // Request payment verification
 app.post('/verify-payment', async (req, res) => {
   try {
@@ -289,52 +455,22 @@ app.post('/verify-payment', async (req, res) => {
       return res.status(404).json({ error: 'Property not found' });
     }
     
-    const verificationId = crypto.randomUUID();
-    
-    const normalizedProofUrl = String(proofUrl).trim();
-    const normalizedTenantAddress = String(tenantAddress || `0x${crypto.randomBytes(20).toString('hex')}`).toLowerCase();
-    const numericAmount = Number(amount || property.rentAmount);
-    const normalizedTxHash = txHash ? String(txHash).trim() : '';
-    const evidenceHash = crypto
-      .createHash('sha256')
-      .update(`${propertyId}|${numericAmount}|${normalizedTenantAddress}|${normalizedProofUrl}|${normalizedTxHash || 'no-tx'}`)
-      .digest('hex');
-
-    const hasValidAmount = Number.isFinite(numericAmount) && numericAmount > 0;
-    const hasSupportedProof = /^https?:\/\/|^ipfs:\/\//i.test(normalizedProofUrl);
-    const hasValidTxHash = !normalizedTxHash || /^0x[a-fA-F0-9]{64}$/.test(normalizedTxHash);
-    const isValid = hasValidAmount && hasSupportedProof && hasValidTxHash;
-
-    // Store verification request first
-    await db.createVerification({
-      verificationId,
-      propertyId: parseInt(propertyId),
+    const verification = await createAndResolveVerification({
+      propertyId,
       propertyName: property.name,
-      amount: numericAmount,
-      tenantName: tenantName || 'Anonymous Tenant',
-      tenantAddress: normalizedTenantAddress,
-      proofUrl: normalizedProofUrl,
-      status: 'pending'
+      amount: amount || property.rentAmount,
+      tenantName,
+      tenantAddress,
+      proofUrl,
+      txHash,
     });
-
-    const price = await fetchChainlinkPrice();
-    await db.updateVerification(verificationId, {
-      status: isValid ? 'verified' : 'failed',
-      verifiedAt: new Date(),
-      chainlinkJobId: `det_${evidenceHash.slice(0, 12)}`,
-      providerReference: `evidence:${evidenceHash}`,
-      priceFeedAtVerification: price,
-      errorMessage: isValid ? null : 'Evidence validation failed'
-    });
-
-    console.log(`[Verification] ${verificationId} -> ${isValid ? 'verified' : 'failed'} evidence=${evidenceHash.slice(0, 12)}`);
 
     res.json({ 
-      verificationId, 
-      status: isValid ? 'verified' : 'failed',
-      message: isValid ? 'Payment evidence verified.' : 'Payment evidence rejected.',
+      verificationId: verification.verificationId,
+      status: verification.status,
+      message: verification.status === 'verified' ? 'Payment evidence verified.' : 'Payment evidence rejected.',
       property: property.name,
-      evidenceHash
+      evidenceHash: verification.evidenceHash
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to create verification', details: error.message });
