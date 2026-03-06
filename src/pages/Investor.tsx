@@ -46,6 +46,7 @@ export default function InvestorDashboard() {
   const [distributions, setDistributions] = useState<any[]>([]);
   const [claimableDistributionIds, setClaimableDistributionIds] = useState<number[]>([]);
   const [listingPrices, setListingPrices] = useState<Record<string, number>>({});
+  const [listingInventory, setListingInventory] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [buyAmount, setBuyAmount] = useState('');
   const [isProcessingBuy, setIsProcessingBuy] = useState(false);
@@ -83,8 +84,6 @@ export default function InvestorDashboard() {
           };
         });
         
-        setProperties(displayProps);
-
         const [balance, yield_, userDists, userProps, claimableIds, listings] = await Promise.all([
           getTENBalance(),
           getPendingYield(),
@@ -98,12 +97,27 @@ export default function InvestorDashboard() {
         setDistributions(userDists || []);
         setUserPropertyTokens(userProps || []);
         setClaimableDistributionIds(claimableIds || []);
-        const pricesByToken = (listings || []).reduce((acc: Record<string, number>, listing: any) => {
-          if (listing?.isActive) {
-            acc[String(listing.propertyToken).toLowerCase()] = parseFloat(formatUnits(listing.pricePerToken, 6));
+        const activeListings = (listings || []).filter((listing: any) => Boolean(listing?.isActive));
+        const pricesByToken = activeListings.reduce((acc: Record<string, number>, listing: any) => {
+          const token = String(listing.propertyToken).toLowerCase();
+          const price = parseFloat(formatUnits(listing.pricePerToken, 6));
+          if (!acc[token] || price < acc[token]) {
+            acc[token] = price;
           }
           return acc;
         }, {});
+        const inventoryByToken = activeListings.reduce((acc: Record<string, number>, listing: any) => {
+          const token = String(listing.propertyToken).toLowerCase();
+          const amount = parseFloat(formatUnits(listing.amount, 18));
+          acc[token] = (acc[token] || 0) + amount;
+          return acc;
+        }, {});
+        const propertiesWithInventory: PropertyDisplay[] = displayProps.map((property) => ({
+          ...property,
+          tokensAvailable: String(inventoryByToken[property.propertyToken.toLowerCase()] || 0),
+        }));
+        setProperties(propertiesWithInventory);
+        setListingInventory(inventoryByToken);
         setListingPrices(pricesByToken);
       } catch (err) {
         console.error('Error fetching data:', err);
@@ -124,12 +138,16 @@ export default function InvestorDashboard() {
     
     try {
       const selectedPrice = listingPrices[selectedProperty.propertyToken.toLowerCase()];
+      const availableInventory = listingInventory[selectedProperty.propertyToken.toLowerCase()] || 0;
       if (!selectedPrice || selectedPrice <= 0) {
         throw new Error('No active listing price found for this property');
       }
       const tokenAmount = parseFloat(buyAmount) / selectedPrice;
       if (!Number.isFinite(tokenAmount) || tokenAmount <= 0) {
         throw new Error('Unable to compute token amount from quote');
+      }
+      if (tokenAmount > availableInventory) {
+        throw new Error(`Requested amount exceeds active listed inventory (${availableInventory.toFixed(4)} TEN)`);
       }
       const sellerAddress = selectedProperty.owner || '0x0000000000000000000000000000000000000000';
       await buyPropertyTokens(selectedProperty.propertyToken, tokenAmount.toFixed(8), sellerAddress);
@@ -381,13 +399,14 @@ export default function InvestorDashboard() {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Available</p>
-                        <p className="font-semibold text-sm">{property.tokensAvailable} TEN</p>
+                        <p className="font-semibold text-sm">{parseFloat(property.tokensAvailable).toLocaleString()} TEN</p>
                       </div>
                     </div>
                     <button
-                      className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 transition-all"
+                      className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 transition-all disabled:opacity-50"
+                      disabled={parseFloat(property.tokensAvailable) <= 0}
                     >
-                      Buy Income Rights
+                      {parseFloat(property.tokensAvailable) > 0 ? 'Buy Income Rights' : 'No Active Listings'}
                     </button>
                   </div>
                 </div>
@@ -524,7 +543,7 @@ export default function InvestorDashboard() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Available</span>
-                <span className="font-medium">{selectedProperty.tokensAvailable} TEN</span>
+                <span className="font-medium">{parseFloat(selectedProperty.tokensAvailable).toLocaleString()} TEN</span>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Amount to Buy</label>
@@ -535,7 +554,6 @@ export default function InvestorDashboard() {
                   className="w-full px-3 py-2 border border-border rounded-lg bg-background text-sm"
                   placeholder="Enter amount"
                   min="0"
-                  max={selectedProperty.tokensAvailable}
                 />
               </div>
             </div>
