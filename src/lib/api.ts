@@ -48,21 +48,16 @@ export type Verification = {
     };
 
     const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) || 'http://localhost:4010';
-    const API_KEY = (import.meta.env.VITE_API_KEY as string) || '';
-    const ENABLE_CLIENT_ADMIN_API = import.meta.env.VITE_ENABLE_CLIENT_ADMIN_API === 'true';
+    let authToken: string | null = null;
+
+    export function setApiAuthToken(token: string | null) {
+      authToken = token;
+    }
 
     function getPrivilegedHeaders() {
-      if (!ENABLE_CLIENT_ADMIN_API) {
-        throw new Error('Privileged API calls are disabled in the browser. Use a secure backend service.');
-      }
-
-      if (!API_KEY) {
-        throw new Error('Missing VITE_API_KEY for privileged API call.');
-      }
-
       return {
         'Content-Type': 'application/json',
-        'x-api-key': API_KEY,
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
       } as const;
     }
 
@@ -142,6 +137,7 @@ export type Verification = {
       const res = await fetch(`${BACKEND_URL}/trigger-chainlink`, {
         method: 'POST',
         headers: getPrivilegedHeaders(),
+        credentials: 'include',
         body: JSON.stringify({ verificationId }),
       });
 
@@ -218,6 +214,7 @@ export type Verification = {
       const res = await fetch(`${BACKEND_URL}/agent/decisions`, {
         method: 'POST',
         headers: getPrivilegedHeaders(),
+        credentials: 'include',
         body: JSON.stringify(payload),
       });
 
@@ -235,6 +232,7 @@ export type Verification = {
       const res = await fetch(`${BACKEND_URL}/agent/execute`, {
         method: 'POST',
         headers: getPrivilegedHeaders(),
+        credentials: 'include',
         body: JSON.stringify({ decisionId }),
       });
 
@@ -252,6 +250,7 @@ export type Verification = {
       const res = await fetch(`${BACKEND_URL}/yield/distribute`, {
         method: 'POST',
         headers: getPrivilegedHeaders(),
+        credentials: 'include',
         body: JSON.stringify({ propertyId, totalYield }),
       });
 
@@ -289,6 +288,7 @@ export type Verification = {
       const res = await fetch(`${BACKEND_URL}/automation/trigger`, {
         method: 'POST',
         headers: getPrivilegedHeaders(),
+        credentials: 'include',
       });
 
       if (!res.ok) {
