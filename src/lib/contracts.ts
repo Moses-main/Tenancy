@@ -33,11 +33,19 @@ export const CONTRACT_ADDRESSES = {
 };
 
 export const CHAIN_CONFIG = {
-  84532: { name: 'Base Sepolia', network: 'baseSepolia', color: '#0052FF' },
-  11155111: { name: 'Sepolia', network: 'sepolia', color: '#627EEA' },
-  1: { name: 'Ethereum', network: 'mainnet', color: '#627EEA' },
-  8453: { name: 'Base', network: 'mainnet', color: '#0052FF' },
+  84532: { name: 'Base Sepolia', network: 'baseSepolia', color: '#0052FF', explorer: 'https://sepolia.basescan.org' },
+  11155111: { name: 'Sepolia', network: 'sepolia', color: '#627EEA', explorer: 'https://sepolia.etherscan.io' },
+  1: { name: 'Ethereum', network: 'mainnet', color: '#627EEA', explorer: 'https://etherscan.io' },
+  8453: { name: 'Base', network: 'mainnet', color: '#0052FF', explorer: 'https://basescan.org' },
 } as const;
+
+export const getExplorerUrl = (chainId: number, address?: string, txHash?: string): string => {
+  const config = CHAIN_CONFIG[chainId as keyof typeof CHAIN_CONFIG];
+  const baseUrl = config?.explorer || 'https://sepolia.basescan.org';
+  if (txHash) return `${baseUrl}/tx/${txHash}`;
+  if (address) return `${baseUrl}/address/${address}`;
+  return baseUrl;
+};
 
 export const ABIS = {
   propertyRegistry: [

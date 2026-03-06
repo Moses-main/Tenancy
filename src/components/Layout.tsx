@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../lib/AuthContext";
 import { useTheme } from "../lib/ThemeContext";
+import { getExplorerUrl } from "../lib/contracts";
 
 // Utility function to deduplicate wallets by address
 const deduplicateWallets = (wallets: any[]): any[] => {
@@ -316,7 +317,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                   <RefreshCw className="h-4 w-4 text-muted-foreground" />
                                 </button>
                                 <a
-                                  href={`https://sepolia.basescan.org/address/${wallet.address}`}
+                                  href={getExplorerUrl(chainId || 84532, wallet.address)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="p-2 rounded-lg hover:bg-secondary transition-colors"
@@ -560,25 +561,33 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
           <div className="flex items-center gap-6">
             <a
-              href="#"
+              href="https://github.com/Moses-main/Tenancy#readme"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground transition-colors text-sm"
             >
               Documentation
             </a>
             <a
-              href="#"
+              href="https://sepolia.basescan.org/address/0x8f77c2BD2132727327B27164cDec4ccaA2083f7C"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground transition-colors text-sm"
             >
               Contracts
             </a>
             <a
-              href="#"
+              href="https://github.com/Moses-main/Tenancy"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground transition-colors text-sm"
             >
               GitHub
             </a>
             <a
-              href="#"
+              href="https://discord.gg/tenancy-protocol"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground transition-colors text-sm"
             >
               Discord

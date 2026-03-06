@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { useContracts } from '../lib/useContracts';
+import { getExplorerUrl } from '../lib/contracts';
 import { toast } from 'react-toastify';
 import { ethers } from 'ethers';
 const { formatUnits } = ethers.utils;
@@ -393,7 +394,7 @@ const Agent: React.FC = () => {
                     <td className="px-4 py-3">
                       {decision.txHash && (
                         <a
-                          href={`https://sepolia.basescan.org/tx/${decision.txHash}`}
+                          href={getExplorerUrl(chainId || 84532, undefined, decision.txHash)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
