@@ -17,6 +17,7 @@ import {
   upsertSettlementReceipt,
   type SettlementReceipt,
 } from '../lib/settlementReceipts';
+import { validateField } from '../lib/validation';
 import { ethers } from 'ethers';
 const { formatUnits, parseUnits } = ethers.utils;
 import { Link } from 'react-router-dom';
@@ -152,7 +153,12 @@ export default function InvestorDashboard() {
 
   const handleBuyTEN = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!buyAmount || parseFloat(buyAmount) <= 0 || !selectedProperty) return;
+    if (!selectedProperty) return;
+    const amountError = validateField(buyAmount, { required: true, min: 1, max: 10_000_000 });
+    if (amountError) {
+      toast.error(`Buy amount: ${amountError}`);
+      return;
+    }
     const requestedUsd = parseFloat(buyAmount);
     const buyGate = canInvestAmount(kycData, requestedUsd);
     if (!buyGate.allowed) {
@@ -517,6 +523,9 @@ export default function InvestorDashboard() {
                   <div className="flex items-center gap-4">
                     <input 
                       type="number"
+                      min="1"
+                      max="10000000"
+                      step="0.01"
                       value={buyAmount}
                       onChange={(e) => setBuyAmount(e.target.value)}
                       className="bg-transparent text-3xl font-semibold outline-none w-full"
@@ -688,7 +697,9 @@ export default function InvestorDashboard() {
                   onChange={(e) => setBuyAmount(e.target.value)}
                   className="w-full px-3 py-2 border border-border rounded-lg bg-background text-sm"
                   placeholder="Enter amount"
-                  min="0"
+                  min="1"
+                  step="0.01"
+                  max="10000000"
                 />
               </div>
             </div>

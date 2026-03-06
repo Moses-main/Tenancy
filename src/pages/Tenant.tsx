@@ -8,6 +8,7 @@ import { useAuth } from '../lib/AuthContext';
 import { useContracts } from '../lib/useContracts';
 import { getExplorerUrl } from '../lib/contracts';
 import { ingestPaymentLifecycle } from '../lib/api';
+import { validateField } from '../lib/validation';
 import { ethers } from 'ethers';
 const { formatUnits, parseUnits } = ethers.utils;
 
@@ -81,6 +82,11 @@ export default function Tenant() {
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLease || !paymentAmount) return;
+    const amountError = validateField(paymentAmount, { required: true, min: 1, max: selectedLease.monthlyRent * 3 });
+    if (amountError) {
+      toast.error(`Payment amount: ${amountError}`);
+      return;
+    }
 
     setIsProcessing(true);
     const toastId = toast.loading("Processing payment on blockchain...");
@@ -414,7 +420,8 @@ export default function Tenant() {
                     value={paymentAmount}
                     onChange={(e) => setPaymentAmount(e.target.value)}
                     step="0.01"
-                    min="0"
+                    min="1"
+                    max={selectedLease.monthlyRent * 3}
                     className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
                     required
                   />

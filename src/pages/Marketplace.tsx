@@ -14,6 +14,7 @@ import {
   upsertSettlementReceipt,
   type SettlementReceipt,
 } from '../lib/settlementReceipts';
+import { validateField } from '../lib/validation';
 import { ethers } from 'ethers';
 const { formatUnits, parseUnits } = ethers.utils;
 
@@ -256,6 +257,16 @@ export default function Marketplace() {
   const handleCreateListing = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newListing.propertyId || !newListing.amount || !newListing.pricePerToken) return;
+    const amountError = validateField(newListing.amount, { required: true, min: 0.0001, max: 1_000_000_000 });
+    if (amountError) {
+      toast.error(`Listing amount: ${amountError}`);
+      return;
+    }
+    const priceError = validateField(newListing.pricePerToken, { required: true, min: 0.0001, max: 1_000_000 });
+    if (priceError) {
+      toast.error(`Price per token: ${priceError}`);
+      return;
+    }
 
     try {
       setIsProcessing(true);
@@ -770,6 +781,9 @@ export default function Marketplace() {
                 <label className="text-sm font-medium mb-2 block">Number of Tokens</label>
                 <input
                   type="number"
+                  min="0.0001"
+                  max="1000000000"
+                  step="0.0001"
                   value={newListing.amount}
                   onChange={(e) => setNewListing({ ...newListing, amount: e.target.value })}
                   placeholder="100"
@@ -783,6 +797,8 @@ export default function Marketplace() {
                 <input
                   type="number"
                   step="0.01"
+                  min="0.0001"
+                  max="1000000"
                   value={newListing.pricePerToken}
                   onChange={(e) => setNewListing({ ...newListing, pricePerToken: e.target.value })}
                   placeholder="1.05"
