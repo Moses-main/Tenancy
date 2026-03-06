@@ -39,12 +39,34 @@ export const CHAIN_CONFIG = {
   8453: { name: 'Base', network: 'mainnet', color: '#0052FF', explorer: 'https://basescan.org' },
 } as const;
 
+type SupportedChainId = keyof typeof CHAIN_CONFIG;
+
+const RPC_URLS: Partial<Record<SupportedChainId, string>> = {
+  84532: getEnv('VITE_BASE_SEPOLIA_RPC_URL', 'https://sepolia.base.org'),
+  11155111: getEnv('VITE_SEPOLIA_RPC_URL', 'https://rpc.sepolia.org'),
+};
+
 export const getExplorerUrl = (chainId: number, address?: string, txHash?: string): string => {
   const config = CHAIN_CONFIG[chainId as keyof typeof CHAIN_CONFIG];
   const baseUrl = config?.explorer || 'https://sepolia.basescan.org';
   if (txHash) return `${baseUrl}/tx/${txHash}`;
   if (address) return `${baseUrl}/address/${address}`;
   return baseUrl;
+};
+
+export type DeploymentIssueSeverity = 'warning' | 'error';
+
+export type DeploymentValidationIssue = {
+  chainId: number;
+  contractKey: string;
+  address: string;
+  severity: DeploymentIssueSeverity;
+  message: string;
+};
+
+export type DeploymentValidationReport = {
+  checkedAt: number;
+  issues: DeploymentValidationIssue[];
 };
 
 export const ABIS = {
@@ -127,6 +149,133 @@ export const getContracts = async (provider: Web3Provider, chainId: number) => {
     chainConfig: config || CHAIN_CONFIG[84532],
   };
 };
+
+const isZeroAddress = (address?: string) => {
+  if (!address) return true;
+  return /^0x0{40}$/i.test(address);
+};
+
+const validateSingleAddress = (
+  chainId: number,
+  key: string,
+  address: string,
+  issues: DeploymentValidationIssue[],
+  required: boolean
+) => {
+  if (!ethers.utils.isAddress(address)) {
+    issues.push({
+      chainId,
+      contractKey: key,
+      address,
+      severity: 'error',
+      message: 'Configured value is not a valid EVM address.',
+    });
+    return false;
+  }
+  if (isZeroAddress(address)) {
+    issues.push({
+      chainId,
+      contractKey: key,
+      address,
+      severity: required ? 'error' : 'warning',
+      message: required ? 'Required contract address is zero-address.' : 'Optional contract address is zero-address.',
+    });
+    return false;
+  }
+  return true;
+};
+
+async function probeContractCompatibility(
+  provider: ethers.providers.JsonRpcProvider,
+  chainId: number,
+  key: string,
+  address: string,
+  issues: DeploymentValidationIssue[]
+) {
+  const probes: Record<string, { abi: string[]; fn: string }> = {
+    propertyRegistry: { abi: ABIS.propertyRegistry as string[], fn: 'getAllProperties' },
+    tenToken: { abi: ABIS.erc20 as string[], fn: 'totalSupply' },
+    yieldDistributor: { abi: ABIS.yieldDistributor as string[], fn: 'distributionCount' },
+    marketplace: { abi: ABIS.marketplace as string[], fn: 'listingCount' },
+    priceFeedConsumer: { abi: ABIS.priceFeed as string[], fn: 'getLatestPrice' },
+  };
+  const probe = probes[key];
+  if (!probe) return;
+  try {
+    const contract = new Contract(address, probe.abi, provider);
+    await contract.callStatic[probe.fn]();
+  } catch {
+    issues.push({
+      chainId,
+      contractKey: key,
+      address,
+      severity: key === 'propertyRegistry' || key === 'tenToken' || key === 'yieldDistributor' ? 'error' : 'warning',
+      message: `ABI compatibility probe failed for ${probe.fn}().`,
+    });
+  }
+}
+
+export async function validateDeploymentConfigAtStartup(
+  chainIds: number[] = [84532, 11155111]
+): Promise<DeploymentValidationReport> {
+  const issues: DeploymentValidationIssue[] = [];
+  const requiredContracts = new Set(['propertyRegistry', 'tenToken', 'yieldDistributor']);
+
+  for (const chainId of chainIds) {
+    const config = CHAIN_CONFIG[chainId as SupportedChainId];
+    if (!config) continue;
+    const rpcUrl = RPC_URLS[chainId as SupportedChainId];
+    if (!rpcUrl) {
+      issues.push({
+        chainId,
+        contractKey: 'rpc',
+        address: '',
+        severity: 'warning',
+        message: 'No RPC URL configured for startup deployment validation.',
+      });
+      continue;
+    }
+
+    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+    const addresses = CONTRACT_ADDRESSES[config.network];
+
+    for (const [key, address] of Object.entries(addresses)) {
+      const required = requiredContracts.has(key);
+      const validAddress = validateSingleAddress(chainId, key, address, issues, required);
+      if (!validAddress) continue;
+
+      try {
+        const code = await provider.getCode(address);
+        if (!code || code === '0x') {
+          issues.push({
+            chainId,
+            contractKey: key,
+            address,
+            severity: required ? 'error' : 'warning',
+            message: 'No bytecode found at configured contract address.',
+          });
+          continue;
+        }
+      } catch {
+        issues.push({
+          chainId,
+          contractKey: key,
+          address,
+          severity: 'warning',
+          message: 'Unable to fetch bytecode from RPC endpoint.',
+        });
+        continue;
+      }
+
+      await probeContractCompatibility(provider, chainId, key, address, issues);
+    }
+  }
+
+  return {
+    checkedAt: Date.now(),
+    issues,
+  };
+}
 
 export const getChainConfig = (chainId: number) => {
   return CHAIN_CONFIG[chainId as keyof typeof CHAIN_CONFIG] || { name: 'Unknown', network: 'unknown', color: '#888888' };
