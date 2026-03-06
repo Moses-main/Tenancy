@@ -3,17 +3,27 @@ const { parseUnits, parseEther } = ethers.utils;
 
 const PINATA_JWT = import.meta.env.VITE_PINATA_JWT || '';
 const ALLOW_MOCK_IPFS = import.meta.env.VITE_ALLOW_MOCK_IPFS === 'true';
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+const IS_PRODUCTION_BUILD = Boolean(import.meta.env.PROD);
 const IPFS_GATEWAY = 'https://gateway.pinata.cloud/ipfs/';
+
+function shouldUseMockIpfs() {
+  return ALLOW_MOCK_IPFS && DEMO_MODE && !IS_PRODUCTION_BUILD;
+}
 
 function ensureIpfsConfigured(operation: string) {
   if (PINATA_JWT) return;
 
-  if (ALLOW_MOCK_IPFS) {
-    console.warn(`Pinata JWT not configured for ${operation}; using mock IPFS hash because VITE_ALLOW_MOCK_IPFS=true`);
+  if (shouldUseMockIpfs()) {
+    console.warn(
+      `Pinata JWT not configured for ${operation}; using mock IPFS hash because VITE_ALLOW_MOCK_IPFS=true and VITE_DEMO_MODE=true.`
+    );
     return;
   }
 
-  throw new Error(`IPFS is not configured for ${operation}. Set VITE_PINATA_JWT or enable VITE_ALLOW_MOCK_IPFS=true for demo mode.`);
+  throw new Error(
+    `IPFS is not configured for ${operation}. Set VITE_PINATA_JWT. Mock IPFS is only allowed when VITE_ALLOW_MOCK_IPFS=true and VITE_DEMO_MODE=true in non-production builds.`
+  );
 }
 
 function generateMockIpfsHash() {
@@ -44,6 +54,9 @@ export const uploadToIPFS = async (data: string): Promise<string> => {
   ensureIpfsConfigured('metadata upload');
 
   if (!PINATA_JWT) {
+    if (!shouldUseMockIpfs()) {
+      throw new Error('Mock IPFS upload is disabled.');
+    }
     return generateMockIpfsHash();
   }
 
@@ -91,6 +104,9 @@ export const uploadLeaseAgreement = async (file: File): Promise<string> => {
   ensureIpfsConfigured('lease upload');
 
   if (!PINATA_JWT) {
+    if (!shouldUseMockIpfs()) {
+      throw new Error('Mock IPFS upload is disabled.');
+    }
     return generateMockIpfsHash();
   }
 
