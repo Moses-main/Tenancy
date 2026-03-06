@@ -79,6 +79,8 @@ export const ABIS = {
     "function getTotalDistributedYield() view returns (uint256)",
     "function isDistributionActive(uint256 distributionId) view returns (bool)",
     "function getDistributionInfo(uint256 distributionId) view returns (tuple(uint256 propertyId, uint256 totalYield, uint256 distributedYield, uint256 status, uint256 distributionTimestamp, uint256[] holderBalances, address[] holders))",
+    "function distributionCount() view returns (uint256)",
+    "function getClaimableDistributionIds(address holder) view returns (uint256[])",
     "function checkReserveHealth() view returns (bool isHealthy, uint256 totalReserve, uint256 requiredReserve)",
     "function isSystemHealthy() view returns (bool)",
     "function getRiskMetrics() view returns (uint256 totalDefaults, uint256 defaultRatio, uint256 reserveRatio, bool safeguardActive, uint256 lastRiskCheck)",
