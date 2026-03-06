@@ -7,6 +7,7 @@ import { toast } from 'react-toastify';
 import { useAuth } from '../lib/AuthContext';
 import { useContracts } from '../lib/useContracts';
 import { getExplorerUrl } from '../lib/contracts';
+import { ingestPaymentLifecycle } from '../lib/api';
 import { ethers } from 'ethers';
 const { formatUnits, parseUnits } = ethers.utils;
 
@@ -29,6 +30,10 @@ interface Payment {
   date: number;
   txHash: string;
   status: 'confirmed' | 'pending' | 'failed';
+  verificationStatus?: string;
+  distributionStatus?: string;
+  verificationId?: string;
+  distributionId?: string | null;
 }
 
 export default function Tenant() {
@@ -82,13 +87,28 @@ export default function Tenant() {
 
     try {
       const txHash = await payRent(selectedLease.propertyId, paymentAmount);
+      const proofUrl = (selectedLease.propertyUri && /^(https?:\/\/|ipfs:\/\/)/i.test(selectedLease.propertyUri))
+        ? selectedLease.propertyUri
+        : `https://evidence.tenancy.local/tx/${txHash}`;
+
+      const lifecycle = await ingestPaymentLifecycle({
+        propertyId: selectedLease.propertyId,
+        amount: paymentAmount,
+        txHash,
+        proofUrl,
+        tenantAddress: address || undefined,
+      });
       
       const newPayment: Payment = {
-        id: `tx_${Date.now()}`,
+        id: lifecycle.paymentId,
         amount: parseFloat(paymentAmount),
         date: Date.now(),
-        txHash: txHash,
-        status: 'confirmed',
+        txHash,
+        status: lifecycle.verificationStatus === 'verified' ? 'confirmed' : 'failed',
+        verificationStatus: lifecycle.verificationStatus,
+        distributionStatus: lifecycle.distributionStatus,
+        verificationId: lifecycle.verificationId,
+        distributionId: lifecycle.distributionId,
       };
 
       setLeases(leases.map(lease => 
@@ -103,10 +123,12 @@ export default function Tenant() {
       ));
 
       toast.update(toastId, {
-        render: `Successfully paid ${paymentAmount} USDC for Property #${selectedLease.propertyId}`,
-        type: "success",
+        render: lifecycle.verificationStatus === 'verified'
+          ? `Paid ${paymentAmount} USDC. Verification: ${lifecycle.verificationStatus}, Distribution: ${lifecycle.distributionStatus}`
+          : `Paid ${paymentAmount} USDC, but verification failed. Please review payment evidence.`,
+        type: lifecycle.verificationStatus === 'verified' ? "success" : "warning",
         isLoading: false,
-        autoClose: 3000
+        autoClose: 4000
       });
       setShowPaymentModal(false);
       setPaymentAmount('');
@@ -352,6 +374,11 @@ export default function Tenant() {
                           <ExternalLink className="h-4 w-4" />
                         </a>
                       </div>
+                      {(payment.verificationStatus || payment.distributionStatus) && (
+                        <div className="text-xs text-muted-foreground">
+                          V:{payment.verificationStatus || 'n/a'} · D:{payment.distributionStatus || 'n/a'}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

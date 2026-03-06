@@ -38,6 +38,16 @@ export type Verification = {
       txHash?: string;
     };
 
+    export type PaymentLifecycle = {
+      paymentId: string;
+      paymentStatus: string;
+      verificationId: string;
+      verificationStatus: string;
+      distributionId: string | null;
+      distributionStatus: string;
+      txHash: string;
+    };
+
     export type WorldIdProofPayload = {
       merkle_root: string;
       nullifier_hash: string;
@@ -74,7 +84,9 @@ export type Verification = {
       propertyId: string;
       amount: number | string;
       tenantName?: string;
+      tenantAddress?: string;
       proofUrl: string;
+      txHash?: string;
     }): Promise<{ verificationId: string; status: string } & Record<string, any>> {
       const res = await fetch(`${BACKEND_URL}/verify-payment`, {
         method: 'POST',
@@ -85,6 +97,40 @@ export type Verification = {
       if (!res.ok) {
         const err = await safeJson(res);
         throw new Error(err?.error || err?.message || 'Failed to request verification');
+      }
+      return res.json();
+    }
+
+    export async function ingestPaymentLifecycle(payload: {
+      propertyId: number;
+      amount: number | string;
+      txHash: string;
+      proofUrl: string;
+      tenantName?: string;
+      tenantAddress?: string;
+    }): Promise<PaymentLifecycle> {
+      const res = await fetch(`${BACKEND_URL}/payments/ingest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await safeJson(res);
+        throw new Error(err?.error || err?.message || 'Failed to ingest payment lifecycle');
+      }
+      return res.json();
+    }
+
+    export async function getPaymentLifecycle(paymentId: string): Promise<any> {
+      const res = await fetch(`${BACKEND_URL}/payments/lifecycle/${encodeURIComponent(paymentId)}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!res.ok) {
+        const err = await safeJson(res);
+        throw new Error(err?.error || err?.message || 'Failed to fetch payment lifecycle');
       }
       return res.json();
     }
