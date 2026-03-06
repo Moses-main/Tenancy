@@ -142,11 +142,17 @@ export default function InvestorDashboard() {
     const toastId = toast.loading("Claiming yield...");
     
     try {
-      for (const prop of properties) {
-        await claimYield(prop.id);
+      const claimableDistributions = (distributions || []).filter((dist) => Number(dist.status) === 1);
+
+      if (claimableDistributions.length === 0) {
+        throw new Error('No claimable distributions found.');
+      }
+
+      for (const dist of claimableDistributions) {
+        await claimYield(Number(dist.distributionId));
       }
       toast.update(toastId, { 
-        render: "Yield claimed successfully!", 
+        render: `Yield claimed successfully from ${claimableDistributions.length} distribution${claimableDistributions.length > 1 ? 's' : ''}!`, 
         type: "success", 
         isLoading: false, 
         autoClose: 3000 
@@ -225,7 +231,7 @@ export default function InvestorDashboard() {
           <div className="rounded-2xl border border-border bg-card p-6 flex flex-col justify-center stat-card">
             <button
               onClick={handleClaimYield}
-              disabled={isProcessingClaim || parseFloat(pendingYield) === 0 || !worldIdVerified}
+              disabled={isProcessingClaim || (distributions || []).filter((dist) => Number(dist.status) === 1).length === 0 || !worldIdVerified}
               className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-12 px-6 gap-2 text-base"
             >
               {isProcessingClaim ? (
