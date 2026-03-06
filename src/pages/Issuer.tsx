@@ -8,6 +8,7 @@ import { useAuth } from '../lib/AuthContext';
 import { useKYC } from '../lib/KYCContext';
 import { canIssueProperty } from '../lib/kycPolicy';
 import { getAllPayments, type Payment } from '../lib/api';
+import { validateField } from '../lib/validation';
 import { ethers } from 'ethers';
 const { formatUnits } = ethers.utils;
 
@@ -137,6 +138,38 @@ export default function IssuerDashboard() {
     }
     if (!formData.propertyName || !formData.monthlyRent || !formData.proofUrl || !formData.tokenName || !formData.tokenSymbol) {
       toast.error('Please complete all required fields.');
+      return;
+    }
+    const rentError = validateField(formData.monthlyRent, { required: true, min: 1, max: 1_000_000 });
+    if (rentError) {
+      toast.error(`Monthly rent: ${rentError}`);
+      return;
+    }
+    const durationError = validateField(formData.durationMonths, { required: true, min: 1, max: 120 });
+    if (durationError) {
+      toast.error(`Duration: ${durationError}`);
+      return;
+    }
+    const supplyError = validateField(formData.initialSupply, { required: true, min: 1, max: 1_000_000_000 });
+    if (supplyError) {
+      toast.error(`Initial supply: ${supplyError}`);
+      return;
+    }
+    const nameError = validateField(formData.tokenName, { required: true, minLength: 3, maxLength: 40 });
+    if (nameError) {
+      toast.error(`Token name: ${nameError}`);
+      return;
+    }
+    const symbolError = validateField(formData.tokenSymbol, [
+      { required: true, minLength: 2, maxLength: 10 },
+      { pattern: /^[A-Z0-9]+$/ },
+    ]);
+    if (symbolError) {
+      toast.error('Token symbol must be 2-10 uppercase letters/numbers.');
+      return;
+    }
+    if (!/^(https?:\/\/|ipfs:\/\/).+/i.test(formData.proofUrl.trim())) {
+      toast.error('Proof URL must start with http(s):// or ipfs://');
       return;
     }
 
@@ -301,6 +334,9 @@ export default function IssuerDashboard() {
                       id="monthlyRent"
                       name="monthlyRent"
                       type="number"
+                      min="1"
+                      max="1000000"
+                      step="0.01"
                       required
                       value={formData.monthlyRent}
                       onChange={(e) => setFormData({ ...formData, monthlyRent: e.target.value })}
@@ -314,6 +350,9 @@ export default function IssuerDashboard() {
                       id="initialSupply"
                       name="initialSupply"
                       type="number"
+                      min="1"
+                      max="1000000000"
+                      step="1"
                       required
                       value={formData.initialSupply}
                       onChange={(e) => setFormData({ ...formData, initialSupply: e.target.value })}
