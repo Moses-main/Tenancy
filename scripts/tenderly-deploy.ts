@@ -115,7 +115,7 @@ async function deployToVirtualTestnet(vtnRpcUrl: string, privateKey: string, net
   
   const config = NETWORKS[network];
   const priceFeed = network === "base-sepolia"
-    ? "0x4a5816300e0eE47A41DFcDB12A8C8bB6dD18C12"
+    ? "0x71041dddad35a2F9D388c02D0DBE565255403061"
     : "0x694AA1769357215DE4FAC081bf1f309aDC325306";
 
   const provider = new ethers.JsonRpcProvider(vtnRpcUrl);

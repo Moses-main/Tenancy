@@ -22,7 +22,7 @@ const getDeployConfig = (): DeployConfig => {
   const configs: Record<string, { rpcUrl: string; priceFeed?: string }> = {
     baseSepolia: {
       rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
-      priceFeed: '0x4a5816300e0eE47A41DFcDB12A8C8bB6dD18C12',
+      priceFeed: '0x71041dddad35a2F9D388c02D0DBE565255403061',
     },
     sepolia: {
       rpcUrl: process.env.SEPOLIA_RPC_URL || 'https://rpc.sepolia.org',

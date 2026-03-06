@@ -34,7 +34,7 @@ const PRICE_FEED_ABI = [
 export const getEthUsdPrice = async (provider?: any): Promise<PriceFeedData | null> => {
   const CHAIN_ID = import.meta.env.VITE_NETWORK === 'sepolia' ? 11155111 : 84532;
   const PRICE_FEED_ADDRESS = CHAIN_ID === 84532 
-    ? '0x4a5816300e0eE47A41DFcDB12A8C8bB6dD18C12'
+    ? '0x71041dddad35a2F9D388c02D0DBE565255403061'
     : '0x694AA1769357215DE4FAC081bf1f309aDC325306';
 
   try {
