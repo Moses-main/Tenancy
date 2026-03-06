@@ -302,6 +302,9 @@ cd ..
 cd server
 npm install
 cd ..
+
+# Bootstrap environment files (.env and server/.env)
+npm run setup:env
 ```
 
 ### Running Locally
@@ -337,7 +340,19 @@ forge test
 
 ## 🔐 Environment Variables
 
-Create a `.env` file in the **root directory**:
+Create env files from templates:
+
+```bash
+npm run setup:env
+```
+
+This creates:
+- `.env` from `.env.example` (frontend + deployment values)
+- `server/.env` from `server/.env.example` (backend values)
+
+Then edit the generated files with your real credentials.
+
+Root `.env` example:
 
 ```env
 # ============================================================================

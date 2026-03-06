@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "setup:env": "bash scripts/setup-env.sh",
     "deploy:thirdweb": "npx ts-node scripts/thirdweb-deploy.ts",
     "deploy:tenderly": "npx ts-node scripts/tenderly-deploy.ts",
     "test:tenderly": "npx ts-node scripts/tenderly-test.ts"
