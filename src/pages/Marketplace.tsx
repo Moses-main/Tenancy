@@ -32,7 +32,7 @@ interface PropertyOption {
 
 export default function Marketplace() {
   const { isAuthenticated, address, isCorrectNetwork } = useAuth();
-  const { getAllProperties, getMarketplaceListings, buyPropertyTokens, createMarketplaceListing, cancelMarketplaceListing, buyMarketplaceListing, chainId } = useContracts();
+  const { getAllProperties, getMarketplaceListings, getUserPropertyTokens, createMarketplaceListing, cancelMarketplaceListing, buyMarketplaceListing, chainId } = useContracts();
   
   const [listings, setListings] = useState<Listing[]>([]);
   const [availableProperties, setAvailableProperties] = useState<PropertyOption[]>([]);
@@ -56,29 +56,20 @@ export default function Marketplace() {
         return;
       }
       try {
-        const marketplaceListings = await getMarketplaceListings();
-        
-        if (marketplaceListings.length === 0) {
-          setListings([]);
-          setAvailableProperties([]);
-          setIsLoading(false);
-          return;
-        }
-        
-        // Get property details for each listing
-        const allProps = await getAllProperties();
+        const [marketplaceListings, allProps, userProps] = await Promise.all([
+          getMarketplaceListings(),
+          getAllProperties(),
+          getUserPropertyTokens(),
+        ]);
         const propertyMap = new Map(allProps.map((p: any) => [p.propertyToken.toLowerCase(), p]));
         
-        const propertyOptions: PropertyOption[] = [];
+        const propertyOptions: PropertyOption[] = (userProps || []).map((prop: any) => ({
+          id: Number(prop.id),
+          name: prop.uri || `Property #${Number(prop.id)}`,
+          uri: prop.uri || '',
+        }));
         const listingsData: Listing[] = marketplaceListings.map((l: any, index: number) => {
           const prop = propertyMap.get(l.propertyToken.toLowerCase());
-          if (prop && !propertyOptions.find(po => po.id === Number(prop.id))) {
-            propertyOptions.push({
-              id: Number(prop.id),
-              name: prop.uri || `Property #${Number(prop.id)}`,
-              uri: prop.uri || '',
-            });
-          }
           
           return {
             id: Number(l.id),
@@ -104,7 +95,7 @@ export default function Marketplace() {
       }
     };
     fetchListings();
-  }, [isAuthenticated, isCorrectNetwork, chainId, getMarketplaceListings, getAllProperties]);
+  }, [isAuthenticated, isCorrectNetwork, chainId, getMarketplaceListings, getAllProperties, getUserPropertyTokens]);
 
   const filteredListings = listings
     .filter(l => {
@@ -141,27 +132,20 @@ export default function Marketplace() {
 
   const refreshListings = async () => {
     try {
-      const marketplaceListings = await getMarketplaceListings();
-      
-      if (marketplaceListings.length === 0) {
-        setListings([]);
-        setAvailableProperties([]);
-        return;
-      }
-      
-      const allProps = await getAllProperties();
+      const [marketplaceListings, allProps, userProps] = await Promise.all([
+        getMarketplaceListings(),
+        getAllProperties(),
+        getUserPropertyTokens(),
+      ]);
       const propertyMap = new Map(allProps.map((p: any) => [p.propertyToken.toLowerCase(), p]));
       
-      const propertyOptions: PropertyOption[] = [];
+      const propertyOptions: PropertyOption[] = (userProps || []).map((prop: any) => ({
+        id: Number(prop.id),
+        name: prop.uri || `Property #${Number(prop.id)}`,
+        uri: prop.uri || '',
+      }));
       const listingsData: Listing[] = marketplaceListings.map((l: any, index: number) => {
         const prop = propertyMap.get(l.propertyToken.toLowerCase());
-        if (prop && !propertyOptions.find(po => po.id === Number(prop.id))) {
-          propertyOptions.push({
-            id: Number(prop.id),
-            name: prop.uri || `Property #${Number(prop.id)}`,
-            uri: prop.uri || '',
-          });
-        }
         
         return {
           id: Number(l.id),

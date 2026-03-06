@@ -583,7 +583,7 @@ export const useContracts = () => {
       }
       
       const marketplace = new Contract(addrs.marketplace, ABIS.marketplace, provider);
-      const listings = await marketplace.getActiveListings();
+      const listings = await marketplace.getListings();
       
       return listings.map((l: any) => ({
         id: l.id,
