@@ -16,13 +16,17 @@ export default function WorldIdVerify({
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const appId = import.meta.env.VITE_WORLD_ID_APP_ID || 'rp_5f5fc7826949094f';
+  const appId = import.meta.env.VITE_WORLD_ID_APP_ID;
 
   const handleVerify = useCallback(async () => {
     setIsVerifying(true);
     setError(null);
 
     try {
+      if (!appId) {
+        throw new Error('World ID is not configured. Missing VITE_WORLD_ID_APP_ID.');
+      }
+
       if (typeof window === 'undefined') {
         throw new Error('Window not available');
       }
@@ -90,8 +94,6 @@ export default function WorldIdVerify({
         setError(err.message || 'Verification failed');
       }
       
-      setIsVerified(true);
-      onVerified();
     } finally {
       setIsVerifying(false);
     }

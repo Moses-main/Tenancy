@@ -184,32 +184,62 @@ export const useContracts = () => {
     try {
       const isBaseSepolia = chainId === 84532;
       const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
-      
+
       if (!addrs.yieldDistributor || addrs.yieldDistributor === '0x0000000000000000000000000000000000000000') {
         return '0';
       }
-      
+
       const code = await provider.getCode(addrs.yieldDistributor);
       if (code === '0x') {
         console.warn('YieldDistributor contract not found at address:', addrs.yieldDistributor);
         return '0';
       }
-      
+
+      const userAddr = (userAddress || address || '').toLowerCase();
+      if (!userAddr) return '0';
+
       const yieldDist = new Contract(addrs.yieldDistributor, ABIS.yieldDistributor, provider);
-      const totalPool = await yieldDist.totalYieldPool();
-      return formatUnits(totalPool, 18);
+      const properties = await getAllProperties();
+
+      let pendingTotal = 0;
+
+      for (let i = 0; i < properties.length; i++) {
+        try {
+          const info = await yieldDist.getDistributionInfo(i);
+          const status = Number(info.status);
+          const holders: string[] = Array.isArray(info.holders) ? info.holders : [];
+          const holderBalances = Array.isArray(info.holderBalances) ? info.holderBalances : [];
+
+          if (status !== 1 || holders.length === 0) continue;
+
+          const holderIndex = holders.findIndex((holder) => holder.toLowerCase() === userAddr);
+          if (holderIndex < 0 || !holderBalances[holderIndex]) continue;
+
+          const totalYield = Number(formatUnits(info.totalYield, 18));
+          const propertyTotal = Number(formatUnits(properties[i].totalSupply, 18));
+          const userBalance = Number(formatUnits(holderBalances[holderIndex], 18));
+
+          if (propertyTotal > 0 && totalYield > 0 && userBalance > 0) {
+            pendingTotal += (userBalance / propertyTotal) * totalYield;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      return pendingTotal.toString();
     } catch (err: any) {
       console.error('Error getting pending yield:', err?.message || err);
       return '0';
     }
-  }, [provider, address, chainId]);
+  }, [provider, chainId, address, getAllProperties]);
 
-  const claimYield = useCallback(async (propertyId: number): Promise<string> => {
+  const claimYield = useCallback(async (distributionId: number): Promise<string> => {
     setIsLoading(true);
     setError(null);
     try {
       const contracts = await getContracts();
-      const tx = await contracts.yieldDistributor.claimYield(propertyId);
+      const tx = await contracts.yieldDistributor.claimYield(distributionId);
       const receipt = await tx.wait();
       return receipt.hash;
     } catch (err: any) {

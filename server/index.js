@@ -27,7 +27,7 @@ app.use(cors({
 app.use(express.json());
 
 const PORT = process.env.PORT || 4010;
-const API_KEY = process.env.API_KEY || 'tenancy_dev_key_2024';
+const API_KEY = process.env.API_KEY || '';
 const CHAINLINK_FEED = process.env.CHAINLINK_ETH_USD_FEED || '0x4a5816300e0eE47A41DFcDB12A8C8bB6dD18C12';
 const RPC_URL = process.env.RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
 const USE_REAL_PRICES = process.env.USE_REAL_PRICES === 'true';
@@ -49,6 +49,10 @@ const SAMPLE_PROPERTIES = [
 
 // Middleware
 const requireApiKey = (req, res, next) => {
+  if (!API_KEY) {
+    return res.status(503).json({ error: 'API key protection is not configured on the server' });
+  }
+
   const key = req.headers['x-api-key'];
   if (!key || key !== API_KEY) {
     return res.status(401).json({ error: 'Invalid or missing API key' });

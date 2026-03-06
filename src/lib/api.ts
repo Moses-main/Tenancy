@@ -39,7 +39,23 @@ export type Verification = {
     };
 
     const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) || 'http://localhost:4010';
-    const API_KEY = (import.meta.env.VITE_API_KEY as string) || 'tenancy_dev_key_2024';
+    const API_KEY = (import.meta.env.VITE_API_KEY as string) || '';
+    const ENABLE_CLIENT_ADMIN_API = import.meta.env.VITE_ENABLE_CLIENT_ADMIN_API === 'true';
+
+    function getPrivilegedHeaders() {
+      if (!ENABLE_CLIENT_ADMIN_API) {
+        throw new Error('Privileged API calls are disabled in the browser. Use a secure backend service.');
+      }
+
+      if (!API_KEY) {
+        throw new Error('Missing VITE_API_KEY for privileged API call.');
+      }
+
+      return {
+        'Content-Type': 'application/json',
+        'x-api-key': API_KEY,
+      } as const;
+    }
 
     async function safeJson(res: Response) {
       const text = await res.text();
@@ -102,10 +118,7 @@ export type Verification = {
     export async function triggerChainlink(verificationId: string): Promise<{ verificationId: string; txHash: string; message?: string }> {
       const res = await fetch(`${BACKEND_URL}/trigger-chainlink`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': API_KEY,
-        },
+        headers: getPrivilegedHeaders(),
         body: JSON.stringify({ verificationId }),
       });
 
@@ -181,10 +194,7 @@ export type Verification = {
     }): Promise<{ decisionId: string; status: string }> {
       const res = await fetch(`${BACKEND_URL}/agent/decisions`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': API_KEY,
-        },
+        headers: getPrivilegedHeaders(),
         body: JSON.stringify(payload),
       });
 
@@ -201,10 +211,7 @@ export type Verification = {
     export async function executeAgentDecision(decisionId: string): Promise<{ decisionId: string; txHash: string; status: string }> {
       const res = await fetch(`${BACKEND_URL}/agent/execute`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': API_KEY,
-        },
+        headers: getPrivilegedHeaders(),
         body: JSON.stringify({ decisionId }),
       });
 
@@ -221,10 +228,7 @@ export type Verification = {
     export async function distributeYield(propertyId: number, totalYield: number): Promise<{ distributionId: string; txHash: string }> {
       const res = await fetch(`${BACKEND_URL}/yield/distribute`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': API_KEY,
-        },
+        headers: getPrivilegedHeaders(),
         body: JSON.stringify({ propertyId, totalYield }),
       });
 
@@ -261,10 +265,7 @@ export type Verification = {
     export async function triggerAutomation(): Promise<{ message: string; processed: number }> {
       const res = await fetch(`${BACKEND_URL}/automation/trigger`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': API_KEY,
-        },
+        headers: getPrivilegedHeaders(),
       });
 
       if (!res.ok) {
