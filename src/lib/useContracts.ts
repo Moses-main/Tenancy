@@ -132,6 +132,12 @@ export const useContracts = () => {
         parseUnits(valuationUsd, 8)
       );
       const receipt = await tx.wait();
+      
+      // Ensure we always return a valid hash
+      if (!receipt || !receipt.hash) {
+        throw new Error('Transaction completed but no receipt hash available');
+      }
+      
       return receipt.hash;
     } catch (err: any) {
       setError(err.message);
@@ -152,6 +158,53 @@ export const useContracts = () => {
       return '0';
     }
   }, [provider, address]);
+
+  const getUserPropertyTokens = useCallback(async (): Promise<any[]> => {
+    if (!provider || !address) return [];
+    try {
+      const contracts = await getContracts();
+      const props = await contracts.propertyRegistry.getAllProperties();
+      const userProps = props.filter((p: any) => p.owner?.toLowerCase() === address?.toLowerCase());
+      
+      const tokenBalances = await Promise.all(
+        userProps.map(async (p: any) => {
+          const balance = await getTokenBalance(p.propertyToken, address);
+          return {
+            ...p,
+            balance: balance,
+            tokenAddress: p.propertyToken,
+            tokenName: await getTokenName(p.propertyToken),
+            tokenSymbol: await getTokenSymbol(p.propertyToken)
+          };
+        })
+      );
+      
+      return tokenBalances.filter((token: any) => parseFloat(token.balance) > 0);
+    } catch (err) {
+      console.error('Error getting property tokens:', err);
+      return [];
+    }
+  }, [provider, address, getContracts, getTokenBalance]);
+
+  const getTokenName = useCallback(async (tokenAddress: string): Promise<string> => {
+    try {
+      const token = new Contract(tokenAddress, ABIS.erc20, provider);
+      return await token.name();
+    } catch (err) {
+      console.error('Error getting token name:', err);
+      return 'Unknown Token';
+    }
+  }, [provider]);
+
+  const getTokenSymbol = useCallback(async (tokenAddress: string): Promise<string> => {
+    try {
+      const token = new Contract(tokenAddress, ABIS.erc20, provider);
+      return await token.symbol();
+    } catch (err) {
+      console.error('Error getting token symbol:', err);
+      return 'UNK';
+    }
+  }, [provider]);
 
   const getTENBalance = useCallback(async (): Promise<string> => {
     if (!provider || !address) return '0';
@@ -377,7 +430,7 @@ export const useContracts = () => {
   }, [getContracts, getUserDistributions]);
 
   const USDC_ADDRESSES = {
-    baseSepolia: '0x036CbD53846f34B88b1d4a2d8b9B7F7f3F9D3F9',
+    baseSepolia: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
     sepolia: '0xda0d3FA677B08D2Afd00D8e23c4A79DC9eBd8C2',
   };
 
@@ -393,6 +446,7 @@ export const useContracts = () => {
       const buyerAddress = await signer.getAddress();
       
       const isBaseSepolia = chainId === 84532;
+      const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
       const usdcAddress = isBaseSepolia ? USDC_ADDRESSES.baseSepolia : USDC_ADDRESSES.sepolia;
       
       const propertyToken = new Contract(propertyTokenAddress, ABIS.erc20, signer);
@@ -402,6 +456,7 @@ export const useContracts = () => {
       const totalCost = (amountWei * pricePerToken) / parseUnits('1', 18);
       
       const usdcABI = [
+        'function transfer(address to, uint256 amount) returns (bool)',
         'function transferFrom(address from, address to, uint256 amount) returns (bool)',
         'function approve(address spender, uint256 amount) returns (bool)',
         'function allowance(address owner, address spender) view returns (uint256)',
@@ -415,20 +470,59 @@ export const useContracts = () => {
         throw new Error('Insufficient USDC balance. Please get USDC to proceed.');
       }
       
-      const currentAllowance = await usdc.allowance(buyerAddress, propertyTokenAddress);
-      if (currentAllowance < totalCost) {
-        const approveTx = await usdc.approve(propertyTokenAddress, totalCost);
-        await approveTx.wait();
+      // Check if marketplace exists, if not use direct transfer
+      if (addrs.marketplace && addrs.marketplace !== '0x0000000000000000000000000000000000000000') {
+        // Use marketplace contract for the purchase
+        const marketplace = new Contract(addrs.marketplace, ABIS.marketplace, signer);
+        
+        // First, create a listing from the seller (if it doesn't exist)
+        // For now, we'll use direct transfer as marketplace requires listing creation
+        
+        // Approve marketplace to spend USDC
+        const currentAllowance = await usdc.allowance(buyerAddress, addrs.marketplace);
+        if (currentAllowance < totalCost) {
+          console.log('Approving USDC for marketplace...');
+          const approveTx = await usdc.approve(addrs.marketplace, totalCost);
+          await approveTx.wait();
+          console.log('USDC approved for marketplace');
+        }
+        
+        // For direct purchase, we'll use the fallback method
+        console.log('Using direct purchase method...');
+        
+        // Direct USDC transfer to seller
+        console.log('Executing direct USDC transfer...');
+        const transferTx = await usdc.transfer(sellerAddress, totalCost);
+        await transferTx.wait();
+        console.log('USDC transferred to seller');
+        
+        // Mint property tokens to buyer
+        console.log('Minting property tokens...');
+        const mintTx = await propertyToken.transfer(buyerAddress, amountWei);
+        const receipt = await mintTx.wait();
+        console.log('Property tokens minted');
+        
+        return receipt.hash;
+      } else {
+        // Fallback to direct transfer if marketplace doesn't exist
+        console.log('Marketplace not found, using direct transfer...');
+        
+        // Direct USDC transfer to seller
+        console.log('Executing direct USDC transfer...');
+        const transferTx = await usdc.transfer(sellerAddress, totalCost);
+        await transferTx.wait();
+        console.log('USDC transferred to seller');
+        
+        // Mint property tokens to buyer
+        console.log('Minting property tokens...');
+        const mintTx = await propertyToken.transfer(buyerAddress, amountWei);
+        const receipt = await mintTx.wait();
+        console.log('Property tokens minted');
+        
+        return receipt.hash;
       }
-      
-      const transferFromTx = await usdc.transferFrom(buyerAddress, sellerAddress, totalCost);
-      await transferFromTx.wait();
-      
-      const mintTx = await propertyToken.transfer(buyerAddress, amountWei);
-      const receipt = await mintTx.wait();
-      
-      return receipt.hash;
     } catch (err: any) {
+      console.error('Error in buyPropertyTokens:', err);
       setError(err.message);
       throw err;
     } finally {
@@ -770,33 +864,25 @@ export const useContracts = () => {
   }, [provider, chainId]);
 
   return {
+    getAllProperties,
+    createProperty,
+    getTENBalance,
+    getPendingYield,
+    claimYield,
+    buyPropertyTokens,
+    getUserDistributions,
+    getMarketplaceListings,
+    createMarketplaceListing,
+    buyMarketplaceListing,
+    cancelMarketplaceListing,
+    getUserPropertyTokens,
+    getTokenBalance,
+    getTokenName,
+    getTokenSymbol,
     isLoading,
     error,
     chainId,
     isCorrectNetwork,
     getContracts,
-    getAllProperties,
-    getProperty,
-    createProperty,
-    getTokenBalance,
-    getTENBalance,
-    getPendingYield,
-    claimYield,
-    depositYield,
-    getYieldPoolInfo,
-    getUserDistributions,
-    claimAllYields,
-    buyTokens,
-    buyPropertyTokens,
-    getMarketplaceListings,
-    createMarketplaceListing,
-    buyMarketplaceListing,
-    cancelMarketplaceListing,
-    getLeases,
-    payRent,
-    getAgentStatus,
-    getAgentDecisions,
-    getYieldStats,
-    getEthUsdPrice,
   };
 };

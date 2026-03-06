@@ -24,6 +24,18 @@ import {
 import { useAuth } from "../lib/AuthContext";
 import { useTheme } from "../lib/ThemeContext";
 
+// Utility function to deduplicate wallets by address
+const deduplicateWallets = (wallets: any[]): any[] => {
+  const uniqueAddresses = new Set();
+  return wallets.filter(wallet => {
+    if (uniqueAddresses.has(wallet.address)) {
+      return false;
+    }
+    uniqueAddresses.add(wallet.address);
+    return true;
+  });
+};
+
 interface LayoutProps {
   children: React.ReactNode;
 }
@@ -40,6 +52,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     logout,
     address,
     balance,
+    usdcBalance,
+    tenBalance,
     chainId,
     chainName,
     switchNetwork,
@@ -47,11 +61,69 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     isCorrectNetwork,
     showNetworkPrompt,
     setShowNetworkPrompt,
+    allWallets,
+    selectWallet,
   } = useAuth();
 
   const formatAddress = (addr: string | null) => {
     if (!addr) return "";
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
+
+  const getWalletType = (wallet: any) => {
+    // More comprehensive wallet type detection
+    const isEmbedded = wallet?.connectorType === 'embedded' || 
+                      wallet?.walletType === 'embedded' ||
+                      wallet?.connectorType === 'privy' ||
+                      wallet?.name?.toLowerCase().includes('privy');
+    
+    if (isEmbedded) {
+      return 'Privy Wallet';
+    }
+    
+    if (wallet?.walletClientType === 'metamask') {
+      return 'MetaMask';
+    }
+    
+    if (wallet?.walletClientType === 'bitget') {
+      return 'Bitget Wallet';
+    }
+    
+    if (wallet?.connectorType === 'injected') {
+      return wallet?.walletClientType || 'External Wallet';
+    }
+    
+    return wallet?.connectorType || wallet?.name || 'Wallet';
+  };
+
+  const getWalletIcon = (wallet: any) => {
+    // More comprehensive wallet icon detection
+    const isEmbedded = wallet?.connectorType === 'embedded' || 
+                      wallet?.walletType === 'embedded' ||
+                      wallet?.connectorType === 'privy' ||
+                      wallet?.name?.toLowerCase().includes('privy');
+    
+    if (isEmbedded) {
+      return '🔐';
+    }
+    
+    if (wallet?.walletClientType === 'metamask') {
+      return '🦊';
+    }
+    
+    if (wallet?.walletClientType === 'bitget') {
+      return '💎';
+    }
+    
+    if (wallet?.name?.toLowerCase().includes('metamask')) {
+      return '🦊';
+    }
+    
+    if (wallet?.name?.toLowerCase().includes('bitget')) {
+      return '💎';
+    }
+    
+    return '👛';
   };
 
   const copyAddress = () => {
@@ -72,6 +144,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location]);
+
+  useEffect(() => {
+    if (isAuthenticated && address && !isCorrectNetwork) {
+      setShowNetworkPrompt(true);
+    }
+  }, [isAuthenticated, address, isCorrectNetwork, setShowNetworkPrompt]);
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -182,39 +260,74 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         </button>
                       </div>
                       <div className="space-y-3">
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-secondary/50">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                              <Wallet className="h-4 w-4 text-primary" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium">
-                                {formatAddress(address)}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {balance ? `${balance} ETH` : "—"}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={copyAddress}
-                              className="p-2 rounded-lg hover:bg-secondary transition-colors"
-                              title="Copy address"
+                        {deduplicateWallets(allWallets).map((wallet, index) => (
+                          <div 
+                            key={wallet.address || index}
+                            className={`flex items-center justify-between p-3 rounded-xl ${
+                              wallet.address === address ? 'bg-primary/10 border border-primary/30' : 'bg-secondary/50'
+                            }`}
+                          >
+                            <div 
+                              className="flex items-center gap-3 cursor-pointer"
+                              onClick={() => selectWallet(wallet)}
                             >
-                              <Copy className="h-4 w-4 text-muted-foreground" />
-                            </button>
-                            <a
-                              href={`https://sepolia.basescan.org/address/${address}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-2 rounded-lg hover:bg-secondary transition-colors"
-                              title="View on Explorer"
-                            >
-                              <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                            </a>
+                              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-lg">
+                                  {getWalletIcon(wallet)}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium flex items-center gap-2">
+                                    {formatAddress(wallet.address)}
+                                    {wallet.address === address && (
+                                      <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded">Active</span>
+                                    )}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {getWalletType(wallet)}
+                                  </p>
+                                {wallet.address === address && (
+                                  <>
+                                    <p className="text-xs text-muted-foreground">
+                                      ETH: {balance ? `${balance}` : "—"}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      USDC: {usdcBalance ? `${usdcBalance}` : "—"}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      TEN: {tenBalance ? `${tenBalance}` : "—"}
+                                    </p>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            {wallet.address === address && (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={copyAddress}
+                                  className="p-2 rounded-lg hover:bg-secondary transition-colors"
+                                  title="Copy address"
+                                >
+                                  <Copy className="h-4 w-4 text-muted-foreground" />
+                                </button>
+                                <button
+                                  onClick={switchAccount}
+                                  className="p-2 rounded-lg hover:bg-secondary transition-colors"
+                                  title="Switch account"
+                                >
+                                  <RefreshCw className="h-4 w-4 text-muted-foreground" />
+                                </button>
+                                <a
+                                  href={`https://sepolia.basescan.org/address/${wallet.address}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-2 rounded-lg hover:bg-secondary transition-colors"
+                                  title="View on Explorer"
+                                >
+                                  <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                                </a>
+                              </div>
+                            )}
                           </div>
-                        </div>
+                        ))}
                       </div>
                     </div>
                     <div className="p-4 border-t border-border/50 space-y-2">
@@ -245,7 +358,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         )}
                       </button>
                     </div>
-                    <div className="p-3 bg-secondary/30">
+                    <div className="p-3 bg-secondary/30 space-y-2">
+                      <button
+                        onClick={() => {
+                          login();
+                          setShowWalletDropdown(false);
+                        }}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl text-sm font-medium py-2 hover:bg-secondary transition-colors"
+                      >
+                        <Wallet className="h-4 w-4" />
+                        Add Wallet
+                      </button>
                       <button
                         onClick={() => switchAccount()}
                         className="w-full flex items-center justify-center gap-2 rounded-xl text-sm font-medium py-2 hover:bg-secondary transition-colors"
@@ -330,8 +453,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Balance</span>
-                    <span>{balance ? `${balance} ETH` : "—"}</span>
+                    <span className="text-muted-foreground">ETH Balance</span>
+                    <span>{balance ? `${balance}` : "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">USDC Balance</span>
+                    <span>{usdcBalance ? `${usdcBalance}` : "—"}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Network</span>

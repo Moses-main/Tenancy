@@ -32,11 +32,13 @@ export default function InvestorDashboard() {
     claimYield,
     buyPropertyTokens,
     getUserDistributions,
+    getUserPropertyTokens,
     isLoading: contractLoading,
     chainId
   } = useContracts();
   
   const [properties, setProperties] = useState<PropertyDisplay[]>([]);
+  const [userPropertyTokens, setUserPropertyTokens] = useState<any[]>([]);
   const [tenBalance, setTenBalance] = useState('0');
   const [pendingYield, setPendingYield] = useState('0');
   const [distributions, setDistributions] = useState<any[]>([]);
@@ -79,14 +81,16 @@ export default function InvestorDashboard() {
         
         setProperties(displayProps);
 
-        const [balance, yield_, userDists] = await Promise.all([
+        const [balance, yield_, userDists, userProps] = await Promise.all([
           getTENBalance(),
           getPendingYield(),
           getUserDistributions(),
+          getUserPropertyTokens(),
         ]);
         setTenBalance(balance);
         setPendingYield(yield_);
         setDistributions(userDists || []);
+        setUserPropertyTokens(userProps || []);
       } catch (err) {
         console.error('Error fetching data:', err);
       } finally {
@@ -95,7 +99,7 @@ export default function InvestorDashboard() {
     };
 
     fetchData();
-  }, [isAuthenticated, isCorrectNetwork, chainId, getAllProperties, getTENBalance, getPendingYield, getUserDistributions]);
+  }, [isAuthenticated, isCorrectNetwork, chainId, getAllProperties, getTENBalance, getPendingYield, getUserDistributions, getUserPropertyTokens]);
 
   const handleBuyTEN = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,7 +119,9 @@ export default function InvestorDashboard() {
       });
       
       const balance = await getTENBalance();
+      const userProps = await getUserPropertyTokens();
       setTenBalance(balance);
+      setUserPropertyTokens(userProps);
       setBuyAmount('');
       setSelectedProperty(null);
     } catch (err: any) {
@@ -245,6 +251,38 @@ export default function InvestorDashboard() {
             </button>
           </div>
         </section>
+
+        {/* Property Token Holdings */}
+        {userPropertyTokens.length > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-semibold tracking-tight">Your Property Investments</h2>
+                <p className="text-sm text-muted-foreground mt-1">Property tokens you currently own and their earnings potential.</p>
+              </div>
+            </div>
+            <div className="grid gap-4">
+              {userPropertyTokens.map((token, index) => (
+                <div key={index} className="rounded-xl border border-border bg-card p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-lg">{token.tokenName || `Property #${token.id}`}</h3>
+                      <p className="text-sm text-muted-foreground">{token.tokenSymbol || 'PROP'}</p>
+                      <p className="text-2xl font-bold mt-2">{parseFloat(token.balance).toFixed(2)} Tokens</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm text-muted-foreground">Est. Monthly Yield</div>
+                      <div className="text-lg font-semibold text-green-600">
+                        ${(parseFloat(token.balance) * parseFloat(formatUnits(token.rentAmount || '0', 6)) / parseFloat(formatUnits(token.totalSupply || '1', 18)) * 0.833).toFixed(2)}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">~10% APY</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section>
           <div className="flex items-center justify-between mb-6">
@@ -459,6 +497,18 @@ export default function InvestorDashboard() {
                 <span className="text-muted-foreground">Available</span>
                 <span className="font-medium">{selectedProperty.tokensAvailable} TEN</span>
               </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Amount to Buy</label>
+                <input
+                  type="number"
+                  value={buyAmount}
+                  onChange={(e) => setBuyAmount(e.target.value)}
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-background text-sm"
+                  placeholder="Enter amount"
+                  min="0"
+                  max={selectedProperty.tokensAvailable}
+                />
+              </div>
             </div>
 
             <div className="flex gap-3">
@@ -470,7 +520,7 @@ export default function InvestorDashboard() {
               </button>
               <button
                 onClick={handleBuyTEN}
-                disabled={isProcessingBuy || !buyAmount}
+                disabled={isProcessingBuy || !buyAmount || parseFloat(buyAmount) <= 0}
                 className="flex-1 inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-11 disabled:opacity-50"
               >
                 {isProcessingBuy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm Purchase'}

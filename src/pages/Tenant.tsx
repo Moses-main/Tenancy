@@ -229,7 +229,7 @@ export default function Tenant() {
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Your Leases</h2>
+              <h2 className="text-lg font-semibold truncate">Your Leases</h2>
             </div>
             
             {isLoading ? (
@@ -247,10 +247,10 @@ export default function Tenant() {
                 {leases.map((lease) => (
                   <div
                     key={lease.id}
-                    className="border border-border rounded-xl p-4 md:p-5 hover:border-primary/30 transition-colors"
+                    className="border border-border rounded-xl p-4 sm:p-5 hover:border-primary/30 transition-colors"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                      <div className="flex items-start gap-4">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex items-start gap-4 min-w-0 flex-1">
                         {lease.propertyUri && (lease.propertyUri.startsWith('http') || lease.propertyUri.startsWith('ipfs://')) ? (
                           <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0">
                             <img 
@@ -267,15 +267,19 @@ export default function Tenant() {
                             <Building className="h-5 w-5 text-primary" />
                           </div>
                         )}
-                        <div>
-                          <h3 className="font-semibold">{lease.propertyAddress}</h3>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold truncate">
+                            {lease.propertyUri && (lease.propertyUri.startsWith('http') || lease.propertyUri.startsWith('ipfs://')) 
+                              ? `Property #${lease.propertyId}` 
+                              : lease.propertyAddress}
+                          </h3>
                           <p className="text-sm text-muted-foreground">Property #{lease.propertyId}</p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Owner: {lease.owner.slice(0, 6)}...{lease.owner.slice(-4)}
+                          <p className="text-sm text-muted-foreground mt-1 truncate">
+                            Owner: {lease.owner ? `${lease.owner.slice(0, 6)}...${lease.owner.slice(-4)}` : 'Loading...'}
                           </p>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-2">
+                      <div className="flex flex-col items-end gap-2 shrink-0">
                         {getStatusBadge(lease.status)}
                         <div className="text-right">
                           <p className="text-lg font-semibold">{lease.monthlyRent.toLocaleString()} USDC</p>
@@ -284,15 +288,15 @@ export default function Tenant() {
                       </div>
                     </div>
                     
-                    <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-border">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-4 pt-4 border-t border-border">
                       <div className="flex items-center gap-2 text-sm">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">Due: {formatDate(lease.rentDueDate)}</span>
+                        <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-muted-foreground truncate">Due: {formatDate(lease.rentDueDate)}</span>
                       </div>
                       {lease.lastPaymentDate && (
                         <div className="flex items-center gap-2 text-sm">
-                          <CheckCircle className="h-4 w-4 text-green-500" />
-                          <span className="text-muted-foreground">Last: {formatDate(lease.lastPaymentDate)}</span>
+                          <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                          <span className="text-muted-foreground truncate">Last: {formatDate(lease.lastPaymentDate)}</span>
                         </div>
                       )}
                       <button
@@ -301,10 +305,11 @@ export default function Tenant() {
                           setPaymentAmount(lease.monthlyRent.toString());
                           setShowPaymentModal(true);
                         }}
-                        className="ml-auto flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium"
+                        className="ml-auto flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium shrink-0"
                       >
                         <CreditCard className="h-4 w-4" />
-                        Make Payment
+                        <span className="hidden sm:inline">Make Payment</span>
+                        <span className="sm:hidden">Pay</span>
                       </button>
                     </div>
                   </div>
@@ -314,7 +319,7 @@ export default function Tenant() {
           </div>
 
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Payment History</h2>
+            <h2 className="text-lg font-semibold truncate">Payment History</h2>
             <div className="border border-border rounded-xl overflow-hidden">
               {leases.flatMap(l => l.paymentHistory).slice(0, 5).length === 0 ? (
                 <div className="p-6 text-center text-muted-foreground">
@@ -324,12 +329,12 @@ export default function Tenant() {
               ) : (
                 <div className="divide-y divide-border">
                   {leases.flatMap(l => l.paymentHistory).slice(0, 5).map((payment, idx) => (
-                    <div key={idx} className="p-4 flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{payment.amount.toLocaleString()} USDC</p>
-                        <p className="text-xs text-muted-foreground">{formatDate(payment.date)}</p>
+                    <div key={idx} className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{payment.amount.toLocaleString()} USDC</p>
+                        <p className="text-xs text-muted-foreground truncate">{formatDate(payment.date)}</p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         {payment.status === 'confirmed' ? (
                           <CheckCircle className="h-4 w-4 text-green-500" />
                         ) : payment.status === 'pending' ? (
@@ -341,7 +346,7 @@ export default function Tenant() {
                           href={`https://sepolia.basescan.org/tx/${payment.txHash}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-muted-foreground hover:text-foreground"
+                          className="text-muted-foreground hover:text-foreground truncate"
                         >
                           <ExternalLink className="h-4 w-4" />
                         </a>

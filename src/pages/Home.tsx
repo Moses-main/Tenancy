@@ -188,13 +188,13 @@ export default function Home() {
           />
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-7">
-          <div className="lg:col-span-4 rounded-2xl border border-border bg-card p-6 md:p-8 card-shadow">
+        <section className="grid gap-6 lg:grid-cols-1 xl:grid-cols-7">
+          <div className="xl:col-span-4 rounded-2xl border border-border bg-card p-4 sm:p-6 md:p-8 card-shadow overflow-hidden">
             <div className="mb-6 md:mb-8">
               <h2 className="text-lg md:text-xl font-semibold tracking-tight">Platform Yield History</h2>
               <p className="text-sm text-muted-foreground mt-1">Historical APY from aggregated rental streams.</p>
             </div>
-            <div className="h-[250px] md:h-[300px] w-full">
+            <div className="h-[200px] sm:h-[250px] md:h-[300px] w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={yieldHistory} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <defs>
@@ -203,8 +203,24 @@ export default function Home() {
                       <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}%`} />
+                  <XAxis 
+                    dataKey="name" 
+                    stroke="#888888" 
+                    fontSize={10} 
+                    tickLine={false} 
+                    axisLine={false}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                  />
+                  <YAxis 
+                    stroke="#888888" 
+                    fontSize={10} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    tickFormatter={(value) => `${value}%`}
+                    width={40}
+                  />
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                   <Tooltip 
                     contentStyle={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
@@ -216,17 +232,17 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="lg:col-span-3 rounded-2xl border border-border bg-card p-6 md:p-8 card-shadow">
+          <div className="xl:col-span-3 rounded-2xl border border-border bg-card p-4 sm:p-6 md:p-8 card-shadow">
             <div className="mb-6 md:mb-8">
               <h2 className="text-lg md:text-xl font-semibold tracking-tight">Recent Verifications</h2>
               <p className="text-sm text-muted-foreground mt-1">Real-world payments verified on-chain.</p>
             </div>
-            <div className="space-4 md:space-6">
+            <div className="space-y-3 sm:space-y-4 md:space-y-6 max-h-[400px] sm:max-h-[500px] overflow-y-auto">
               {properties && properties.length > 0 ? (
                 properties.slice(0, 4).map((property: any, i: number) => (
-                  <div key={i} className="flex items-center gap-3 md:gap-4 p-2 md:p-3 rounded-lg hover:bg-muted/50 transition-colors">
+                  <div key={i} className="flex items-center gap-2 sm:gap-3 md:gap-4 p-2 sm:p-3 rounded-lg hover:bg-muted/50 transition-colors min-w-0">
                     {property.uri && (property.uri.startsWith('http') || property.uri.startsWith('ipfs://')) ? (
-                      <div className="relative flex h-8 md:h-10 w-8 md:w-10 rounded-full overflow-hidden shrink-0">
+                      <div className="relative flex h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10 rounded-full overflow-hidden shrink-0">
                         <img 
                           src={property.uri} 
                           alt=""
@@ -237,23 +253,27 @@ export default function Home() {
                           }}
                         />
                         <div className="hidden absolute inset-0 flex items-center justify-center bg-primary/10">
-                          <LinkIcon className="h-3 md:h-4 w-3 md:w-4 text-primary" />
+                          <LinkIcon className="h-2 w-2 sm:h-3 sm:w-3 md:h-4 md:w-4 text-primary" />
                         </div>
                       </div>
                     ) : (
-                      <div className="relative flex h-8 md:h-10 w-8 md:w-10 items-center justify-center rounded-full bg-primary/10 shrink-0">
-                        <LinkIcon className="h-3 md:h-4 w-3 md:w-4 text-primary" />
-                        <div className="absolute -bottom-0.5 -right-0.5 flex h-3 md:h-4 w-3 md:w-4 items-center justify-center rounded-full bg-background">
-                          <div className="h-1.5 md:h-2 w-1.5 md:w-2 rounded-full bg-green-500"></div>
+                      <div className="relative flex h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-primary/10 shrink-0">
+                        <LinkIcon className="h-2 w-2 sm:h-3 sm:w-3 md:h-4 md:w-4 text-primary" />
+                        <div className="absolute -bottom-0.5 -right-0.5 flex h-2 w-2 sm:h-3 sm:w-3 md:h-4 md:w-4 items-center justify-center rounded-full bg-background">
+                          <div className="h-1 w-1 sm:h-1.5 sm:w-1.5 md:h-2 md:w-2 rounded-full bg-green-500"></div>
                         </div>
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{property.uri || `Property #${String(property.id)}`}</p>
-                      <p className="text-xs text-muted-foreground">ID: {String(property.id)}</p>
+                      <p className="text-xs sm:text-sm font-medium truncate">
+                        {property.uri && (property.uri.startsWith('http') || property.uri.startsWith('ipfs://')) 
+                          ? `Property #${String(property.id)}` 
+                          : property.uri || `Property #${String(property.id)}`}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">ID: {String(property.id)}</p>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="font-medium text-sm md:text-base">${parseFloat(formatUnits(property.rentAmount, 6)).toLocaleString()}</p>
+                    <div className="text-right shrink-0 min-w-0">
+                      <p className="font-medium text-xs sm:text-sm md:text-base truncate">${parseFloat(formatUnits(property.rentAmount, 6)).toLocaleString()}</p>
                       <p className="text-xs text-green-500">{property.isActive ? 'Active' : 'Inactive'}</p>
                     </div>
                   </div>

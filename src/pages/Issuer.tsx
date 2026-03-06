@@ -26,7 +26,10 @@ export default function IssuerDashboard() {
     propertyName: '',
     monthlyRent: '',
     durationMonths: '12',
-    proofUrl: ''
+    proofUrl: '',
+    tokenName: '',
+    tokenSymbol: '',
+    initialSupply: '10000'
   });
 
   const [properties, setProperties] = useState<PropertyDisplay[]>([]);
@@ -61,7 +64,7 @@ export default function IssuerDashboard() {
 
   const handleTokenize = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.propertyName || !formData.monthlyRent || !formData.proofUrl) {
+    if (!formData.propertyName || !formData.monthlyRent || !formData.proofUrl || !formData.tokenName || !formData.tokenSymbol) {
       toast.error('Please complete all required fields.');
       return;
     }
@@ -71,7 +74,7 @@ export default function IssuerDashboard() {
 
     try {
       const duration = parseInt(formData.durationMonths);
-      const initialSupply = (parseFloat(formData.monthlyRent) * duration * 100).toString();
+      const initialSupply = formData.initialSupply || '10000';
       const valuation = (parseFloat(formData.monthlyRent) * duration * 12).toString();
       
       const txHash = await createProperty(
@@ -79,19 +82,27 @@ export default function IssuerDashboard() {
         formData.monthlyRent,
         2592000, 
         initialSupply,
-        `TEN-${formData.propertyName.slice(0, 8)}`,
-        `TEN${formData.propertyName.slice(0, 4).toUpperCase()}`,
+        formData.tokenName,
+        formData.tokenSymbol,
         valuation
       );
 
       toast.update(loadingId, {
-        render: `Property tokenized successfully! TX: ${txHash.slice(0, 10)}...`,
+        render: `Property tokenized successfully! TX: ${txHash ? txHash.slice(0, 10) + '...' : 'Unknown'}`,
         type: 'success',
         isLoading: false,
         autoClose: 5000,
       });
 
-      setFormData({ propertyName: '', monthlyRent: '', durationMonths: '12', proofUrl: '' });
+      setFormData({ 
+        propertyName: '', 
+        monthlyRent: '', 
+        durationMonths: '12', 
+        proofUrl: '',
+        tokenName: '',
+        tokenSymbol: '',
+        initialSupply: '10000'
+      });
       
       const props = await getAllProperties();
       const userProps = props.filter((p: any) => p.owner?.toLowerCase() === address?.toLowerCase());
@@ -177,7 +188,37 @@ export default function IssuerDashboard() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <label htmlFor="tokenName" className="text-sm font-medium">Token Name</label>
+                    <input
+                      id="tokenName"
+                      name="tokenName"
+                      type="text"
+                      required
+                      value={formData.tokenName}
+                      onChange={(e) => setFormData({ ...formData, tokenName: e.target.value })}
+                      className="flex h-12 w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      placeholder="e.g. Property A Tokens"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <label htmlFor="tokenSymbol" className="text-sm font-medium">Token Symbol</label>
+                    <input
+                      id="tokenSymbol"
+                      name="tokenSymbol"
+                      type="text"
+                      required
+                      maxLength={10}
+                      value={formData.tokenSymbol}
+                      onChange={(e) => setFormData({ ...formData, tokenSymbol: e.target.value.toUpperCase() })}
+                      className="flex h-12 w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      placeholder="e.g. PROP-A"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-3">
                     <label htmlFor="monthlyRent" className="text-sm font-medium">Expected Monthly Rent (USDC)</label>
                     <input
@@ -192,18 +233,32 @@ export default function IssuerDashboard() {
                     />
                   </div>
                   <div className="space-y-3">
-                    <label htmlFor="durationMonths" className="text-sm font-medium">Stream Duration</label>
-                    <select
-                      id="durationMonths"
-                      value={formData.durationMonths}
-                      onChange={(e) => setFormData({ ...formData, durationMonths: e.target.value })}
-                      className="flex h-12 w-full items-center justify-between rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                    >
-                      <option value="6">6 Months</option>
-                      <option value="12">12 Months</option>
-                      <option value="24">24 Months</option>
-                    </select>
+                    <label htmlFor="initialSupply" className="text-sm font-medium">Initial Token Supply</label>
+                    <input
+                      id="initialSupply"
+                      name="initialSupply"
+                      type="number"
+                      required
+                      value={formData.initialSupply}
+                      onChange={(e) => setFormData({ ...formData, initialSupply: e.target.value })}
+                      className="flex h-12 w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      placeholder="10000"
+                    />
                   </div>
+                </div>
+
+                <div className="space-y-3">
+                  <label htmlFor="durationMonths" className="text-sm font-medium">Stream Duration</label>
+                  <select
+                    id="durationMonths"
+                    value={formData.durationMonths}
+                    onChange={(e) => setFormData({ ...formData, durationMonths: e.target.value })}
+                    className="flex h-12 w-full items-center justify-between rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <option value="6">6 Months</option>
+                    <option value="12">12 Months</option>
+                    <option value="24">24 Months</option>
+                  </select>
                 </div>
 
                 <div className="space-y-3">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
-import { Building, DollarSign, TrendingUp, Users, Search, Filter, ArrowUpDown, Clock, CheckCircle, XCircle, ExternalLink, Wallet, Loader2 } from 'lucide-react';
+import { Building, DollarSign, TrendingUp, Users, Search, Filter, ArrowUpDown, Clock, CheckCircle, XCircle, ExternalLink, Wallet, Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useContracts } from '../lib/useContracts';
 import { useAuth } from '../lib/AuthContext';
@@ -30,7 +30,7 @@ interface PropertyOption {
 
 export default function Marketplace() {
   const { isAuthenticated, address, isCorrectNetwork } = useAuth();
-  const { getAllProperties, buyPropertyTokens, chainId } = useContracts();
+  const { getAllProperties, getMarketplaceListings, buyPropertyTokens, createMarketplaceListing, cancelMarketplaceListing, buyMarketplaceListing, chainId } = useContracts();
   
   const [listings, setListings] = useState<Listing[]>([]);
   const [availableProperties, setAvailableProperties] = useState<PropertyOption[]>([]);
@@ -54,29 +54,47 @@ export default function Marketplace() {
         return;
       }
       try {
-        const props = await getAllProperties();
+        const marketplaceListings = await getMarketplaceListings();
         
-        const propertyOptions: PropertyOption[] = props.map((p: any) => ({
-          id: Number(p.id),
-          name: p.uri || `Property #${Number(p.id)}`,
-          uri: p.uri || '',
-        }));
-        setAvailableProperties(propertyOptions);
+        if (marketplaceListings.length === 0) {
+          setListings([]);
+          setAvailableProperties([]);
+          setIsLoading(false);
+          return;
+        }
         
-        const listingsData: Listing[] = props.map((p: any, index: number) => ({
-          id: index,
-          propertyId: Number(p.id),
-          propertyName: p.uri || `Property #${Number(p.id)}`,
-          propertyUri: p.uri,
-          propertyToken: p.propertyToken,
-          seller: p.owner,
-          amount: parseFloat(formatUnits(p.totalSupply, 18)),
-          pricePerToken: 1.05,
-          totalPrice: parseFloat(formatUnits(p.totalSupply, 18)) * 1.05,
-          status: p.isActive ? 'active' : 'cancelled',
-          createdAt: Date.now() - (index * 3600000),
-        }));
+        // Get property details for each listing
+        const allProps = await getAllProperties();
+        const propertyMap = new Map(allProps.map((p: any) => [p.propertyToken.toLowerCase(), p]));
+        
+        const propertyOptions: PropertyOption[] = [];
+        const listingsData: Listing[] = marketplaceListings.map((l: any, index: number) => {
+          const prop = propertyMap.get(l.propertyToken.toLowerCase());
+          if (prop && !propertyOptions.find(po => po.id === Number(prop.id))) {
+            propertyOptions.push({
+              id: Number(prop.id),
+              name: prop.uri || `Property #${Number(prop.id)}`,
+              uri: prop.uri || '',
+            });
+          }
+          
+          return {
+            id: Number(l.id),
+            propertyId: prop ? Number(prop.id) : 0,
+            propertyName: prop?.uri || `Property #${prop?.id || index}`,
+            propertyUri: prop?.uri || '',
+            propertyToken: l.propertyToken,
+            seller: l.seller,
+            amount: parseFloat(formatUnits(l.amount, 18)),
+            pricePerToken: parseFloat(formatUnits(l.pricePerToken, 6)),
+            totalPrice: parseFloat(formatUnits(l.totalPrice, 6)),
+            status: l.isActive ? 'active' : 'sold',
+            createdAt: Number(l.createdAt) * 1000,
+          };
+        });
+        
         setListings(listingsData);
+        setAvailableProperties(propertyOptions);
       } catch (err) {
         console.error('Error fetching listings:', err);
       } finally {
@@ -84,7 +102,7 @@ export default function Marketplace() {
       }
     };
     fetchListings();
-  }, [isAuthenticated, isCorrectNetwork, chainId]);
+  }, [isAuthenticated, isCorrectNetwork, chainId, getMarketplaceListings, getAllProperties]);
 
   const filteredListings = listings
     .filter(l => {
@@ -103,8 +121,7 @@ export default function Marketplace() {
     const toastId = toast.loading("Processing purchase...");
     
     try {
-      const amount = (listing.amount / 1000).toString();
-      await buyPropertyTokens(listing.propertyToken, amount, listing.seller);
+      await buyMarketplaceListing(listing.id);
       toast.update(toastId, {
         render: `Successfully purchased ${listing.amount} tokens for ${listing.totalPrice.toFixed(2)} USDC!`,
         type: "success",
@@ -112,6 +129,11 @@ export default function Marketplace() {
         autoClose: 3000
       });
       setSelectedListing(null);
+      
+      // Refresh listings to show updated status
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
     } catch (err: any) {
       toast.update(toastId, {
         render: err.message || "Transaction failed",
@@ -124,42 +146,72 @@ export default function Marketplace() {
     }
   };
 
-  const handleCreateListing = (e: React.FormEvent) => {
+  const handleCreateListing = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newListing.propertyId || !newListing.amount || !newListing.pricePerToken) return;
 
-    const selectedProp = availableProperties.find(p => p.id === Number(newListing.propertyId));
-    
-    const listing: Listing = {
-      id: Date.now(),
-      propertyId: parseInt(newListing.propertyId),
-      propertyName: selectedProp?.name || `Property ${newListing.propertyId}`,
-      propertyUri: selectedProp?.uri || '',
-      propertyToken: '0x0000000000000000000000000000000000000000',
-      seller: address || '',
-      amount: parseInt(newListing.amount),
-      pricePerToken: parseFloat(newListing.pricePerToken),
-      totalPrice: parseInt(newListing.amount) * parseFloat(newListing.pricePerToken),
-      status: 'active',
-      createdAt: Date.now(),
-    };
+    try {
+      setIsProcessing(true);
+      const selectedProp = availableProperties.find(p => p.id === Number(newListing.propertyId));
+      
+      if (!selectedProp) {
+        toast.error("Please select a valid property");
+        return;
+      }
 
-    setListings([listing, ...listings]);
-    setShowCreateListing(false);
-    setNewListing({ propertyId: '', amount: '', pricePerToken: '' });
-    
-    toast.success("Listing created successfully!");
+      // Get the property token address from all properties
+      const allProps = await getAllProperties();
+      const property = allProps.find((p: any) => Number(p.id) === Number(newListing.propertyId));
+      
+      if (!property) {
+        toast.error("Property not found");
+        return;
+      }
+
+      // Create real marketplace listing
+      await createMarketplaceListing(
+        property.propertyToken,
+        newListing.amount,
+        newListing.pricePerToken
+      );
+
+      setShowCreateListing(false);
+      setNewListing({ propertyId: '', amount: '', pricePerToken: '' });
+      
+      toast.success("Listing created successfully!");
+      
+      // Refresh listings to show the new one
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+      
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create listing");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleCancelListing = (id: number) => {
-    setListings(listings.map(l => 
-      l.id === id ? { ...l, status: 'cancelled' as const } : l
-    ));
-    toast.info("Listing cancelled");
+  const handleCancelListing = async (id: number) => {
+    try {
+      setIsProcessing(true);
+      await cancelMarketplaceListing(id);
+      toast.info("Listing cancelled");
+      
+      // Refresh listings to show updated status
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to cancel listing");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const formatAddress = (addr: string) => {
-    return `${addr?.slice(0, 6)}...${addr?.slice(-4)}`;
+  const formatAddress = (addr: string | null | undefined) => {
+    if (!addr) return '0x0000...0000';
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
   const formatTime = (timestamp: number) => {
@@ -177,14 +229,93 @@ export default function Marketplace() {
             <div>
               <h1 className="text-3xl font-bold tracking-tight">Token Marketplace</h1>
               <p className="text-muted-foreground mt-1">
-                Buy and sell property token positions on the secondary market.
+                Buy and sell property token positions on secondary market.
               </p>
             </div>
           </div>
           <div className="rounded-xl border-yellow-500/50 bg-yellow-500/10 p-6 text-center">
-            <p className="text-yellow-500">
-              Please switch to <strong>Base Sepolia</strong> network to use this feature.
+            <p className="text-yellow-500 mb-4">
+              Please switch to <strong>Base Sepolia</strong> or <strong>Sepolia</strong> network to use this feature.
             </p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={async () => {
+                  if (window.ethereum) {
+                    try {
+                      await window.ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: '0x14a33' }], // Base Sepolia chainId
+                      });
+                    } catch (switchError: any) {
+                      // This error code indicates that the chain has not been added to MetaMask
+                      if (switchError.code === 4902) {
+                        try {
+                          await window.ethereum.request({
+                            method: 'wallet_addEthereumChain',
+                            params: [
+                              {
+                                chainId: '0x14a33',
+                                chainName: 'Base Sepolia',
+                                nativeCurrency: {
+                                  name: 'ETH',
+                                  symbol: 'ETH',
+                                  decimals: 18,
+                                },
+                                rpcUrls: ['https://sepolia.base.org'],
+                                blockExplorerUrls: ['https://sepolia.basescan.org'],
+                              },
+                            ],
+                          });
+                        } catch (addError) {
+                          console.error('Error adding Base Sepolia:', addError);
+                        }
+                      }
+                    }
+                  }
+                }}
+                className="inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-6"
+              >
+                Switch to Base Sepolia
+              </button>
+              <button
+                onClick={async () => {
+                  if (window.ethereum) {
+                    try {
+                      await window.ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: '0xaa36a7' }], // Sepolia chainId
+                      });
+                    } catch (switchError: any) {
+                      if (switchError.code === 4902) {
+                        try {
+                          await window.ethereum.request({
+                            method: 'wallet_addEthereumChain',
+                            params: [
+                              {
+                                chainId: '0xaa36a7',
+                                chainName: 'Sepolia',
+                                nativeCurrency: {
+                                  name: 'ETH',
+                                  symbol: 'ETH',
+                                  decimals: 18,
+                                },
+                                rpcUrls: ['https://rpc.sepolia.org'],
+                                blockExplorerUrls: ['https://sepolia.etherscan.io'],
+                              },
+                            ],
+                          });
+                        } catch (addError) {
+                          console.error('Error adding Sepolia:', addError);
+                        }
+                      }
+                    }
+                  }
+                }}
+                className="inline-flex items-center justify-center rounded-lg text-sm font-medium border border-border bg-background hover:bg-muted h-11 px-6"
+              >
+                Switch to Sepolia
+              </button>
+            </div>
           </div>
         </div>
       </Layout>
@@ -201,16 +332,75 @@ export default function Marketplace() {
               Buy and sell property token positions on the secondary market.
             </p>
           </div>
-          <button
-            onClick={() => {
-              setNewListing({ propertyId: availableProperties[0]?.id?.toString() || '', amount: '', pricePerToken: '' });
-              setShowCreateListing(true);
-            }}
-            className="inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-6 gap-2"
-          >
-            <Building className="h-4 w-4" />
-            Create Listing
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                setIsLoading(true);
+                try {
+                  // Fetch real marketplace listings
+                  const marketplaceListings = await getMarketplaceListings();
+                  
+                  if (marketplaceListings.length === 0) {
+                    setListings([]);
+                    setAvailableProperties([]);
+                    setIsLoading(false);
+                    return;
+                  }
+                  
+                  // Get property details for each listing
+                  const allProps = await getAllProperties();
+                  const propertyMap = new Map(allProps.map((p: any) => [p.propertyToken.toLowerCase(), p]));
+                  
+                  const propertyOptions: PropertyOption[] = [];
+                  const listingsData: Listing[] = marketplaceListings.map((l: any, index: number) => {
+                    const prop = propertyMap.get(l.propertyToken.toLowerCase());
+                    if (prop && !propertyOptions.find(po => po.id === Number(prop.id))) {
+                      propertyOptions.push({
+                        id: Number(prop.id),
+                        name: prop.uri || `Property #${Number(prop.id)}`,
+                        uri: prop.uri || '',
+                      });
+                    }
+                    
+                    return {
+                      id: Number(l.id),
+                      propertyId: prop ? Number(prop.id) : 0,
+                      propertyName: prop?.uri || `Property #${prop?.id || index}`,
+                      propertyUri: prop?.uri || '',
+                      propertyToken: l.propertyToken,
+                      seller: l.seller,
+                      amount: parseFloat(formatUnits(l.amount, 18)),
+                      pricePerToken: parseFloat(formatUnits(l.pricePerToken, 6)),
+                      totalPrice: parseFloat(formatUnits(l.totalPrice, 6)),
+                      status: l.isActive ? 'active' : 'sold',
+                      createdAt: Number(l.createdAt) * 1000,
+                    };
+                  });
+                  
+                  setListings(listingsData);
+                  setAvailableProperties(propertyOptions);
+                } catch (err) {
+                  console.error('Error refreshing listings:', err);
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+              className="inline-flex items-center justify-center rounded-lg text-sm font-medium border border-input bg-background hover:bg-muted h-11 px-4 gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+            <button
+              onClick={() => {
+                setNewListing({ propertyId: availableProperties[0]?.id?.toString() || '', amount: '', pricePerToken: '' });
+                setShowCreateListing(true);
+              }}
+              className="inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-6 gap-2"
+            >
+              <Building className="h-4 w-4" />
+              Create Listing
+            </button>
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-4">
