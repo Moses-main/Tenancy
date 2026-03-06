@@ -706,7 +706,7 @@ export const useContracts = () => {
         'function balanceOf(address account) view returns (uint256)',
       ];
       
-      const usdcAddress = isBaseSepolia ? '0x036CbD53846f34B88b1d4a2d8b9B7F7f3F9D3F9' : '0xda0d3FA677B08D2Afd00D8e23c4A79DC9eBd8C2';
+      const usdcAddress = isBaseSepolia ? USDC_ADDRESSES.baseSepolia : USDC_ADDRESSES.sepolia;
       const signer = await provider.getSigner();
       const usdc = new Contract(usdcAddress, usdcABI, signer);
       
