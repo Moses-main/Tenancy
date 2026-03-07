@@ -1031,6 +1031,7 @@ export const useContracts = () => {
     getTokenBalance,
     getTokenName,
     getTokenSymbol,
+    payRent,
     getAgentStatus,
     getAgentDecisions,
     getYieldStats,
