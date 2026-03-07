@@ -538,6 +538,58 @@ const db = {
       inMemoryIdempotency.set(key, updated);
       return updated;
     }
+  },
+
+  // KYC Database Functions
+  async createKYCSubmission(kycData) {
+    const result = await pool.query(
+      `INSERT INTO kyc_submissions 
+       (reference_id, user_address, status, submitted_at, tier, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [
+        kycData.referenceId,
+        kycData.userAddress,
+        kycData.status,
+        new Date(kycData.submittedAt),
+        kycData.tier,
+        JSON.stringify(kycData.metadata || {})
+      ]
+    );
+    return result.rows[0];
+  },
+
+  async getKYCByReferenceId(referenceId) {
+    const result = await pool.query(
+      'SELECT * FROM kyc_submissions WHERE reference_id = $1',
+      [referenceId]
+    );
+    return result.rows[0] || null;
+  },
+
+  async getKYCByUserAddress(userAddress) {
+    const result = await pool.query(
+      'SELECT * FROM kyc_submissions WHERE user_address = $1 ORDER BY submitted_at DESC',
+      [userAddress]
+    );
+    return result.rows;
+  },
+
+  async updateKYCStatus(referenceId, updateData) {
+    const setClause = Object.keys(updateData)
+      .map((key, index) => `${toDbColumnName(key)} = $${index + 2}`)
+      .join(', ');
+    
+    const values = [referenceId, ...Object.values(updateData)];
+    
+    const result = await pool.query(
+      `UPDATE kyc_submissions 
+       SET ${setClause}, updated_at = CURRENT_TIMESTAMP
+       WHERE reference_id = $1
+       RETURNING *`,
+      values
+    );
+    return result.rows[0] || null;
   }
 };
 

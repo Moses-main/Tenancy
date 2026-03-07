@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { useAuth } from './AuthContext';
 
 export type KYCStatus = 
   | 'not_started'
@@ -42,8 +43,14 @@ export function KYCProvider({ children }: { children: ReactNode }) {
   const [kycData, setKycData] = useState<KYCData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { address } = useAuth();
 
   const startKYC = useCallback(async () => {
+    if (!address) {
+      setError('Wallet must be connected to start KYC');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -51,10 +58,12 @@ export function KYCProvider({ children }: { children: ReactNode }) {
       const response = await fetch('/api/kyc/initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userAddress: address }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to initiate KYC');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to initiate KYC');
       }
 
       const data = await response.json();
@@ -65,13 +74,21 @@ export function KYCProvider({ children }: { children: ReactNode }) {
         tier: 0,
       });
       
-      window.location.href = data.url;
+      // For demo purposes, show a message instead of redirecting
+      // In production, this would redirect to the actual KYC provider
+      alert(`KYC initiated! Reference ID: ${data.referenceId}\nIn production, you would be redirected to: ${data.url}`);
+      
+      // Start checking status periodically
+      setTimeout(() => {
+        checkKYCStatus();
+      }, 5000);
+      
     } catch (err) {
       setError(err instanceof Error ? err.message : 'KYC initiation failed');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [address]);
 
   const checkKYCStatus = useCallback(async () => {
     if (!kycData?.referenceId) return;
@@ -85,9 +102,9 @@ export function KYCProvider({ children }: { children: ReactNode }) {
       setKycData({
         status: data.status,
         referenceId: data.referenceId,
-        submittedAt: data.submittedAt,
-        reviewedAt: data.reviewedAt,
-        expiresAt: data.expiresAt,
+        submittedAt: data.submittedAt ? new Date(data.submittedAt).getTime() : undefined,
+        reviewedAt: data.reviewedAt ? new Date(data.reviewedAt).getTime() : undefined,
+        expiresAt: data.expiresAt ? new Date(data.expiresAt).getTime() : undefined,
         rejectionReason: data.rejectionReason,
         tier: data.tier,
       });
@@ -97,6 +114,17 @@ export function KYCProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     }
   }, [kycData?.referenceId]);
+
+  // Check KYC status on mount and when address changes
+  React.useEffect(() => {
+    if (address) {
+      // For demo purposes, check if there's existing KYC
+      // In production, you'd have an endpoint to check by user address
+      checkKYCStatus();
+    } else {
+      setKycData(null);
+    }
+  }, [address, checkKYCStatus]);
 
   const isVerified = kycData?.status === 'approved';
   const tierConfig = KYC_TIERS[kycData?.tier || 0];
