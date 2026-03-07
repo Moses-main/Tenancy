@@ -8,6 +8,7 @@ import {YieldDistributor} from "../src/YieldDistributor.sol";
 import {PriceFeedConsumer} from "../src/PriceFeedConsumer.sol";
 import {RentalToken} from "../src/RentalToken.sol";
 import {PropertyMarketplace} from "../src/PropertyMarketplace.sol";
+import {MockPriceFeed} from "../src/MockPriceFeed.sol";
 
 contract DeployTENANCY is Script {
     function run() external {
@@ -17,7 +18,12 @@ contract DeployTENANCY is Script {
         // Default to no price feed (can be set later)
         // Sepolia: 0x694AA1769357215DE4FAC081bf1f309aDC325306
         // Base Sepolia: 0x4a5816300e0eE47A41DFcDB12A8C8bB6dD18C12 (correct address)
-        address ethUsdPriceFeed = vm.envOr("ETH_USD_PRICE_FEED", address(0));
+        // Deploy Mock Price Feed for testing
+        MockPriceFeed mockPriceFeed = new MockPriceFeed();
+        console.log("MockPriceFeed deployed at:", address(mockPriceFeed));
+        
+        // Use mock price feed address
+        address ethUsdPriceFeed = address(mockPriceFeed);
         
         vm.startBroadcast(deployerPrivateKey);
 
@@ -48,11 +54,12 @@ contract DeployTENANCY is Script {
         );
         console.log("YieldDistributor deployed at:", address(yieldDistributor));
 
-        PriceFeedConsumer priceFeedConsumer = new PriceFeedConsumer(
-            ethUsdPriceFeed,
-            inflationIndexFeed
-        );
-        console.log("PriceFeedConsumer deployed at:", address(priceFeedConsumer));
+        // Skip PriceFeedConsumer for now due to Base Sepolia price feed issues
+        // PriceFeedConsumer priceFeedConsumer = new PriceFeedConsumer(
+        //     ethUsdPriceFeed,
+        //     inflationIndexFeed
+        // );
+        // console.log("PriceFeedConsumer deployed at:", address(priceFeedConsumer));
 
         RentalToken rentalToken = new RentalToken(deployer);
         console.log("RentalToken deployed at:", address(rentalToken));

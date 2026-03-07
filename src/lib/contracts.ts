@@ -10,11 +10,11 @@ const getEnv = (key: string, fallback: string = '') => {
 
 export const CONTRACT_ADDRESSES = {
   baseSepolia: {
-    propertyRegistry: getEnv('VITE_PROPERTY_REGISTRY_BASE_SEPOLIA', '0xe4aa60e3f3789127e5b27a41b0a1f7548bb90b07'),
-    tenToken: getEnv('VITE_TEN_TOKEN_BASE_SEPOLIA', '0x03e96af89e74be960133ea8e455d4e5e1f833de0'),
-    yieldDistributor: getEnv('VITE_YIELD_DISTRIBUTOR_BASE_SEPOLIA', '0x5c3b9b9bdca9773dd746349bb25a4b8a093f764c'),
-    priceFeedConsumer: getEnv('VITE_PRICE_FEED_CONSUMER_BASE_SEPOLIA', '0x118b5cfab9b71b9d80d034442c58ab341a6fa19c'),
-    marketplace: getEnv('VITE_MARKETPLACE_BASE_SEPOLIA', '0x113c803d2d681466e249bdf5a8e70dfb4c2063ae'),
+    propertyRegistry: getEnv('VITE_PROPERTY_REGISTRY_BASE_SEPOLIA', '0x84bc076c939aa2b70e0daeba708b3ada3881a179'),
+    tenToken: getEnv('VITE_TEN_TOKEN_BASE_SEPOLIA', '0x9e395acf058c74386b531e4c901c53b1c73e6d5f'),
+    yieldDistributor: getEnv('VITE_YIELD_DISTRIBUTOR_BASE_SEPOLIA', '0xe88a399f85550ddf61f9dd6cb91e2673817d7f91'),
+    priceFeedConsumer: getEnv('VITE_PRICE_FEED_CONSUMER_BASE_SEPOLIA', '0x0000000000000000000000000000000000000000'), // Not deployed
+    marketplace: getEnv('VITE_MARKETPLACE_BASE_SEPOLIA', '0x452ba94272f3302e7b48bffc1f5a57ec7136a6aa'),
   },
   sepolia: {
     propertyRegistry: getEnv('VITE_PROPERTY_REGISTRY_SEPOLIA', '0x452ba94272f3302E7b48bFFC1F5a57ec7136A6aA'),
