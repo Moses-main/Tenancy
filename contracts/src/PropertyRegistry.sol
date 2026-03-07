@@ -9,6 +9,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {PropertyMarketplace} from "./PropertyMarketplace.sol";
 
 contract PropertyToken is ERC20, ReentrancyGuard {
     address public propertyRegistry;
@@ -270,21 +271,20 @@ contract PropertyRegistry is Ownable, ReentrancyGuard, Pausable, AccessControl {
         require(property.owner == msg.sender, "Not property owner");
         require(amount <= property.totalSupply, "Insufficient tokens for listing");
         
-        // Approve marketplace to spend tokens
+        // Transfer tokens from user to PropertyRegistry first
+        PropertyToken(property.propertyToken).transferFrom(msg.sender, address(this), amount);
+        
+        // Approve marketplace to spend tokens from PropertyRegistry
         PropertyToken(property.propertyToken).approve(marketplace, amount);
         
-        // Create listing via marketplace
-        (bool success, bytes memory data) = marketplace.call(
-            abi.encodeWithSignature(
-                "createListing(address,uint256,uint256)",
-                property.propertyToken,
-                amount,
-                pricePerToken
-            )
+        // Create listing via marketplace (marketplace will transfer from PropertyRegistry)
+        PropertyMarketplace(marketplace).createListing(
+            property.propertyToken,
+            amount,
+            pricePerToken
         );
-        require(success, "Failed to create listing");
         
-        uint256 listingId = abi.decode(data, (uint256));
+        uint256 listingId = PropertyMarketplace(marketplace).listingCount();
         
         emit ImmediateListingCreated(propertyId, listingId, msg.sender, amount, pricePerToken);
         return listingId;
