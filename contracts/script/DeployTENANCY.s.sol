@@ -16,7 +16,7 @@ contract DeployTENANCY is Script {
         
         // Default to no price feed (can be set later)
         // Sepolia: 0x694AA1769357215DE4FAC081bf1f309aDC325306
-        // Base Sepolia: Use address(0) initially - set later
+        // Base Sepolia: 0x4a5816300e0eE47A41DFcDB12A8C8bB6dD18C12 (correct address)
         address ethUsdPriceFeed = vm.envOr("ETH_USD_PRICE_FEED", address(0));
         
         vm.startBroadcast(deployerPrivateKey);
@@ -46,7 +46,10 @@ contract DeployTENANCY is Script {
         RentalToken rentalToken = new RentalToken(deployer);
         console.log("RentalToken deployed at:", address(rentalToken));
 
-        PropertyMarketplace marketplace = new PropertyMarketplace();
+        // WETH token address on Base Sepolia (using WETH since USDC may not be deployed)
+        address usdcToken = address(0x4200000000000000000000000000000000000006);
+        
+        PropertyMarketplace marketplace = new PropertyMarketplace(usdcToken);
         console.log("PropertyMarketplace deployed at:", address(marketplace));
 
         propertyRegistry.setIssuer(deployer, true);

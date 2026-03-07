@@ -418,7 +418,7 @@ export default function Marketplace() {
                                   symbol: 'ETH',
                                   decimals: 18,
                                 },
-                                rpcUrls: ['https://rpc.sepolia.org'],
+                                rpcUrls: ['https://eth-sepolia.g.alchemy.com/v2/demo'],
                                 blockExplorerUrls: ['https://sepolia.etherscan.io'],
                               },
                             ],

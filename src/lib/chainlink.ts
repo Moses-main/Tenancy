@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { ethers, providers } from 'ethers';
 
 export interface VerificationRequest {
   propertyId: string;
@@ -23,8 +23,8 @@ export interface PriceFeedData {
   roundId: number;
 }
 
-const CHAINLINK_FUNCTIONS_ROUTER = import.meta.env.VITE_CHAINLINK_ROUTER || '0xf9B8fc078197181C841c296C876945aaa425B278';
-const CHAINLINK_SUBSCRIPTION_ID = import.meta.env.VITE_CHAINLINK_SUBSCRIPTION_ID || '6273';
+const CHAINLINK_FUNCTIONS_ROUTER = (import.meta.env as any).VITE_CHAINLINK_ROUTER || '0xf9B8fc078197181C841c296C876945aaa425B278';
+const CHAINLINK_SUBSCRIPTION_ID = (import.meta.env as any).VITE_CHAINLINK_SUBSCRIPTION_ID || '6273';
 
 const PRICE_FEED_ABI = [
   'function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)',
@@ -32,23 +32,23 @@ const PRICE_FEED_ABI = [
 ];
 
 export const getEthUsdPrice = async (provider?: any): Promise<PriceFeedData | null> => {
-  const CHAIN_ID = import.meta.env.VITE_NETWORK === 'sepolia' ? 11155111 : 84532;
+  const CHAIN_ID = (import.meta.env as any).VITE_NETWORK === 'sepolia' ? 11155111 : 84532;
   const PRICE_FEED_ADDRESS = CHAIN_ID === 84532 
     ? '0x71041dddad35a2F9D388c02D0DBE565255403061'
     : '0x694AA1769357215DE4FAC081bf1f309aDC325306';
 
   try {
-    let ethersProvider: ethers.Provider;
+    let ethersProvider: providers.Provider;
     
     if (provider) {
       ethersProvider = provider;
     } else if (typeof window !== 'undefined' && (window as any).ethereum) {
-      ethersProvider = new ethers.providers.Web3Provider((window as any).ethereum);
+      ethersProvider = new providers.Web3Provider((window as any).ethereum);
     } else {
       const rpcUrl = CHAIN_ID === 84532 
-        ? 'https://sepolia.base.org'
-        : 'https://rpc.sepolia.org';
-      ethersProvider = new ethers.JsonRpcProvider(rpcUrl);
+        ? (import.meta.env as any).VITE_BASE_SEPOLIA_RPC_URL || 'https://base-sepolia.g.alchemy.com/v2/demo'
+        : (import.meta.env as any).VITE_SEPOLIA_RPC_URL || 'https://eth-sepolia.g.alchemy.com/v2/demo';
+      ethersProvider = new providers.JsonRpcProvider(rpcUrl);
     }
 
     const priceFeed = new ethers.Contract(PRICE_FEED_ADDRESS, PRICE_FEED_ABI, ethersProvider);

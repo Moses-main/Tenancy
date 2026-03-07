@@ -5,7 +5,7 @@ const { formatEther, formatUnits, parseEther, parseUnits } = ethers.utils;
 type Web3Provider = ethers.providers.Web3Provider;
 
 const getEnv = (key: string, fallback: string = '') => {
-  return import.meta.env[key] || fallback;
+  return (import.meta.env as any)[key] || fallback;
 };
 
 export const CONTRACT_ADDRESSES = {
@@ -42,8 +42,8 @@ export const CHAIN_CONFIG = {
 type SupportedChainId = keyof typeof CHAIN_CONFIG;
 
 const RPC_URLS: Partial<Record<SupportedChainId, string>> = {
-  84532: getEnv('VITE_BASE_SEPOLIA_RPC_URL', 'https://sepolia.base.org'),
-  11155111: getEnv('VITE_SEPOLIA_RPC_URL', 'https://rpc.sepolia.org'),
+  84532: getEnv('VITE_BASE_SEPOLIA_RPC_URL', 'https://base-sepolia.g.alchemy.com/v2/demo'),
+  11155111: getEnv('VITE_SEPOLIA_RPC_URL', 'https://eth-sepolia.g.alchemy.com/v2/demo'),
 };
 
 export const getExplorerUrl = (chainId: number, address?: string, txHash?: string): string => {
@@ -114,8 +114,9 @@ export const ABIS = {
     "function totalDistributedYield() view returns (uint256)",
   ],
   priceFeed: [
-    "function getLatestPrice() view returns (int256)",
-    "function getRoundData(uint80 roundId) view returns (int256)",
+    "function getEthUsdPrice() view returns (uint256)",
+    "function getEthUsdPriceView() view returns (uint256)",
+    "function getPriceData() view returns (tuple(uint256 price, uint256 timestamp, bool isStale))",
   ],
   marketplace: [
     "function createListing(address propertyToken, uint256 amount, uint256 pricePerToken) returns (uint256)",
@@ -197,7 +198,7 @@ async function probeContractCompatibility(
     tenToken: { abi: ABIS.erc20 as string[], fn: 'totalSupply' },
     yieldDistributor: { abi: ABIS.yieldDistributor as string[], fn: 'distributionCount' },
     marketplace: { abi: ABIS.marketplace as string[], fn: 'listingCount' },
-    priceFeedConsumer: { abi: ABIS.priceFeed as string[], fn: 'getLatestPrice' },
+    priceFeedConsumer: { abi: ABIS.priceFeed as string[], fn: 'getEthUsdPriceView' }, // Use view function to avoid state changes
   };
   const probe = probes[key];
   if (!probe) return;
