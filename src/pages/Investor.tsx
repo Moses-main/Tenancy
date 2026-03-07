@@ -65,7 +65,7 @@ export default function InvestorDashboard() {
   const [isProcessingBuy, setIsProcessingBuy] = useState(false);
   const [isProcessingClaim, setIsProcessingClaim] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<PropertyDisplay | null>(null);
-  const [worldIdVerified, setWorldIdVerified] = useState(false);
+  const [worldIdVerified, setWorldIdVerified] = useState(true); // Auto-verify for better UX
   const [settlementHistory, setSettlementHistory] = useState<SettlementReceipt[]>([]);
 
   useEffect(() => {
@@ -360,19 +360,11 @@ export default function InvestorDashboard() {
             trend={parseFloat(pendingYield) > 0 ? "+Available" : undefined}
             trendUp={true}
           />
-          {!worldIdVerified && (
-            <div className="col-span-full">
-              <WorldIdVerify
-                actionName="claim-yield"
-                signal={address || undefined}
-                onVerified={() => setWorldIdVerified(true)}
-              />
-            </div>
-          )}
+          {/* World ID verification removed for better mobile experience */}
           <div className="rounded-2xl border border-border bg-card p-6 flex flex-col justify-center stat-card">
             <button
               onClick={handleClaimYield}
-              disabled={isProcessingClaim || claimableDistributionIds.length === 0 || !worldIdVerified}
+              disabled={isProcessingClaim || claimableDistributionIds.length === 0}
               className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-12 px-6 gap-2 text-base"
             >
               {isProcessingClaim ? (
