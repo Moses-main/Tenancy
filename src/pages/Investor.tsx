@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
-import KYCVerification from '../components/KYCVerification';
 import { Coins, ArrowDownToLine, ArrowRightLeft, TrendingUp, Building, ExternalLink, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useContracts } from '../lib/useContracts';
 import { useAuth } from '../lib/AuthContext';
-import { useKYC } from '../lib/KYCContext';
-import { canInvestAmount } from '../lib/kycPolicy';
 import { getExplorerUrl } from '../lib/contracts';
 import {
   createSettlementReceipt,
@@ -36,7 +33,6 @@ interface PropertyDisplay {
 
 export default function InvestorDashboard() {
   const { isAuthenticated, address, isCorrectNetwork } = useAuth();
-  const { kycData } = useKYC();
   const { 
     getAllProperties, 
     getTENBalance, 
@@ -158,9 +154,9 @@ export default function InvestorDashboard() {
       return;
     }
     const requestedUsd = parseFloat(buyAmount);
-    const buyGate = canInvestAmount(kycData, requestedUsd);
-    if (!buyGate.allowed) {
-      toast.error(buyGate.reason || 'KYC policy blocks this purchase.');
+    
+    if (requestedUsd <= 0) {
+      toast.error('Please enter a valid amount');
       return;
     }
     
@@ -299,7 +295,6 @@ export default function InvestorDashboard() {
   const estimatedTen = buyAmount && selectedPrice && selectedPrice > 0
     ? (parseFloat(buyAmount) / selectedPrice).toFixed(4)
     : '';
-  const buyGate = canInvestAmount(kycData, parseFloat(buyAmount || '0'));
   const getStatusClass = (status: SettlementReceipt['status']) => {
     if (status === 'settled') return 'bg-green-500/10 text-green-500';
     if (status === 'failed') return 'bg-red-500/10 text-red-500';
@@ -503,11 +498,6 @@ export default function InvestorDashboard() {
               <h2 className="text-xl font-semibold tracking-tight">Swap USDC for TEN</h2>
               <p className="text-sm text-muted-foreground mt-1">Get TEN tokens to invest in properties.</p>
             </div>
-            {!buyGate.allowed && (
-              <div className="mb-4">
-                <KYCVerification requiredFor="invest" />
-              </div>
-            )}
             <form onSubmit={handleBuyTEN} className="space-y-4">
               <div className="space-y-4">
                 <div className="bg-muted/50 p-4 rounded-xl space-y-3">
@@ -559,7 +549,7 @@ export default function InvestorDashboard() {
 
               <button 
                 type="submit" 
-                disabled={isProcessingBuy || !buyAmount || !selectedProperty || !buyGate.allowed}
+                disabled={isProcessingBuy || !buyAmount || !selectedProperty}
                 className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-12 px-6 text-base disabled:opacity-50"
               >
                 {isProcessingBuy ? (
@@ -569,8 +559,6 @@ export default function InvestorDashboard() {
                   </>
                 ) : !selectedProperty ? (
                   'Select a property first'
-                ) : !buyGate.allowed ? (
-                  'KYC Required to Buy'
                 ) : (
                   'Swap USDC for TEN'
                 )}
@@ -707,10 +695,10 @@ export default function InvestorDashboard() {
               </button>
               <button
                 onClick={handleBuyTEN}
-                disabled={isProcessingBuy || !buyAmount || parseFloat(buyAmount) <= 0 || !buyGate.allowed}
+                disabled={isProcessingBuy || !buyAmount || parseFloat(buyAmount) <= 0}
                 className="flex-1 inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-11 disabled:opacity-50"
               >
-                {isProcessingBuy ? <Loader2 className="h-4 w-4 animate-spin" /> : !buyGate.allowed ? 'KYC Required' : 'Confirm Purchase'}
+                {isProcessingBuy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm Purchase'}
               </button>
             </div>
           </div>

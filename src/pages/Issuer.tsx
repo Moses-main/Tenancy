@@ -1,12 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import { Building2, UploadCloud, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import KYCVerification from '../components/KYCVerification';
 import { toast } from 'react-toastify';
 import { useContracts } from '../lib/useContracts';
 import { useAuth } from '../lib/AuthContext';
-import { useKYC } from '../lib/KYCContext';
-import { canIssueProperty } from '../lib/kycPolicy';
 import { getAllPayments, type Payment } from '../lib/api';
 import { validateField } from '../lib/validation';
 import { ethers } from 'ethers';
@@ -34,7 +31,6 @@ interface PropertyPaymentHealth {
 
 export default function IssuerDashboard() {
   const { isAuthenticated, address, isCorrectNetwork } = useAuth();
-  const { kycData } = useKYC();
   const { getAllProperties, createProperty, chainId, isLoading: contractLoading } = useContracts();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -128,14 +124,9 @@ export default function IssuerDashboard() {
     }),
     { verified: 0, pending: 0, failed: 0, overdue: 0 }
   );
-  const issueGate = canIssueProperty(kycData);
 
   const handleTokenize = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!issueGate.allowed) {
-      toast.error(issueGate.reason || 'KYC policy blocks this action.');
-      return;
-    }
     if (!formData.propertyName || !formData.monthlyRent || !formData.proofUrl || !formData.tokenName || !formData.tokenSymbol) {
       toast.error('Please complete all required fields.');
       return;
@@ -272,13 +263,8 @@ export default function IssuerDashboard() {
                   </div>
                   Register New Rental Stream
                 </h2>
-                <p className="text-sm text-muted-foreground mt-2">Submit property details for off-chain verification.</p>
+                <p className="text-sm text-muted-foreground mt-2">Submit property details to tokenize your rental income stream.</p>
               </div>
-              {!issueGate.allowed && (
-                <div className="mb-6">
-                  <KYCVerification requiredFor="issue" />
-                </div>
-              )}
 
               <form onSubmit={handleTokenize} className="space-y-6">
                 <div className="space-y-3">
@@ -399,7 +385,7 @@ export default function IssuerDashboard() {
 
                 <button
                   type="submit"
-                  disabled={isSubmitting || contractLoading || !issueGate.allowed}
+                  disabled={isSubmitting || contractLoading}
                   className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-14 px-6 gap-2 text-base"
                 >
                   {isSubmitting ? (
@@ -410,7 +396,7 @@ export default function IssuerDashboard() {
                   ) : (
                     <>
                       <UploadCloud className="h-5 w-5" />
-                      {!issueGate.allowed ? 'KYC Required to Tokenize' : 'Tokenize Stream'}
+                      Tokenize Stream
                     </>
                   )}
                 </button>

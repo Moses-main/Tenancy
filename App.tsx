@@ -16,7 +16,6 @@ import Agent from './src/pages/Agent.tsx';
 import NotFound from './src/pages/NotFound.tsx';
 import { AuthProvider } from './src/lib/AuthContext.tsx';
 import { ThemeProvider, useTheme } from './src/lib/ThemeContext.tsx';
-import { KYCProvider } from './src/lib/KYCContext.tsx';
 import ErrorBoundary from './src/components/ErrorBoundary.tsx';
 import {
   validateDeploymentConfigAtStartup,
@@ -149,11 +148,9 @@ const App: React.FC = () => {
         }}
       >
         <AuthProvider>
-          <KYCProvider>
-            <ThemeProvider>
-              <AppContent />
-            </ThemeProvider>
-          </KYCProvider>
+          <ThemeProvider>
+            <AppContent />
+          </ThemeProvider>
         </AuthProvider>
       </PrivyProvider>
     </ErrorBoundary>
