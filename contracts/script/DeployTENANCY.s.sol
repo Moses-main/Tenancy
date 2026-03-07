@@ -27,7 +27,18 @@ contract DeployTENANCY is Script {
         // Inflation Index (custom/mock) - placeholder address
         address inflationIndexFeed = 0x0000000000000000000000000000000000000001;
         
-        PropertyRegistry propertyRegistry = new PropertyRegistry(deployer, ethUsdPriceFeed);
+        // WETH token address on Base Sepolia (using WETH since USDC may not be deployed)
+        address usdcToken = address(0x4200000000000000000000000000000000000006);
+        
+        PropertyMarketplace marketplace = new PropertyMarketplace(usdcToken);
+        console.log("PropertyMarketplace deployed at:", address(marketplace));
+
+        PropertyRegistry propertyRegistry = new PropertyRegistry(
+            deployer, 
+            ethUsdPriceFeed, 
+            address(marketplace), 
+            usdcToken
+        );
         console.log("PropertyRegistry deployed at:", address(propertyRegistry));
 
         YieldDistributor yieldDistributor = new YieldDistributor(
@@ -45,12 +56,6 @@ contract DeployTENANCY is Script {
 
         RentalToken rentalToken = new RentalToken(deployer);
         console.log("RentalToken deployed at:", address(rentalToken));
-
-        // WETH token address on Base Sepolia (using WETH since USDC may not be deployed)
-        address usdcToken = address(0x4200000000000000000000000000000000000006);
-        
-        PropertyMarketplace marketplace = new PropertyMarketplace(usdcToken);
-        console.log("PropertyMarketplace deployed at:", address(marketplace));
 
         propertyRegistry.setIssuer(deployer, true);
         tenToken.setMinter(deployer, true);

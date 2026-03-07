@@ -8,6 +8,7 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract PropertyToken is ERC20, ReentrancyGuard {
     address public propertyRegistry;
@@ -51,9 +52,24 @@ contract PropertyRegistry is Ownable, ReentrancyGuard, Pausable, AccessControl {
         uint256 daysOverdue;
     }
 
+    struct CreatePropertyParams {
+        string uri;
+        uint256 rentAmount;
+        uint256 rentFrequency;
+        uint256 initialSupply;
+        string tokenName;
+        string tokenSymbol;
+        uint256 valuationUsd;
+        bool listImmediately;
+        uint256 listingAmount;
+        uint256 pricePerToken;
+    }
+
     bytes32 public constant AGENT_ROLE = keccak256("AGENT_ROLE");
 
     AggregatorV3Interface public ethUsdPriceFeed;
+    IERC20 public paymentToken;
+    address public marketplace;
 
     uint256 public nextPropertyId;
     mapping(uint256 => Property) public properties;
@@ -69,6 +85,13 @@ contract PropertyRegistry is Ownable, ReentrancyGuard, Pausable, AccessControl {
         address propertyToken,
         uint256 rentAmount,
         uint256 valuationUsd
+    );
+    event ImmediateListingCreated(
+        uint256 indexed propertyId,
+        uint256 indexed listingId,
+        address indexed owner,
+        uint256 amount,
+        uint256 pricePerToken
     );
     event TokensMinted(
         uint256 indexed propertyId,
@@ -110,13 +133,15 @@ contract PropertyRegistry is Ownable, ReentrancyGuard, Pausable, AccessControl {
         _;
     }
 
-    constructor(address initialOwner, address _ethUsdPriceFeed) Ownable(initialOwner) {
+    constructor(address initialOwner, address _ethUsdPriceFeed, address _marketplace, address _paymentToken) Ownable(initialOwner) {
         issuers[initialOwner] = true;
         agents[initialOwner] = true;
         _grantRole(AGENT_ROLE, initialOwner);
         if (_ethUsdPriceFeed != address(0)) {
             ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
         }
+        marketplace = _marketplace;
+        paymentToken = IERC20(_paymentToken);
     }
 
     function setPriceFeed(address _ethUsdPriceFeed) external onlyOwner {
@@ -149,30 +174,76 @@ contract PropertyRegistry is Ownable, ReentrancyGuard, Pausable, AccessControl {
         string memory tokenSymbol,
         uint256 valuationUsd
     ) external onlyIssuer whenNotPaused nonReentrant returns (address) {
+        CreatePropertyParams memory params = CreatePropertyParams({
+            uri: uri,
+            rentAmount: rentAmount,
+            rentFrequency: rentFrequency,
+            initialSupply: initialSupply,
+            tokenName: tokenName,
+            tokenSymbol: tokenSymbol,
+            valuationUsd: valuationUsd,
+            listImmediately: false,
+            listingAmount: 0,
+            pricePerToken: 0
+        });
+        return _createPropertyInternal(params);
+    }
+
+    function createAndListProperty(
+        string memory uri,
+        uint256 rentAmount,
+        uint256 rentFrequency,
+        uint256 initialSupply,
+        string memory tokenName,
+        string memory tokenSymbol,
+        uint256 valuationUsd,
+        uint256 listingAmount,
+        uint256 pricePerToken
+    ) external onlyIssuer whenNotPaused nonReentrant returns (address propertyToken, uint256 listingId) {
+        uint256 propertyId = nextPropertyId;
+        
+        CreatePropertyParams memory params = CreatePropertyParams({
+            uri: uri,
+            rentAmount: rentAmount,
+            rentFrequency: rentFrequency,
+            initialSupply: initialSupply,
+            tokenName: tokenName,
+            tokenSymbol: tokenSymbol,
+            valuationUsd: valuationUsd,
+            listImmediately: true,
+            listingAmount: listingAmount,
+            pricePerToken: pricePerToken
+        });
+        
+        propertyToken = _createPropertyInternal(params);
+        listingId = _createImmediateListing(propertyId, listingAmount, pricePerToken);
+    }
+
+    function _createPropertyInternal(CreatePropertyParams memory params) internal returns (address) {
         uint256 propertyId = nextPropertyId++;
 
         PropertyToken propertyToken = new PropertyToken(
-            tokenName,
-            tokenSymbol,
+            params.tokenName,
+            params.tokenSymbol,
             address(this)
         );
 
-        if (valuationUsd == 0 && rentAmount > 0) {
-            uint256 annualRent = rentAmount * 12;
-            valuationUsd = calculatePropertyValuation(annualRent);
+        if (params.valuationUsd == 0 && params.rentAmount > 0) {
+            uint256 annualRent = params.rentAmount * 12;
+            params.valuationUsd = calculatePropertyValuation(annualRent);
         }
 
         Property memory newProperty = Property({
             id: propertyId,
-            uri: uri,
-            rentAmount: rentAmount,
-            rentFrequency: rentFrequency,
-            totalSupply: initialSupply,
+            uri: params.uri,
+            rentAmount: params.rentAmount,
+            rentFrequency: params.rentFrequency,
+            totalSupply: params.initialSupply,
             propertyToken: address(propertyToken),
             isActive: true,
             isPaused: false,
             owner: msg.sender,
-            valuationUsd: valuationUsd,
+            valuationUsd: params.valuationUsd,
             lastValuationTimestamp: block.timestamp,
             paymentStatus: 0,
             daysOverdue: 0
@@ -180,14 +251,43 @@ contract PropertyRegistry is Ownable, ReentrancyGuard, Pausable, AccessControl {
 
         properties[propertyId] = newProperty;
 
-        if (initialSupply > 0) {
-            PropertyToken(propertyToken).mint(msg.sender, initialSupply);
-            userHoldings[propertyId][msg.sender] = initialSupply;
+        if (params.initialSupply > 0) {
+            PropertyToken(propertyToken).mint(msg.sender, params.initialSupply);
+            userHoldings[propertyId][msg.sender] = params.initialSupply;
         }
 
-        emit PropertyCreated(propertyId, msg.sender, address(propertyToken), rentAmount, valuationUsd);
+        emit PropertyCreated(propertyId, msg.sender, address(propertyToken), params.rentAmount, params.valuationUsd);
 
         return address(propertyToken);
+    }
+
+    function _createImmediateListing(uint256 propertyId, uint256 amount, uint256 pricePerToken) internal returns (uint256) {
+        require(marketplace != address(0), "Marketplace not set");
+        require(amount > 0, "Amount must be greater than 0");
+        require(pricePerToken > 0, "Price must be greater than 0");
+        
+        Property storage property = properties[propertyId];
+        require(property.owner == msg.sender, "Not property owner");
+        require(amount <= property.totalSupply, "Insufficient tokens for listing");
+        
+        // Approve marketplace to spend tokens
+        PropertyToken(property.propertyToken).approve(marketplace, amount);
+        
+        // Create listing via marketplace
+        (bool success, bytes memory data) = marketplace.call(
+            abi.encodeWithSignature(
+                "createListing(address,uint256,uint256)",
+                property.propertyToken,
+                amount,
+                pricePerToken
+            )
+        );
+        require(success, "Failed to create listing");
+        
+        uint256 listingId = abi.decode(data, (uint256));
+        
+        emit ImmediateListingCreated(propertyId, listingId, msg.sender, amount, pricePerToken);
+        return listingId;
     }
 
     function updatePropertyValuation(uint256 propertyId, uint256 newValuationUsd) external onlyIssuer {

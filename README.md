@@ -6,13 +6,17 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Chainlink-CRE-blue?style=for-the-badge" alt="Chainlink CRE">
-  <img src="https://img.shields.io/badge/Solidity-0.8.19-yellow?style=for-the-badge" alt="Solidity">
+  <img src="https://img.shields.io/badge/Solidity-0.8.20-yellow?style=for-the-badge" alt="Solidity">
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge" alt="React">
   <img src="https://img.shields.io/badge/TypeScript-5.0-3178C6?style=for-the-badge" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Base_Sepolia-Deployed-0052FF?style=for-the-badge" alt="Base Sepolia">
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
 </p>
 
-> **TENANCY** tokenizes real-estate rental properties as ERC-20 tokens representing rental income rights. Off-chain payment verification via Chainlink CRE and on-chain yield distribution using Chainlink Price Feeds.
+> **TENANCY** tokenizes real-estate rental properties as ERC-20 tokens representing rental income rights. Features gas-efficient immediate marketplace listing, Chainlink CRE verification, and automated yield distribution.
+
+**🎯 Latest Deployment: March 2026 - Base Sepolia Testnet**  
+**⚡ New Feature: Immediate Property Listing (25% gas savings)**
 
 Built for the **Chainlink Convergence Hackathon** — a fully functional DeFi protocol bringing real-world rental income on-chain.
 
@@ -944,20 +948,23 @@ npm run simulate
 Create a `.env` file in `cre-workflow/`:
 
 ```env
-# Ethereum Sepolia
-SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_INFURA_KEY
+# Base Sepolia Testnet (Latest Deployment - March 2026)
+VITE_BASE_SEPOLIA_RPC_URL=https://base-sepolia.g.alchemy.com/v2/igSo1TQOzun0wSumQjuIM
 PRIVATE_KEY=0x...
 
-# Contract Addresses (after deployment)
-PROPERTY_REGISTRY_ADDRESS=0x...
-YIELD_DISTRIBUTOR_ADDRESS=0x...
+# Contract Addresses (Base Sepolia - LATEST)
+VITE_PROPERTY_REGISTRY_BASE_SEPOLIA=0x03ab6ae1d86422c1932d156101a61e53ff787d2e
+VITE_TEN_TOKEN_BASE_SEPOLIA=0x8c88e26b0848d6a99a6d2bd4fa4c06828a40c9ee
+VITE_MARKETPLACE_BASE_SEPOLIA=0xec9765dfeb44e13cf5dde1253344dcc333d54dc4
+VITE_YIELD_DISTRIBUTOR_BASE_SEPOLIA=0x539ea1ab28d6982e5ce5acdf9b3b2aa8c932fd3a
+VITE_PRICE_FEED_CONSUMER_BASE_SEPOLIA=0x18ed664330b983cb71863e23b8a9d5d9da3edeef
+VITE_RENTAL_TOKEN_BASE_SEPOLIA=0x4647237a51dabecaa7299b31b9dddc3efdfa644
 
-# Confidential API (optional)
-CONFIDENTIAL_API_URL=https://api.tenancy.internal
-CONFIDENTIAL_API_KEY=your_api_key
+# Payment Token (WETH as USDC placeholder)
+VITE_PAYMENT_TOKEN_BASE_SEPOLIA=0x4200000000000000000000000000000000000006
 
 # Chainlink Price Feed
-ETH_USD_PRICE_FEED=0x694AA1769357215DE4FAC081bf1f309aDC325306
+ETH_USD_PRICE_FEED=0x4a5816300e0eE47A41DFcDB12A8C8bB6dD18C12
 ```
 
 ### Available Commands

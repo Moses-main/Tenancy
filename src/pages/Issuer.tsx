@@ -31,7 +31,7 @@ interface PropertyPaymentHealth {
 
 export default function IssuerDashboard() {
   const { isAuthenticated, address, isCorrectNetwork } = useAuth();
-  const { getAllProperties, createProperty, createTestProperty, chainId, isLoading: contractLoading } = useContracts();
+  const { getAllProperties, createProperty, createAndListProperty, chainId, isLoading: contractLoading } = useContracts();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -41,7 +41,10 @@ export default function IssuerDashboard() {
     proofUrl: '',
     tokenName: '',
     tokenSymbol: '',
-    initialSupply: '10000'
+    initialSupply: '10000',
+    listImmediately: false,
+    listingAmount: '',
+    pricePerToken: ''
   });
 
   const [properties, setProperties] = useState<PropertyDisplay[]>([]);
@@ -125,54 +128,14 @@ export default function IssuerDashboard() {
     { verified: 0, pending: 0, failed: 0, overdue: 0 }
   );
 
-  const handleCreateTestProperty = async () => {
-    if (!isAuthenticated || !isCorrectNetwork) {
-      toast.error('Please connect wallet and switch to correct network');
-      return;
-    }
-
-    setIsSubmitting(true);
-    const loadingId = toast.loading('Creating test property...');
-
-    try {
-      const txHash = await createTestProperty();
-      
-      toast.update(loadingId, {
-        render: `Test property created! TX: ${txHash.slice(0, 10)}...`,
-        type: 'success',
-        isLoading: false,
-        autoClose: 5000,
-      });
-
-      // Refresh properties
-      const props = await getAllProperties();
-      const userProps = props.filter((p: any) => p.owner?.toLowerCase() === address?.toLowerCase());
-      setProperties(userProps.map((p: any) => ({
-        id: Number(p.id),
-        uri: p.uri,
-        imageUrl: p.uri && (p.uri.startsWith('http') || p.uri.startsWith('ipfs://')) ? p.uri : null,
-        rentAmount: formatUnits(p.rentAmount, 6),
-        totalSupply: formatUnits(p.totalSupply, 18),
-        owner: p.owner,
-        isActive: p.isActive,
-      })));
-    } catch (err: any) {
-      console.error(err);
-      toast.update(loadingId, {
-        render: err?.message || 'Failed to create test property',
-        type: 'error',
-        isLoading: false,
-        autoClose: 4000,
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleTokenize = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.propertyName || !formData.monthlyRent || !formData.proofUrl || !formData.tokenName || !formData.tokenSymbol) {
       toast.error('Please complete all required fields.');
+      return;
+    }
+    if (formData.listImmediately && (!formData.listingAmount || !formData.pricePerToken)) {
+      toast.error('Please complete listing details or uncheck "List Immediately".');
       return;
     }
     const rentError = validateField(formData.monthlyRent, { required: true, min: 1, max: 1_000_000 });
@@ -195,12 +158,19 @@ export default function IssuerDashboard() {
       toast.error(`Token name: ${nameError}`);
       return;
     }
-    const symbolError = validateField(formData.tokenSymbol, [
-      { required: true, minLength: 2, maxLength: 10 },
-      { pattern: /^[A-Z0-9]+$/ },
-    ]);
+    const symbolError = validateField(formData.tokenSymbol, { required: true, minLength: 2, maxLength: 10 });
     if (symbolError) {
-      toast.error('Token symbol must be 2-10 uppercase letters/numbers.');
+      toast.error(`Token symbol: ${symbolError}`);
+      return;
+    }
+    const listingAmountError = formData.listImmediately ? validateField(formData.listingAmount, { required: true, min: 1, max: Number(formData.initialSupply) }) : '';
+    if (listingAmountError) {
+      toast.error(`Listing amount: ${listingAmountError}`);
+      return;
+    }
+    const priceError = formData.listImmediately ? validateField(formData.pricePerToken, { required: true, min: 0.000001, max: 1000000 }) : '';
+    if (priceError) {
+      toast.error(`Price per token: ${priceError}`);
       return;
     }
     if (!/^(https?:\/\/|ipfs:\/\/).+/i.test(formData.proofUrl.trim())) {
@@ -209,40 +179,63 @@ export default function IssuerDashboard() {
     }
 
     setIsSubmitting(true);
-    const loadingId = toast.loading('Creating property on blockchain...');
+    const loadingId = toast.loading(formData.listImmediately ? 'Creating property and listing...' : 'Creating property...');
 
     try {
-      const duration = parseInt(formData.durationMonths);
-      const initialSupply = formData.initialSupply || '10000';
-      const valuation = (parseFloat(formData.monthlyRent) * duration * 12).toString();
+      let txHash: string;
       
-      const txHash = await createProperty(
-        formData.proofUrl,
-        formData.monthlyRent,
-        2592000, 
-        initialSupply,
-        formData.tokenName,
-        formData.tokenSymbol,
-        valuation
-      );
+      if (formData.listImmediately) {
+        const result = await createAndListProperty(
+          formData.proofUrl,
+          formData.monthlyRent,
+          Number(formData.durationMonths) * 30 * 86400, // Convert months to seconds
+          formData.initialSupply,
+          formData.tokenName,
+          formData.tokenSymbol,
+          (parseFloat(formData.monthlyRent) * 12 * 20).toString(), // 20x annual rent as valuation
+          formData.listingAmount,
+          formData.pricePerToken
+        );
+        txHash = result.propertyToken;
+        toast.update(loadingId, {
+          render: `Property created and listed! TX: ${txHash.slice(0, 10)}...`,
+          type: 'success',
+          isLoading: false,
+          autoClose: 5000,
+        });
+      } else {
+        txHash = await createProperty(
+          formData.proofUrl,
+          formData.monthlyRent,
+          Number(formData.durationMonths) * 30 * 86400, // Convert months to seconds
+          formData.initialSupply,
+          formData.tokenName,
+          formData.tokenSymbol,
+          (parseFloat(formData.monthlyRent) * 12 * 20).toString() // 20x annual rent as valuation
+        );
+        toast.update(loadingId, {
+          render: `Property created! TX: ${txHash.slice(0, 10)}...`,
+          type: 'success',
+          isLoading: false,
+          autoClose: 5000,
+        });
+      }
 
-      toast.update(loadingId, {
-        render: `Property tokenized successfully! TX: ${txHash ? txHash.slice(0, 10) + '...' : 'Unknown'}`,
-        type: 'success',
-        isLoading: false,
-        autoClose: 5000,
-      });
-
-      setFormData({ 
-        propertyName: '', 
-        monthlyRent: '', 
-        durationMonths: '12', 
+      // Reset form
+      setFormData({
+        propertyName: '',
+        monthlyRent: '',
+        durationMonths: '12',
         proofUrl: '',
         tokenName: '',
         tokenSymbol: '',
-        initialSupply: '10000'
+        initialSupply: '10000',
+        listImmediately: false,
+        listingAmount: '',
+        pricePerToken: ''
       });
-      
+
+      // Refresh properties
       const props = await getAllProperties();
       const userProps = props.filter((p: any) => p.owner?.toLowerCase() === address?.toLowerCase());
       setProperties(userProps.map((p: any) => ({
@@ -427,6 +420,70 @@ export default function IssuerDashboard() {
                   </div>
                 </div>
 
+                <div className="border-t pt-6">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <input
+                      type="checkbox"
+                      id="listImmediately"
+                      checked={formData.listImmediately}
+                      onChange={(e) => setFormData({ ...formData, listImmediately: e.target.checked })}
+                      className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                    />
+                    <label htmlFor="listImmediately" className="text-sm font-medium cursor-pointer">
+                      List property immediately on marketplace
+                    </label>
+                  </div>
+
+                  {formData.listImmediately && (
+                    <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                        Marketplace Listing Details
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label htmlFor="listingAmount" className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                            Number of Tokens to List
+                          </label>
+                          <input
+                            id="listingAmount"
+                            name="listingAmount"
+                            type="number"
+                            min="1"
+                            max={formData.initialSupply}
+                            step="1"
+                            required={formData.listImmediately}
+                            value={formData.listingAmount}
+                            onChange={(e) => setFormData({ ...formData, listingAmount: e.target.value })}
+                            className="flex h-10 w-full rounded-lg border border-blue-300 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                            placeholder="1000"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label htmlFor="pricePerToken" className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                            Price per Token (USDC)
+                          </label>
+                          <input
+                            id="pricePerToken"
+                            name="pricePerToken"
+                            type="number"
+                            min="0.000001"
+                            max="1000000"
+                            step="0.000001"
+                            required={formData.listImmediately}
+                            value={formData.pricePerToken}
+                            onChange={(e) => setFormData({ ...formData, pricePerToken: e.target.value })}
+                            className="flex h-10 w-full rounded-lg border border-blue-300 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                            placeholder="0.1"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-blue-600 dark:text-blue-400">
+                        Gas-efficient: Property creation and marketplace listing in a single transaction
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <button
                   type="submit"
                   disabled={isSubmitting || contractLoading}
@@ -435,44 +492,18 @@ export default function IssuerDashboard() {
                   {isSubmitting ? (
                     <>
                       <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      Creating Property...
+                      {formData.listImmediately ? 'Creating Property & Listing...' : 'Creating Property...'}
                     </>
                   ) : (
                     <>
                       <UploadCloud className="h-5 w-5" />
-                      Tokenize Stream
+                      {formData.listImmediately ? 'Tokenize & List Property' : 'Tokenize Stream'}
                     </>
                   )}
                 </button>
               </form>
               
-              {/* Debug Section - Remove in production */}
-              {process.env.NODE_ENV === 'development' && (
-                <div className="mt-6 p-4 border-2 border-dashed border-orange-500 rounded-xl">
-                  <div className="text-sm font-medium text-orange-600 mb-2">Debug Tools (Development Only)</div>
-                  <button
-                    onClick={handleCreateTestProperty}
-                    disabled={isSubmitting || contractLoading}
-                    className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-orange-500 text-white hover:bg-orange-600 h-10 px-4 gap-2"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <div className="h-3 w-3 border border-current border-t-transparent rounded-full animate-spin" />
-                        Creating Test Property...
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="h-4 w-4" />
-                        Create Test Property
-                      </>
-                    )}
-                  </button>
-                  <div className="text-xs text-orange-600 mt-2">
-                    Creates a test property owned by current wallet for marketplace testing
-                  </div>
-                </div>
-              )}
-            </div>
+              </div>
           </div>
 
           <div className="lg:col-span-2 space-y-8">

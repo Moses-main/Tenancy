@@ -259,22 +259,33 @@ export const useContracts = () => {
     }
   }, [provider, address, getContracts, getTokenBalance]);
 
-  // Helper function to create a test property for current user
-  const createTestProperty = useCallback(async (): Promise<string> => {
+  // Helper function to create and list property immediately
+  const createAndListProperty = useCallback(async (
+    uri: string,
+    rentAmount: string,
+    rentFrequency: number,
+    initialSupply: string,
+    tokenName: string,
+    tokenSymbol: string,
+    valuationUsd: string,
+    listingAmount: string,
+    pricePerToken: string
+  ): Promise<{ propertyToken: string; listingId: string }> => {
     if (!provider || !address) throw new Error('Wallet not connected');
     
     try {
       const contracts = await getContracts();
       
-      // Create a test property with predictable data
-      const tx = await contracts.propertyRegistry.createProperty(
-        `https://example.com/property-${Date.now()}`,
-        parseUnits('1000', 6), // $1000 rent
-        2592000, // 30 days
-        parseUnits('10000', 18), // 10k tokens
-        'Test Property',
-        'TEST',
-        parseUnits('120000', 8) // $120k valuation
+      const tx = await contracts.propertyRegistry.createAndListProperty(
+        uri,
+        parseUnits(rentAmount, 6),
+        rentFrequency,
+        parseUnits(initialSupply, 18),
+        tokenName,
+        tokenSymbol,
+        parseUnits(valuationUsd, 8),
+        parseUnits(listingAmount, 18),
+        parseUnits(pricePerToken, 18)
       );
       
       const receipt = await tx.wait();
@@ -282,10 +293,18 @@ export const useContracts = () => {
         throw new Error('Transaction failed');
       }
       
-      console.log('Test property created:', receipt.hash);
-      return receipt.hash;
+      // Parse the transaction logs to get the return values
+      const propertyToken = receipt.events?.find(e => e.event === 'PropertyCreated')?.args?.propertyToken;
+      const listingId = receipt.events?.find(e => e.event === 'ImmediateListingCreated')?.args?.listingId;
+      
+      if (!propertyToken || !listingId) {
+        throw new Error('Failed to get property token or listing ID from transaction');
+      }
+      
+      console.log('Property created and listed:', { propertyToken, listingId, txHash: receipt.hash });
+      return { propertyToken, listingId: listingId.toString() };
     } catch (err: any) {
-      console.error('Error creating test property:', err);
+      console.error('Error creating and listing property:', err);
       throw err;
     }
   }, [provider, address, getContracts]);
@@ -621,8 +640,9 @@ export const useContracts = () => {
     try {
       const isBaseSepolia = chainId === 84532;
       const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
-      const propertyToken = new Contract(propertyTokenAddress, ABIS.erc20, provider);
-      const signer = await provider.getSigner();
+      const signer = provider?.getSigner();
+      if (!signer) throw new Error('Wallet not connected');
+      const propertyToken = new Contract(propertyTokenAddress, ABIS.erc20, signer);
       const userAddress = await signer.getAddress();
       
       const amountWei = parseUnits(amount, 18);
@@ -992,6 +1012,7 @@ export const useContracts = () => {
   return {
     getAllProperties,
     createProperty,
+    createAndListProperty,
     getTENBalance,
     getPendingYield,
     claimYield,
@@ -1010,7 +1031,6 @@ export const useContracts = () => {
     getAgentDecisions,
     getYieldStats,
     getEthUsdPrice,
-    createTestProperty, // Add test property helper
     isLoading,
     error,
     chainId,
