@@ -179,10 +179,27 @@ export const useContracts = () => {
         tokenSymbol,
         parseUnits(valuationUsd, 8)
       );
-      const receipt = await tx.wait();
+      
+      // Wait for transaction with better error handling
+      let receipt;
+      try {
+        receipt = await tx.wait();
+      } catch (waitError: any) {
+        console.error('Transaction wait error:', waitError);
+        // Try to get transaction hash even if receipt fails
+        if (tx.hash) {
+          return tx.hash;
+        }
+        throw new Error(`Transaction failed: ${waitError.message || 'Unknown error'}`);
+      }
       
       // Ensure we always return a valid hash
       if (!receipt || !receipt.hash) {
+        // Fallback to transaction hash if available
+        if (tx.hash) {
+          console.warn('No receipt but transaction hash available:', tx.hash);
+          return tx.hash;
+        }
         throw new Error('Transaction completed but no receipt hash available');
       }
       
@@ -212,7 +229,12 @@ export const useContracts = () => {
     try {
       const contracts = await getContracts();
       const props = await contracts.propertyRegistry.getAllProperties();
+      
+      console.log('All properties:', props.map(p => ({ id: p.id, owner: p.owner, currentUser: address })));
+      
       const userProps = props.filter((p: any) => p.owner?.toLowerCase() === address?.toLowerCase());
+      
+      console.log('User properties:', userProps.map(p => ({ id: p.id, owner: p.owner })));
       
       const tokenBalances = await Promise.all(
         userProps.map(async (p: any) => {
@@ -229,12 +251,44 @@ export const useContracts = () => {
       
       // Return all user-owned properties (don't filter by balance > 0)
       // This allows users to list properties they created even if they sold all tokens
+      console.log('Token balances:', tokenBalances.map(t => ({ id: t.id, name: t.tokenName, balance: t.balance })));
       return tokenBalances;
     } catch (err) {
       console.error('Error getting property tokens:', err);
       return [];
     }
   }, [provider, address, getContracts, getTokenBalance]);
+
+  // Helper function to create a test property for current user
+  const createTestProperty = useCallback(async (): Promise<string> => {
+    if (!provider || !address) throw new Error('Wallet not connected');
+    
+    try {
+      const contracts = await getContracts();
+      
+      // Create a test property with predictable data
+      const tx = await contracts.propertyRegistry.createProperty(
+        `https://example.com/property-${Date.now()}`,
+        parseUnits('1000', 6), // $1000 rent
+        2592000, // 30 days
+        parseUnits('10000', 18), // 10k tokens
+        'Test Property',
+        'TEST',
+        parseUnits('120000', 8) // $120k valuation
+      );
+      
+      const receipt = await tx.wait();
+      if (!receipt?.hash) {
+        throw new Error('Transaction failed');
+      }
+      
+      console.log('Test property created:', receipt.hash);
+      return receipt.hash;
+    } catch (err: any) {
+      console.error('Error creating test property:', err);
+      throw err;
+    }
+  }, [provider, address, getContracts]);
 
   const getTokenName = useCallback(async (tokenAddress: string): Promise<string> => {
     try {
@@ -956,6 +1010,7 @@ export const useContracts = () => {
     getAgentDecisions,
     getYieldStats,
     getEthUsdPrice,
+    createTestProperty, // Add test property helper
     isLoading,
     error,
     chainId,

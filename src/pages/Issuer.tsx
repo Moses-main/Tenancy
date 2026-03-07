@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
-import { Building2, UploadCloud, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Building2, UploadCloud, CheckCircle2, AlertCircle, Loader2, Plus } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useContracts } from '../lib/useContracts';
 import { useAuth } from '../lib/AuthContext';
@@ -31,7 +31,7 @@ interface PropertyPaymentHealth {
 
 export default function IssuerDashboard() {
   const { isAuthenticated, address, isCorrectNetwork } = useAuth();
-  const { getAllProperties, createProperty, chainId, isLoading: contractLoading } = useContracts();
+  const { getAllProperties, createProperty, createTestProperty, chainId, isLoading: contractLoading } = useContracts();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -124,6 +124,50 @@ export default function IssuerDashboard() {
     }),
     { verified: 0, pending: 0, failed: 0, overdue: 0 }
   );
+
+  const handleCreateTestProperty = async () => {
+    if (!isAuthenticated || !isCorrectNetwork) {
+      toast.error('Please connect wallet and switch to correct network');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const loadingId = toast.loading('Creating test property...');
+
+    try {
+      const txHash = await createTestProperty();
+      
+      toast.update(loadingId, {
+        render: `Test property created! TX: ${txHash.slice(0, 10)}...`,
+        type: 'success',
+        isLoading: false,
+        autoClose: 5000,
+      });
+
+      // Refresh properties
+      const props = await getAllProperties();
+      const userProps = props.filter((p: any) => p.owner?.toLowerCase() === address?.toLowerCase());
+      setProperties(userProps.map((p: any) => ({
+        id: Number(p.id),
+        uri: p.uri,
+        imageUrl: p.uri && (p.uri.startsWith('http') || p.uri.startsWith('ipfs://')) ? p.uri : null,
+        rentAmount: formatUnits(p.rentAmount, 6),
+        totalSupply: formatUnits(p.totalSupply, 18),
+        owner: p.owner,
+        isActive: p.isActive,
+      })));
+    } catch (err: any) {
+      console.error(err);
+      toast.update(loadingId, {
+        render: err?.message || 'Failed to create test property',
+        type: 'error',
+        isLoading: false,
+        autoClose: 4000,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleTokenize = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -401,6 +445,33 @@ export default function IssuerDashboard() {
                   )}
                 </button>
               </form>
+              
+              {/* Debug Section - Remove in production */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="mt-6 p-4 border-2 border-dashed border-orange-500 rounded-xl">
+                  <div className="text-sm font-medium text-orange-600 mb-2">Debug Tools (Development Only)</div>
+                  <button
+                    onClick={handleCreateTestProperty}
+                    disabled={isSubmitting || contractLoading}
+                    className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-orange-500 text-white hover:bg-orange-600 h-10 px-4 gap-2"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="h-3 w-3 border border-current border-t-transparent rounded-full animate-spin" />
+                        Creating Test Property...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4" />
+                        Create Test Property
+                      </>
+                    )}
+                  </button>
+                  <div className="text-xs text-orange-600 mt-2">
+                    Creates a test property owned by current wallet for marketplace testing
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
