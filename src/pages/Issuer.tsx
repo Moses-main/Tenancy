@@ -200,7 +200,7 @@ export default function IssuerDashboard() {
           formData.listingAmount,
           formData.pricePerToken
         );
-        txHash = result.propertyToken;
+        txHash = result.txHash;
         toast.update(loadingId, {
           render: `Property created and listed! TX: ${txHash.slice(0, 10)}...`,
           type: 'success',

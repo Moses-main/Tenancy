@@ -15,17 +15,15 @@ contract DeployTENANCY is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
         
-        // Default to no price feed (can be set later)
+        vm.startBroadcast(deployerPrivateKey);
+
+        // Deploy Mock Price Feed for testing (inside broadcast so it lands on-chain)
         // Sepolia: 0x694AA1769357215DE4FAC081bf1f309aDC325306
-        // Base Sepolia: 0x4a5816300e0eE47A41DFcDB12A8C8bB6dD18C12 (correct address)
-        // Deploy Mock Price Feed for testing
+        // Base Sepolia: 0x4a5816300e0eE47A41DFcDB12A8C8bB6dD18C12 (real Chainlink feed)
         MockPriceFeed mockPriceFeed = new MockPriceFeed();
         console.log("MockPriceFeed deployed at:", address(mockPriceFeed));
-        
-        // Use mock price feed address
+
         address ethUsdPriceFeed = address(mockPriceFeed);
-        
-        vm.startBroadcast(deployerPrivateKey);
 
         TENToken tenToken = new TENToken(deployer);
         console.log("TENToken deployed at:", address(tenToken));

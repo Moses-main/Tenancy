@@ -253,7 +253,16 @@ contract PropertyRegistry is Ownable, ReentrancyGuard, Pausable, AccessControl {
         properties[propertyId] = newProperty;
 
         if (params.initialSupply > 0) {
-            PropertyToken(propertyToken).mint(msg.sender, params.initialSupply);
+            if (params.listImmediately && params.listingAmount > 0 && params.listingAmount <= params.initialSupply) {
+                // Mint listing tokens to registry so _createImmediateListing can approve marketplace directly
+                PropertyToken(propertyToken).mint(address(this), params.listingAmount);
+                uint256 remaining = params.initialSupply - params.listingAmount;
+                if (remaining > 0) {
+                    PropertyToken(propertyToken).mint(msg.sender, remaining);
+                }
+            } else {
+                PropertyToken(propertyToken).mint(msg.sender, params.initialSupply);
+            }
             userHoldings[propertyId][msg.sender] = params.initialSupply;
         }
 
@@ -271,9 +280,7 @@ contract PropertyRegistry is Ownable, ReentrancyGuard, Pausable, AccessControl {
         require(property.owner == msg.sender, "Not property owner");
         require(amount <= property.totalSupply, "Insufficient tokens for listing");
         
-        // Transfer tokens from user to PropertyRegistry first
-        PropertyToken(property.propertyToken).transferFrom(msg.sender, address(this), amount);
-        
+        // Tokens were already minted to this contract in _createPropertyInternal
         // Approve marketplace to spend tokens from PropertyRegistry
         PropertyToken(property.propertyToken).approve(marketplace, amount);
         
