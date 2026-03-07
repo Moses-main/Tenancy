@@ -72,6 +72,7 @@ export type DeploymentValidationReport = {
 export const ABIS = {
   propertyRegistry: [
     "function createProperty(string uri, uint256 rentAmount, uint256 rentFrequency, uint256 initialSupply, string tokenName, string tokenSymbol, uint256 valuationUsd) returns (address)",
+    "function createAndListProperty(string uri, uint256 rentAmount, uint256 rentFrequency, uint256 initialSupply, string tokenName, string tokenSymbol, uint256 valuationUsd, uint256 listingAmount, uint256 pricePerToken) returns (address propertyToken, uint256 listingId)",
     "function getProperty(uint256 propertyId) view returns (tuple(uint256 id, string uri, uint256 rentAmount, uint256 rentFrequency, uint256 totalSupply, address propertyToken, address owner, bool isActive))",
     "function getAllProperties() view returns (tuple(uint256 id, string uri, uint256 rentAmount, uint256 rentFrequency, uint256 totalSupply, address propertyToken, address owner, bool isActive)[])",
     "function setIssuer(address issuer, bool status)",
