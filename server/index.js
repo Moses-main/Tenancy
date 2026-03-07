@@ -1012,6 +1012,155 @@ app.post('/automation/trigger', requireRoles(['agent', 'admin']), async (req, re
   });
 });
 
+// KYC Endpoints
+app.post('/api/kyc/initiate', async (req, res) => {
+  try {
+    const { userAddress } = req.body;
+    
+    if (!userAddress || !ethers.utils.isAddress(userAddress)) {
+      return res.status(400).json({ error: 'Valid user address is required' });
+    }
+
+    // Check if user already has a pending or approved KYC
+    const existingKYC = await db.getKYCByUserAddress(userAddress);
+    const pendingOrApproved = existingKYC.find(kyc => 
+      kyc.status === 'pending' || kyc.status === 'reviewing' || kyc.status === 'approved'
+    );
+    
+    if (pendingOrApproved) {
+      return res.status(400).json({ 
+        error: 'KYC already in progress or approved',
+        status: pendingOrApproved.status,
+        referenceId: pendingOrApproved.reference_id
+      });
+    }
+
+    // Generate reference ID and mock KYC URL (in production, integrate with real KYC provider)
+    const referenceId = `kyc_${crypto.randomBytes(16).toString('hex')}`;
+    const kycUrl = `https://kyc-provider.example.com/verify/${referenceId}`;
+
+    // Create KYC submission record
+    const kycData = {
+      referenceId,
+      userAddress,
+      status: 'pending',
+      submittedAt: Date.now(),
+      tier: 0,
+      metadata: { initiatedAt: new Date().toISOString() }
+    };
+
+    await db.createKYCSubmission(kycData);
+
+    auditLog(req, {
+      category: 'kyc',
+      event: 'kyc.initiated',
+      outcome: 'success',
+      targetId: referenceId,
+      details: { userAddress, referenceId },
+    });
+
+    res.json({
+      referenceId,
+      url: kycUrl,
+      status: 'pending'
+    });
+
+  } catch (error) {
+    console.error('KYC initiation error:', error);
+    res.status(500).json({ error: 'Failed to initiate KYC process' });
+  }
+});
+
+app.get('/api/kyc/status/:referenceId', async (req, res) => {
+  try {
+    const { referenceId } = req.params;
+    
+    if (!referenceId) {
+      return res.status(400).json({ error: 'Reference ID is required' });
+    }
+
+    const kycRecord = await db.getKYCByReferenceId(referenceId);
+    
+    if (!kycRecord) {
+      return res.status(404).json({ error: 'KYC submission not found' });
+    }
+
+    // Mock status progression for demo purposes
+    // In production, this would query the actual KYC provider
+    let status = kycRecord.status;
+    const now = new Date();
+    const submittedAt = new Date(kycRecord.submitted_at);
+    const timeDiff = now - submittedAt;
+    
+    // Auto-approve after 30 seconds for demo
+    if (status === 'pending' && timeDiff > 30000) {
+      status = 'approved';
+      kycRecord.tier = 1; // Basic tier
+      kycRecord.reviewed_at = now;
+      await db.updateKYCStatus(referenceId, {
+        status: 'approved',
+        tier: 1,
+        reviewedAt: now
+      });
+    }
+
+    res.json({
+      status,
+      referenceId: kycRecord.reference_id,
+      submittedAt: kycRecord.submitted_at,
+      reviewedAt: kycRecord.reviewed_at,
+      expiresAt: kycRecord.expires_at,
+      rejectionReason: kycRecord.rejection_reason,
+      tier: kycRecord.tier
+    });
+
+  } catch (error) {
+    console.error('KYC status check error:', error);
+    res.status(500).json({ error: 'Failed to check KYC status' });
+  }
+});
+
+app.post('/api/kyc/webhook', async (req, res) => {
+  try {
+    const { referenceId, status, tier, rejectionReason } = req.body;
+    
+    if (!referenceId || !status) {
+      return res.status(400).json({ error: 'Reference ID and status are required' });
+    }
+
+    const updateData = { status };
+    if (tier !== undefined) updateData.tier = tier;
+    if (rejectionReason) updateData.rejectionReason = rejectionReason;
+    if (status === 'approved' || status === 'rejected') {
+      updateData.reviewedAt = new Date();
+    }
+
+    const updatedKYC = await db.updateKYCStatus(referenceId, updateData);
+    
+    if (!updatedKYC) {
+      return res.status(404).json({ error: 'KYC submission not found' });
+    }
+
+    auditLog(req, {
+      category: 'kyc',
+      event: 'kyc.status_updated',
+      outcome: 'success',
+      targetId: referenceId,
+      details: { status, tier, rejectionReason },
+    });
+
+    res.json({
+      referenceId,
+      status: updatedKYC.status,
+      tier: updatedKYC.tier
+    });
+
+  } catch (error) {
+    console.error('KYC webhook error:', error);
+    res.status(500).json({ error: 'Failed to process KYC webhook' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`TENANCY Backend running on port ${PORT}`);

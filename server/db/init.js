@@ -110,12 +110,34 @@ const initSchema = async () => {
     `);
     console.log('✓ yield_distributions table created');
 
+    // Create kyc_submissions table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS kyc_submissions (
+        id SERIAL PRIMARY KEY,
+        reference_id VARCHAR(255) UNIQUE NOT NULL,
+        user_address VARCHAR(42) NOT NULL,
+        status VARCHAR(50) DEFAULT 'pending',
+        submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        reviewed_at TIMESTAMP,
+        expires_at TIMESTAMP,
+        tier INTEGER DEFAULT 0,
+        rejection_reason TEXT,
+        metadata JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✓ kyc_submissions table created');
+
     // Create indexes
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_verifications_property_id ON verifications(property_id);
       CREATE INDEX IF NOT EXISTS idx_verifications_status ON verifications(status);
       CREATE INDEX IF NOT EXISTS idx_payments_property_id ON payments(property_id);
       CREATE INDEX IF NOT EXISTS idx_agent_decisions_property_id ON agent_decisions(property_id);
+      CREATE INDEX IF NOT EXISTS idx_kyc_submissions_user_address ON kyc_submissions(user_address);
+      CREATE INDEX IF NOT EXISTS idx_kyc_submissions_reference_id ON kyc_submissions(reference_id);
+      CREATE INDEX IF NOT EXISTS idx_kyc_submissions_status ON kyc_submissions(status);
     `);
     console.log('✓ Indexes created');
 
