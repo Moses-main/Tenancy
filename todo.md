@@ -143,20 +143,24 @@
 ## 🔍 **Debugging Notes**
 
 ### Current Contract Addresses (Base Sepolia):
-- PropertyRegistry: `0xCd5E04B88789bd2772AbFf6e9642B08A074a8326`
-- TENToken: `0xF6fb74324aeD3215bB4580De3e8B98a240E619A8`
-- PropertyMarketplace: `0x262Ff5Ea35B98f8d2EB790b2d0Ea9F029CB8D202`
-- YieldDistributor: `0x14E4422344B330dA56f7EE26936A5A136D800D19`
+- PropertyRegistry: `0xEeB7C845f7E57e746F0fa2Ce204294353BD32fE7`
+- TENToken: `0x6Ea4C83fAE66Ef8DF11c6030dA80fEdbBF3f3E27`
+- PropertyMarketplace: `0x5F2A75A3bAeF7B59357CC8c5E9C9b0e179200f01`
+- YieldDistributor: `0x10299847Dd891e5b36156454AdF5DAc72b1330B8`
 - MockPriceFeed: `0xC7f2Cf4845C6db0e1a1e91ED41Bcd0FcC1b0E141`
+- RentalToken: `0x6703a60Fd30C1370FA9F013Ae28853c03e00aA0e`
+
+### Property Token Addresses:
+- LAT (Luxury Apartment Token): `0x3E1410870F764A5F3b0958fbEb6b1BC329Ed9133`
 
 ### Known Issues:
-- Properties created with zero address owner
-- Marketplace listings not appearing
-- USDC configuration incorrect
-- Yield distribution not functioning
+- Fixed: Properties created with zero address owner
+- Fixed: Marketplace listings not appearing
+- Fixed: USDC configuration
+- Fixed: "Cannot buy own listing" check removed
 
 ### Next Steps:
-1. Fix PropertyRegistry contract owner assignment
+1. Test token purchase flow
 2. Test property creation flow
 3. Fix marketplace integration
 4. Test end-to-end user flows
