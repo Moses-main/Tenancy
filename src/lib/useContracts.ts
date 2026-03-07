@@ -593,9 +593,16 @@ export const useContracts = () => {
       const marketplace = new Contract(addrs.marketplace, ABIS.marketplace, signer);
       const amountWei = parseUnits(amount, 18);
       const listings = await marketplace.getActiveListings();
+      console.log('Available listings:', listings.map((l: any) => ({
+        id: l.id,
+        propertyToken: l.propertyToken,
+        seller: l.seller,
+        amount: l.amount.toString(),
+        buyer: buyerAddress
+      })));
+      
       const listing = listings.find((l: any) =>
         l.propertyToken.toLowerCase() === propertyTokenAddress.toLowerCase() &&
-        l.seller.toLowerCase() !== buyerAddress.toLowerCase() &&
         ethers.BigNumber.from(l.amount.toString()).gte(amountWei)
       );
 
