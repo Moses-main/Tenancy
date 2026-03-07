@@ -140,32 +140,50 @@ export default function Home() {
     <Layout>
       <div className="space-y-8 sm:space-y-12 md:space-y-16">
         <section className="py-6 sm:py-8 md:py-12">
-          <div className="max-w-3xl">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-3 sm:mb-4 md:mb-6">
-              Tokenize Rental Income.<br />
-              <span className="text-primary">Earn Verified Yields.</span>
-            </h1>
-            <p className="text-sm sm:text-base md:text-xl text-muted-foreground leading-relaxed mb-4 sm:mb-6 md:mb-8">
-              TENANCY transforms real estate rental payments into ERC-20 tokens. 
-              Off-chain verification via Chainlink CRE ensures payment integrity — 
-              on-chain yield distribution powers your passive income.
-            </p>
-            <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
-              <Link
-                to="/investor"
-                className="inline-flex items-center justify-center rounded-lg text-xs sm:text-sm md:text-base font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-8 sm:h-10 md:h-12 px-3 sm:px-5 md:px-6 gap-1 sm:gap-2 transition-all"
-              >
-                <span className="hidden sm:inline">Start Investing</span>
-                <span className="sm:hidden">Invest</span>
-                <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4" />
-              </Link>
-              <Link
-                to="/issuer"
-                className="inline-flex items-center justify-center rounded-lg text-xs sm:text-sm md:text-base font-medium border border-border bg-background hover:bg-muted h-8 sm:h-10 md:h-12 px-3 sm:px-5 md:px-6 gap-1 sm:gap-2 transition-all"
-              >
-                <span className="hidden sm:inline">Tokenize Property</span>
-                <span className="sm:hidden">Tokenize</span>
-              </Link>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+            <div className="max-w-3xl">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-3 sm:mb-4 md:mb-6">
+                Tokenize Rental Income.<br />
+                <span className="text-primary">Earn Verified Yields.</span>
+              </h1>
+              <p className="text-sm sm:text-base md:text-xl text-muted-foreground leading-relaxed mb-4 sm:mb-6 md:mb-8">
+                TENANCY transforms real estate rental payments into ERC-20 tokens. 
+                Off-chain verification via Chainlink CRE ensures payment integrity — 
+                on-chain yield distribution powers your passive income.
+              </p>
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                <Link
+                  to="/investor"
+                  className="inline-flex items-center justify-center rounded-lg text-xs sm:text-sm md:text-base font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-8 sm:h-10 md:h-12 px-3 sm:px-5 md:px-6 gap-1 sm:gap-2 transition-all"
+                >
+                  <span className="hidden sm:inline">Start Investing</span>
+                  <span className="sm:hidden">Invest</span>
+                  <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4" />
+                </Link>
+                <Link
+                  to="/issuer"
+                  className="inline-flex items-center justify-center rounded-lg text-xs sm:text-sm md:text-base font-medium border border-border bg-background hover:bg-muted h-8 sm:h-10 md:h-12 px-3 sm:px-5 md:px-6 gap-1 sm:gap-2 transition-all"
+                >
+                  <span className="hidden sm:inline">Tokenize Property</span>
+                  <span className="sm:hidden">Tokenize</span>
+                </Link>
+              </div>
+            </div>
+            <div className="hidden lg:block">
+              <img 
+                src="/virtual-house.avif" 
+                alt="Virtual House" 
+                className="w-full h-auto rounded-xl shadow-2xl object-cover"
+                style={{ maxHeight: '500px' }}
+              />
+            </div>
+            <div className="lg:hidden">
+              <img 
+                src="/virtual-house.avif" 
+                alt="Virtual House" 
+                className="w-full h-auto rounded-xl shadow-xl object-cover"
+                style={{ maxHeight: '300px' }}
+              />
             </div>
           </div>
         </section>
