@@ -72,7 +72,14 @@ export default function InvestorDashboard() {
       try {
         const props = await getAllProperties();
         
-        const displayProps: PropertyDisplay[] = props.map((p: any, index: number) => {
+        const validProps = props.filter((p: any) => 
+          p.owner && 
+          p.owner !== '0x0000000000000000000000000000000000000000' &&
+          p.owner !== '0x0000000000000000000000000000000000000001' &&
+          p.isActive
+        );
+        
+        const displayProps: PropertyDisplay[] = validProps.map((p: any, index: number) => {
           const rentUsd = parseFloat(formatUnits(p.rentAmount, 6));
           const supplyTokens = parseFloat(formatUnits(p.totalSupply, 18));
           const propertyValue = rentUsd * 12 * 10; // Cap rate valuation
