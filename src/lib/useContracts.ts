@@ -76,7 +76,8 @@ export const useContracts = () => {
 
   const getContracts = useCallback(async () => {
     if (!provider || !address) throw new Error('Wallet not connected');
-    
+    if (chainId === null) throw new Error('Network not detected yet. Please wait and try again.');
+
     const signer = await provider.getSigner();
     const isBaseSepolia = chainId === 84532;
     const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
@@ -105,14 +106,14 @@ export const useContracts = () => {
   }, [provider, address, chainId]);
 
   const getAllProperties = useCallback(async (): Promise<Property[]> => {
-    if (!provider) return [];
-    
+    if (!provider || chainId === null) return [];
+
     try {
       // Wait for provider to be ready
       if (!provider.ready) {
         await provider.ready;
       }
-      
+
       const isBaseSepolia = chainId === 84532;
       const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
       const registry = new Contract(addrs.propertyRegistry, ABIS.propertyRegistry, provider);
@@ -193,8 +194,9 @@ export const useContracts = () => {
         throw new Error(`Transaction failed: ${waitError.message || 'Unknown error'}`);
       }
       
-      // Ensure we always return a valid hash
-      if (!receipt || !receipt.hash) {
+      // Ensure we always return a valid hash (ethers v5 uses transactionHash, v6 uses hash)
+      const receiptHash = (receipt as any)?.transactionHash || (receipt as any)?.hash;
+      if (!receipt || !receiptHash) {
         // Fallback to transaction hash if available
         if (tx.hash) {
           console.warn('No receipt but transaction hash available:', tx.hash);
@@ -202,8 +204,8 @@ export const useContracts = () => {
         }
         throw new Error('Transaction completed but no receipt hash available');
       }
-      
-      return receipt.hash;
+
+      return receiptHash;
     } catch (err: any) {
       setError(err.message);
       throw err;
@@ -266,12 +268,12 @@ export const useContracts = () => {
     valuationUsd: string,
     listingAmount: string,
     pricePerToken: string
-  ): Promise<{ propertyToken: string; listingId: string }> => {
+  ): Promise<{ propertyToken: string; listingId: string; txHash: string }> => {
     if (!provider || !address) throw new Error('Wallet not connected');
-    
+
     try {
       const contracts = await getContracts();
-      
+
       const tx = await contracts.propertyRegistry.createAndListProperty(
         uri,
         parseUnits(rentAmount, 6),
@@ -283,22 +285,21 @@ export const useContracts = () => {
         parseUnits(listingAmount, 18),
         parseUnits(pricePerToken, 18)
       );
-      
+
       const receipt = await tx.wait();
-      if (!receipt?.hash) {
+      // ethers v5 uses receipt.transactionHash; ethers v6 uses receipt.hash
+      const txHash = (receipt as any)?.transactionHash || (receipt as any)?.hash || tx.hash;
+      if (!txHash) {
         throw new Error('Transaction failed');
       }
-      
-      // Parse the transaction logs to get the return values
-      const propertyToken = receipt.events?.find(e => e.event === 'PropertyCreated')?.args?.propertyToken;
-      const listingId = receipt.events?.find(e => e.event === 'ImmediateListingCreated')?.args?.listingId;
-      
-      if (!propertyToken || !listingId) {
-        throw new Error('Failed to get property token or listing ID from transaction');
-      }
-      
-      console.log('Property created and listed:', { propertyToken, listingId, txHash: receipt.hash });
-      return { propertyToken, listingId: listingId.toString() };
+
+      // Parse events - fall back gracefully if ethers v5 doesn't populate them
+      const propertyToken = receipt.events?.find((e: any) => e.event === 'PropertyCreated')?.args?.propertyToken ?? '';
+      const listingIdRaw = receipt.events?.find((e: any) => e.event === 'ImmediateListingCreated')?.args?.listingId;
+      const listingId = listingIdRaw ? listingIdRaw.toString() : '0';
+
+      console.log('Property created and listed:', { propertyToken, listingId, txHash });
+      return { propertyToken, listingId, txHash };
     } catch (err: any) {
       console.error('Error creating and listing property:', err);
       throw err;
@@ -352,7 +353,7 @@ export const useContracts = () => {
   }, [provider, address, chainId]);
 
   const getPendingYield = useCallback(async (userAddress?: string): Promise<string> => {
-    if (!provider) return '0';
+    if (!provider || chainId === null) return '0';
     try {
       const isBaseSepolia = chainId === 84532;
       const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
@@ -402,7 +403,7 @@ export const useContracts = () => {
       const contracts = await getContracts();
       const tx = await contracts.yieldDistributor.claimYield(distributionId);
       const receipt = await tx.wait();
-      return receipt.hash;
+      return (receipt as any)?.transactionHash || (receipt as any)?.hash || tx.hash;
     } catch (err: any) {
       setError(err.message);
       throw err;
@@ -421,7 +422,7 @@ export const useContracts = () => {
         parseUnits(amount, 18)
       );
       const receipt = await tx.wait();
-      return receipt.hash;
+      return (receipt as any)?.transactionHash || (receipt as any)?.hash || tx.hash;
     } catch (err: any) {
       setError(err.message);
       throw err;
@@ -431,7 +432,7 @@ export const useContracts = () => {
   }, [getContracts]);
 
   const getYieldPoolInfo = useCallback(async () => {
-    if (!provider) return null;
+    if (!provider || chainId === null) return null;
     try {
       const isBaseSepolia = chainId === 84532;
       const addrs = isBaseSepolia ? CONTRACT_ADDRESSES.baseSepolia : CONTRACT_ADDRESSES.sepolia;
@@ -539,7 +540,7 @@ export const useContracts = () => {
           const contracts = await getContracts();
           const tx = await contracts.yieldDistributor.claimYield(distributionId);
           const receipt = await tx.wait();
-          txHashes.push(receipt.hash);
+          txHashes.push((receipt as any)?.transactionHash || (receipt as any)?.hash || tx.hash);
         } catch (err) {
           console.error(`Error claiming yield for distribution ${distributionId}:`, err);
         }
@@ -614,12 +615,12 @@ export const useContracts = () => {
       const totalCost = amountWei.mul(pricePerToken).div(parseUnits('1', 18));
       const usdc = new Contract(usdcAddress, USDC_ABI, signer);
       const buyerUSDCBalance = await usdc.balanceOf(buyerAddress);
-      if (buyerUSDCBalance < totalCost) {
+      if (ethers.BigNumber.from(buyerUSDCBalance.toString()).lt(totalCost)) {
         throw new Error('Insufficient USDC balance. Please get USDC to proceed.');
       }
 
       const currentAllowance = await usdc.allowance(buyerAddress, addrs.marketplace);
-      if (currentAllowance < totalCost) {
+      if (ethers.BigNumber.from(currentAllowance.toString()).lt(totalCost)) {
         const approveTx = await usdc.approve(addrs.marketplace, totalCost);
         await approveTx.wait();
       }
@@ -627,8 +628,9 @@ export const useContracts = () => {
       const tx = await marketplace.buyListing(listing.id, amountWei);
       callbacks?.onPendingTx?.(tx.hash);
       const receipt = await tx.wait();
-      callbacks?.onConfirmedTx?.(receipt.hash);
-      return receipt.hash;
+      const buyReceiptHash = (receipt as any)?.transactionHash || (receipt as any)?.hash || tx.hash;
+      callbacks?.onConfirmedTx?.(buyReceiptHash);
+      return buyReceiptHash;
     } catch (err: any) {
       console.error('Error in buyPropertyTokens:', err);
       setError(err.message);
@@ -659,7 +661,7 @@ export const useContracts = () => {
       const tenToken = new Contract(addrs.tenToken, ABIS.erc20, signer);
       const tx = await tenToken.transfer(userAddress, amountWei);
       const receipt = await tx.wait();
-      return receipt.hash;
+      return (receipt as any)?.transactionHash || (receipt as any)?.hash || tx.hash;
     } catch (err: any) {
       setError(err.message);
       throw err;
@@ -669,7 +671,7 @@ export const useContracts = () => {
   }, [provider, chainId, getContracts]);
 
   const getMarketplaceListings = useCallback(async (): Promise<MarketplaceListing[]> => {
-    if (!provider) return [];
+    if (!provider || chainId === null) return [];
     
     try {
       const isBaseSepolia = chainId === 84532;
@@ -725,7 +727,7 @@ export const useContracts = () => {
       
       const tx = await contracts.marketplace.createListing(propertyToken, amountWei, priceWei);
       const receipt = await tx.wait();
-      return receipt.hash;
+      return (receipt as any)?.transactionHash || (receipt as any)?.hash || tx.hash;
     } catch (err: any) {
       setError(err.message);
       throw err;
@@ -763,20 +765,22 @@ export const useContracts = () => {
         throw new Error('Listing not found or inactive');
       }
 
-      const amountWei = amount ? parseUnits(amount, 18) : listing.amount;
-      if (amountWei.lte(0) || amountWei.gt(listing.amount)) {
+      const amountWei = amount ? parseUnits(amount, 18) : ethers.BigNumber.from(listing.amount.toString());
+      const listingAmount = ethers.BigNumber.from(listing.amount.toString());
+      if (amountWei.lte(0) || amountWei.gt(listingAmount)) {
         throw new Error('Invalid buy amount');
       }
 
-      const totalCost = (amountWei * listing.pricePerToken) / parseUnits('1', 18);
+      const pricePerToken = ethers.BigNumber.from(listing.pricePerToken.toString());
+      const totalCost = amountWei.mul(pricePerToken).div(parseUnits('1', 18));
       const balance = await usdc.balanceOf(buyerAddress);
-      if (balance < totalCost) {
+      if (ethers.BigNumber.from(balance.toString()).lt(totalCost)) {
         throw new Error('Insufficient USDC balance');
       }
 
       const marketplaceAddress = contracts.marketplace.address || contracts.marketplace.target;
       const allowance = await usdc.allowance(buyerAddress, marketplaceAddress);
-      if (allowance.lt(totalCost)) {
+      if (ethers.BigNumber.from(allowance.toString()).lt(totalCost)) {
         const approveTx = await usdc.approve(marketplaceAddress, totalCost);
         await approveTx.wait();
       }
@@ -784,8 +788,9 @@ export const useContracts = () => {
       const tx = await contracts.marketplace.buyListing(listingId, amountWei);
       callbacks?.onPendingTx?.(tx.hash);
       const receipt = await tx.wait();
-      callbacks?.onConfirmedTx?.(receipt.hash);
-      return receipt.hash;
+      const receiptTxHash = (receipt as any)?.transactionHash || (receipt as any)?.hash || tx.hash;
+      callbacks?.onConfirmedTx?.(receiptTxHash);
+      return receiptTxHash;
     } catch (err: any) {
       setError(err.message);
       throw err;
@@ -805,7 +810,7 @@ export const useContracts = () => {
       
       const tx = await contracts.marketplace.cancelListing(listingId);
       const receipt = await tx.wait();
-      return receipt.hash;
+      return (receipt as any)?.transactionHash || (receipt as any)?.hash || tx.hash;
     } catch (err: any) {
       setError(err.message);
       throw err;
@@ -829,7 +834,7 @@ export const useContracts = () => {
         const propertyToken = new Contract(prop.propertyToken, ABIS.erc20, provider);
         const balance = await propertyToken.balanceOf(userAddr);
         
-        if (balance > 0) {
+        if (ethers.BigNumber.from(balance.toString()).gt(0)) {
           leases.push({
             id: prop.id,
             propertyId: prop.id,
@@ -884,8 +889,8 @@ export const useContracts = () => {
       
       const tx = await usdc.transfer(property.owner, amountWei);
       const receipt = await tx.wait();
-      
-      return receipt.hash;
+
+      return (receipt as any)?.transactionHash || (receipt as any)?.hash || tx.hash;
     } catch (err: any) {
       setError(err.message);
       throw err;
@@ -895,7 +900,7 @@ export const useContracts = () => {
   }, [provider, address, chainId, getAllProperties]);
 
   const getAgentStatus = useCallback(async () => {
-    if (!provider) return null;
+    if (!provider || chainId === null) return null;
     
     try {
       const isBaseSepolia = chainId === 84532;
@@ -961,8 +966,8 @@ export const useContracts = () => {
   }, [provider, chainId]);
 
   const getYieldStats = useCallback(async () => {
-    if (!provider) return null;
-    
+    if (!provider || chainId === null) return null;
+
     try {
       // Wait for provider to be ready
       if (!provider.ready) {
