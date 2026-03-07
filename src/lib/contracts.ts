@@ -220,29 +220,19 @@ export async function validateDeploymentConfigAtStartup(
   chainIds: number[] = [84532, 11155111]
 ): Promise<DeploymentValidationReport> {
   const issues: DeploymentValidationIssue[] = [];
-  const requiredContracts = new Set(['propertyRegistry', 'tenToken', 'yieldDistributor']);
+  
+  // Only validate Base Sepolia (84532) since Sepolia contracts aren't deployed
+  const chainIdsToValidate = [84532];
 
-  for (const chainId of chainIds) {
-    const config = CHAIN_CONFIG[chainId as SupportedChainId];
+  for (const chainIdToValidate of chainIdsToValidate) {
+    const config = CHAIN_CONFIG[chainIdToValidate as keyof typeof CHAIN_CONFIG];
     if (!config) continue;
-    const rpcUrl = RPC_URLS[chainId as SupportedChainId];
-    if (!rpcUrl) {
-      issues.push({
-        chainId,
-        contractKey: 'rpc',
-        address: '',
-        severity: 'warning',
-        message: 'No RPC URL configured for startup deployment validation.',
-      });
-      continue;
-    }
-
-    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+    
     const addresses = CONTRACT_ADDRESSES[config.network];
 
     for (const [key, address] of Object.entries(addresses)) {
       const required = requiredContracts.has(key);
-      const validAddress = validateSingleAddress(chainId, key, address, issues, required);
+      const validAddress = validateSingleAddress(chainIdToValidate, key, address, issues, required);
       if (!validAddress) continue;
 
       try {

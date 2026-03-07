@@ -40,7 +40,7 @@ interface PropertyOption {
 
 export default function Marketplace() {
   const { isAuthenticated, address, isCorrectNetwork } = useAuth();
-  const { getAllProperties, getMarketplaceListings, getUserPropertyTokens, createMarketplaceListing, cancelMarketplaceListing, buyMarketplaceListing, chainId } = useContracts();
+  const { getAllProperties, getMarketplaceListings, getUserPropertyTokens, createMarketplaceListing, cancelMarketplaceListing, buyMarketplaceListing, chainId, getContracts } = useContracts();
   
   const [listings, setListings] = useState<Listing[]>([]);
   const [availableProperties, setAvailableProperties] = useState<PropertyOption[]>([]);
@@ -70,32 +70,54 @@ export default function Marketplace() {
           getAllProperties(),
           getUserPropertyTokens(),
         ]);
+        
+        // Create property map with full property details
         const propertyMap = new Map(allProps.map((p: any) => [p.propertyToken.toLowerCase(), p]));
+        
+        // Get detailed property information for each listing
+        const listingsWithDetails = await Promise.all(
+          marketplaceListings.map(async (l: any) => {
+            const prop = propertyMap.get(l.propertyToken.toLowerCase());
+            let propertyDetails = null;
+            
+            // If we have a property from getAllProperties, use it
+            if (prop) {
+              propertyDetails = prop;
+            } else {
+              // Fallback: try to get property details directly
+              try {
+                const contracts = await getContracts();
+                if (contracts.propertyRegistry) {
+                  propertyDetails = await contracts.propertyRegistry.getProperty(l.propertyId);
+                }
+              } catch (err) {
+                console.warn('Could not fetch property details for listing:', err);
+              }
+            }
+            
+            return {
+              id: Number(l.id),
+              propertyId: propertyDetails ? Number(propertyDetails.id) : Number(l.propertyId),
+              propertyName: propertyDetails?.uri || `Property #${propertyDetails?.id || l.id}`,
+              propertyUri: propertyDetails?.uri || '',
+              propertyToken: l.propertyToken,
+              seller: l.seller,
+              amount: parseFloat(formatUnits(l.amount, 18)),
+              pricePerToken: parseFloat(formatUnits(l.pricePerToken, 6)),
+              totalPrice: parseFloat(formatUnits(l.totalPrice, 6)),
+              status: l.isActive ? ('active' as const) : ('sold' as const),
+              createdAt: Number(l.createdAt) * 1000,
+            };
+          })
+        );
         
         const propertyOptions: PropertyOption[] = (userProps || []).map((prop: any) => ({
           id: Number(prop.id),
           name: prop.uri || `Property #${Number(prop.id)}`,
           uri: prop.uri || '',
         }));
-        const listingsData: Listing[] = marketplaceListings.map((l: any, index: number) => {
-          const prop = propertyMap.get(l.propertyToken.toLowerCase());
-          
-          return {
-            id: Number(l.id),
-            propertyId: prop ? Number(prop.id) : 0,
-            propertyName: prop?.uri || `Property #${prop?.id || index}`,
-            propertyUri: prop?.uri || '',
-            propertyToken: l.propertyToken,
-            seller: l.seller,
-            amount: parseFloat(formatUnits(l.amount, 18)),
-            pricePerToken: parseFloat(formatUnits(l.pricePerToken, 6)),
-            totalPrice: parseFloat(formatUnits(l.totalPrice, 6)),
-            status: l.isActive ? 'active' : 'sold',
-            createdAt: Number(l.createdAt) * 1000,
-          };
-        });
         
-        setListings(listingsData);
+        setListings(listingsWithDetails);
         setAvailableProperties(propertyOptions);
       } catch (err) {
         console.error('Error fetching listings:', err);
