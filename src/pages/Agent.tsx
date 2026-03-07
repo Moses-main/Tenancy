@@ -328,7 +328,7 @@ const Agent: React.FC = () => {
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
           <span>Network: {chainId === 84532 ? 'Base Sepolia' : chainId === 11155111 ? 'Sepolia' : 'Unknown'}</span>
           <span>•</span>
-          <span>Trigger: Cron (Daily 00:00 UTC)</span>
+          <span>Trigger: Cron (Every 30 min)</span>
         </div>
       </div>
 
@@ -500,7 +500,7 @@ const Agent: React.FC = () => {
             <ul className="text-sm text-muted-foreground mt-2 space-y-1">
               <li className="flex items-center gap-2">
                 <ArrowRight className="h-3 w-3" />
-                Runs automatically daily at 00:00 UTC
+                Runs automatically every 30 minutes
               </li>
               <li className="flex items-center gap-2">
                 <ArrowRight className="h-3 w-3" />

@@ -246,7 +246,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 >
                   <Wallet className="h-4 w-4" />
                   <span className="hidden sm:inline font-medium">{formatAddress(address)}</span>
-                  <span className="sm:inline font-medium">{formatAddress(address).slice(0, 6)}...</span>
+                  <span className="inline sm:hidden font-medium">{formatAddress(address).slice(0, 6)}...</span>
                 </button>
 
                 {showWalletDropdown && (
@@ -575,7 +575,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               Documentation
             </a>
             <a
-              href="https://sepolia.basescan.org/address/0x8f77c2BD2132727327B27164cDec4ccaA2083f7C"
+              href="https://sepolia.basescan.org/address/0x6d51cE756C9622A3399CBb7355321d4A326Ec09d"
               target="_blank"
               rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground transition-colors text-xs sm:text-sm"

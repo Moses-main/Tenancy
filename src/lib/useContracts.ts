@@ -914,13 +914,19 @@ export const useContracts = () => {
         yieldDistributor.getEthUsdPrice().catch(() => 0n),
       ]);
       
-      const nextRun = Number(lastRun) + 86400;
-      
+      // Agent runs every 30 minutes; nextRun = lastRun + 1800s
+      const AGENT_INTERVAL_SECONDS = 1800;
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const lastRunSeconds = Number(lastRun);
+      const nextRunSeconds = lastRunSeconds > 0
+        ? lastRunSeconds + AGENT_INTERVAL_SECONDS
+        : nowSeconds + AGENT_INTERVAL_SECONDS;
+
       return {
-        lastRun: Number(lastRun) > 0 ? new Date(Number(lastRun) * 1000).toISOString() : null,
-        nextRun: new Date(nextRun * 1000).toISOString(),
+        lastRun: lastRunSeconds > 0 ? new Date(lastRunSeconds * 1000).toISOString() : null,
+        nextRun: new Date(nextRunSeconds * 1000).toISOString(),
         isRunning: false,
-        totalRuns: Number(lastRun) > 0 ? Math.floor(Number(lastRun) / 86400) : 0,
+        totalRuns: lastRunSeconds > 0 ? Math.floor((nowSeconds - lastRunSeconds) / AGENT_INTERVAL_SECONDS) + 1 : 0,
         totalYieldPool: formatUnits(totalPool, 18),
         totalDistributed: formatUnits(totalDistributed, 18),
         ethUsdPrice: Number(lastPrice) / 1e8,
