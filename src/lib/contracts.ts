@@ -10,11 +10,11 @@ const getEnv = (key: string, fallback: string = '') => {
 
 export const CONTRACT_ADDRESSES = {
   baseSepolia: {
-    propertyRegistry: getEnv('VITE_PROPERTY_REGISTRY_BASE_SEPOLIA', '0xCd5E04B88789bd2772AbFf6e9642B08A074a8326'),
-    tenToken: getEnv('VITE_TEN_TOKEN_BASE_SEPOLIA', '0xF6fb74324aeD3215bB4580De3e8B98a240E619A8'),
-    yieldDistributor: getEnv('VITE_YIELD_DISTRIBUTOR_BASE_SEPOLIA', '0x14E4422344B330dA56f7EE26936A5A136D800D19'),
+    propertyRegistry: getEnv('VITE_PROPERTY_REGISTRY_BASE_SEPOLIA', '0xD9e829AF6FE4289f7fe6F42FA1A6a09405215322'),
+    tenToken: getEnv('VITE_TEN_TOKEN_BASE_SEPOLIA', '0x8c74bBb39E2F832865206eFC0894fd914d6f5b60'),
+    yieldDistributor: getEnv('VITE_YIELD_DISTRIBUTOR_BASE_SEPOLIA', '0x8E0898723c4DD84271b3F307C137a344F69009E8'),
     priceFeedConsumer: getEnv('VITE_PRICE_FEED_CONSUMER_BASE_SEPOLIA', '0xC7f2Cf4845C6db0e1a1e91ED41Bcd0FcC1b0E141'),
-    marketplace: getEnv('VITE_MARKETPLACE_BASE_SEPOLIA', '0x262Ff5Ea35B98f8d2EB790b2d0Ea9F029CB8D202'),
+    marketplace: getEnv('VITE_MARKETPLACE_BASE_SEPOLIA', '0x31BF00CECd7e3CdA9f384bF6ff707F9c1E5A63a9'),
   },
   sepolia: {
     propertyRegistry: getEnv('VITE_PROPERTY_REGISTRY_SEPOLIA', '0x452ba94272f3302E7b48bFFC1F5a57ec7136A6aA'),
@@ -73,8 +73,8 @@ export const ABIS = {
   propertyRegistry: [
     "function createProperty(string uri, uint256 rentAmount, uint256 rentFrequency, uint256 initialSupply, string tokenName, string tokenSymbol, uint256 valuationUsd) returns (address)",
     "function createAndListProperty(string uri, uint256 rentAmount, uint256 rentFrequency, uint256 initialSupply, string tokenName, string tokenSymbol, uint256 valuationUsd, uint256 listingAmount, uint256 pricePerToken) returns (address propertyToken, uint256 listingId)",
-    "function getProperty(uint256 propertyId) view returns (tuple(uint256 id, string uri, uint256 rentAmount, uint256 rentFrequency, uint256 totalSupply, address propertyToken, address owner, bool isActive))",
-    "function getAllProperties() view returns (tuple(uint256 id, string uri, uint256 rentAmount, uint256 rentFrequency, uint256 totalSupply, address propertyToken, address owner, bool isActive)[])",
+    "function getProperty(uint256 propertyId) view returns (tuple(uint256 id, string uri, uint256 rentAmount, uint256 rentFrequency, uint256 totalSupply, address propertyToken, bool isActive, bool isPaused, address owner, uint256 valuationUsd, uint256 lastValuationTimestamp, uint256 paymentStatus, uint256 daysOverdue))",
+    "function getAllProperties() view returns (tuple(uint256 id, string uri, uint256 rentAmount, uint256 rentFrequency, uint256 totalSupply, address propertyToken, bool isActive, bool isPaused, address owner, uint256 valuationUsd, uint256 lastValuationTimestamp, uint256 paymentStatus, uint256 daysOverdue)[])",
     "function setIssuer(address issuer, bool status)",
     "function issuers(address) view returns (bool)",
     "function calculatePropertyValuation(uint256 annualRentUsd) view returns (uint256)",
