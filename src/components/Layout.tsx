@@ -156,10 +156,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Modern Header */}
       <header className="sticky top-0 z-50 w-full glass">
-        <div className="container flex h-16 md:h-18 items-center justify-between px-4 md:px-8">
+        <div className="container flex h-14 md:h-16 lg:h-18 items-center justify-between px-3 sm:px-4 md:px-6 lg:px-8">
           {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl items-center justify-center shadow-lg shadow-primary/25 overflow-hidden">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl items-center justify-center shadow-lg shadow-primary/25 overflow-hidden">
               <img
                 src="https://coral-careful-clownfish-270.mypinata.cloud/ipfs/bafybeicoasfwy7zdldrer72cy6rgylbhflmv5mzogeu6e5jujt4koqe5gi"
                 alt="TENANCY Protocol"
@@ -167,8 +167,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               />
             </div>
             <div className="flex flex-col">
-              <span className="text-lg font-bold tracking-tight">TENANCY</span>
-              <span className="text-[10px] text-muted-foreground -mt-1">
+              <span className="text-sm sm:text-base md:text-lg font-bold tracking-tight">TENANCY</span>
+              <span className="text-[8px] sm:text-[10px] text-muted-foreground -mt-1">
                 Protocol
               </span>
             </div>
@@ -186,7 +186,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   className={`nav-item-modern ${isActive ? "active" : ""}`}
                 >
                   <Icon className="h-4 w-4" />
-                  <span>{item.label}</span>
+                  <span className="hidden xl:inline">{item.label}</span>
+                  <span className="xl:hidden">{item.label.slice(0, 3)}</span>
                   {isActive && (
                     <ChevronRight className="h-3 w-3 ml-auto text-primary" />
                   )}
@@ -196,32 +197,35 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </nav>
 
           {/* Right Side */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-2 lg:gap-3">
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
-              className="btn-ghost p-2.5 rounded-xl"
+              className="btn-ghost p-2 lg:p-2.5 rounded-xl"
               title={theme === "dark" ? "Light mode" : "Dark mode"}
             >
               {theme === "dark" ? (
-                <Sun className="h-5 w-5" />
+                <Sun className="h-4 w-4 lg:h-5 lg:w-5" />
               ) : (
-                <Moon className="h-5 w-5" />
+                <Moon className="h-4 w-4 lg:h-5 lg:w-5" />
               )}
             </button>
 
             {/* Network Status */}
             <div 
               onClick={() => !isCorrectNetwork && setShowNetworkPrompt(true)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm cursor-pointer transition-colors ${
+              className={`flex items-center gap-1.5 lg:gap-2 px-2 lg:px-3 py-2 rounded-xl text-xs lg:text-sm cursor-pointer transition-colors ${
                 isCorrectNetwork 
                   ? "bg-secondary/50 text-muted-foreground" 
                   : "bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/30"
               }`}
             >
-              <span className={`w-2 h-2 rounded-full ${isCorrectNetwork ? "bg-green-500 animate-pulse" : "bg-amber-500"}`}></span>
-              <span>
+              <span className={`w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full ${isCorrectNetwork ? "bg-green-500 animate-pulse" : "bg-amber-500"}`}></span>
+              <span className="hidden sm:inline">
                 {chainName || "Base Sepolia"}
+              </span>
+              <span className="sm:hidden">
+                {chainName ? chainName.slice(0, 3) : "BS"}
               </span>
               {!isCorrectNetwork && chainName && (
                 <AlertTriangle className="h-3 w-3" />
@@ -238,14 +242,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <div className="relative">
                 <button
                   onClick={() => setShowWalletDropdown(!showWalletDropdown)}
-                  className="btn-primary px-4 py-2.5 gap-2"
+                  className="btn-primary px-3 lg:px-4 py-2 lg:py-2.5 gap-2"
                 >
                   <Wallet className="h-4 w-4" />
-                  <span className="font-medium">{formatAddress(address)}</span>
+                  <span className="hidden sm:inline font-medium">{formatAddress(address)}</span>
+                  <span className="sm:inline font-medium">{formatAddress(address).slice(0, 6)}...</span>
                 </button>
 
                 {showWalletDropdown && (
-                  <div className="absolute right-0 mt-3 w-80 rounded-2xl border bg-card text-card-foreground shadow-xl animate-slide-up overflow-hidden">
+                  <div className="absolute right-0 mt-3 w-72 sm:w-80 rounded-2xl border bg-card text-card-foreground shadow-xl animate-slide-up overflow-hidden">
                     <div className="p-5 border-b border-border/50">
                       <div className="flex items-center justify-between mb-4">
                         <span className="text-sm font-semibold">Wallet</span>
@@ -382,33 +387,34 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 )}
               </div>
             ) : (
-              <button onClick={login} className="btn-primary px-5 py-2.5 gap-2">
+              <button onClick={login} className="btn-primary px-3 lg:px-5 py-2 lg:py-2.5 gap-2">
                 <Wallet className="h-4 w-4" />
-                Connect Wallet
+                <span className="hidden sm:inline">Connect Wallet</span>
+                <span className="sm:inline">Connect</span>
               </button>
             )}
           </div>
 
           {/* Mobile Menu Button */}
-          <div className="flex md:hidden items-center gap-2">
+          <div className="flex md:hidden items-center gap-1 lg:gap-2">
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-lg hover:bg-secondary transition-colors"
+              className="p-1.5 lg:p-2 rounded-lg hover:bg-secondary transition-colors"
             >
               {theme === "dark" ? (
-                <Sun className="h-5 w-5" />
+                <Sun className="h-4 w-4 lg:h-5 lg:w-5" />
               ) : (
-                <Moon className="h-5 w-5" />
+                <Moon className="h-4 w-4 lg:h-5 lg:w-5" />
               )}
             </button>
             <button
-              className="p-2 rounded-lg hover:bg-secondary transition-colors"
+              className="p-1.5 lg:p-2 rounded-lg hover:bg-secondary transition-colors"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             >
               {isMobileMenuOpen ? (
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4 lg:h-5 lg:w-5" />
               ) : (
-                <Menu className="h-5 w-5" />
+                <Menu className="h-4 w-4 lg:h-5 lg:w-5" />
               )}
             </button>
           </div>
@@ -417,8 +423,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Mobile Menu */}
       {isMobileMenuOpen && (
-        <div className="md:hidden border-b border-border/50 bg-background/95 backdrop-blur-xl animate-slide-up">
-          <div className="container px-4 py-4 space-y-3">
+        <div className="md:hidden lg:hidden border-b border-border/50 bg-background/95 backdrop-blur-xl animate-slide-up">
+          <div className="container px-3 sm:px-4 py-4 space-y-3">
             <nav className="flex flex-col gap-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
@@ -428,15 +434,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     key={item.path}
                     to={item.path}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-medium transition-colors ${
                       isActive
                         ? "bg-primary/10 text-primary"
                         : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                     }`}
                   >
-                    <Icon className="h-5 w-5" />
+                    <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
                     {item.label}
-                    {isActive && <ChevronRight className="h-4 w-4 ml-auto" />}
+                    {isActive && <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 ml-auto" />}
                   </NavLink>
                 );
               })}
@@ -446,22 +452,22 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             {isAuthenticated && address ? (
               <div className="space-y-3">
-                <div className="p-4 rounded-xl bg-secondary/50 space-y-2">
+                <div className="p-3 sm:p-4 rounded-xl bg-secondary/50 space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Address</span>
                     <span className="font-mono text-xs">
                       {formatAddress(address)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">ETH Balance</span>
+                  <div className="flex items-center justify-between text-xs sm:text-sm">
+                    <span className="text-muted-foreground">ETH</span>
                     <span>{balance ? `${balance}` : "—"}</span>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">USDC Balance</span>
+                  <div className="flex items-center justify-between text-xs sm:text-sm">
+                    <span className="text-muted-foreground">USDC</span>
                     <span>{usdcBalance ? `${usdcBalance}` : "—"}</span>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center justify-between text-xs sm:text-sm">
                     <span className="text-muted-foreground">Network</span>
                     <span>{chainName || "Unknown"}</span>
                   </div>
@@ -471,9 +477,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     logout();
                     setIsMobileMenuOpen(false);
                   }}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl text-sm font-medium bg-destructive text-destructive-foreground hover:bg-destructive/90 py-3"
+                  className="w-full flex items-center justify-center gap-2 rounded-xl text-xs sm:text-sm font-medium bg-destructive text-destructive-foreground hover:bg-destructive/90 py-2.5 sm:py-3"
                 >
-                  <LogOut className="h-4 w-4" />
+                  <LogOut className="h-3 w-3 sm:h-4 sm:w-4" />
                   Disconnect
                 </button>
               </div>
@@ -483,9 +489,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   login();
                   setIsMobileMenuOpen(false);
                 }}
-                className="w-full btn-primary py-3 gap-2"
+                className="w-full btn-primary py-2.5 sm:py-3 gap-2"
               >
-                <Wallet className="h-4 w-4" />
+                <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />
                 Connect Wallet
               </button>
             )}
@@ -494,7 +500,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 container px-4 md:px-8 py-6 md:py-8">
+      <main className="flex-1 container px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 md:py-8">
         {children}
       </main>
 
@@ -542,10 +548,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-border/50 py-8">
-        <div className="container flex flex-col md:flex-row items-center justify-between gap-4 px-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center overflow-hidden shadow-md">
+      <footer className="border-t border-border/50 py-6 sm:py-8">
+        <div className="container flex flex-col md:flex-row items-center justify-between gap-4 px-3 sm:px-4 text-xs sm:text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center overflow-hidden shadow-md">
               <img
                 src="https://coral-careful-clownfish-270.mypinata.cloud/ipfs/bafybeicoasfwy7zdldrer72cy6rgylbhflmv5mzogeu6e5jujt4koqe5gi"
                 alt="TENANCY Protocol"
@@ -553,18 +559,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               />
             </div>
             <div className="flex flex-col">
-              <span className="font-medium text-foreground">
+              <span className="text-xs sm:text-sm font-medium text-foreground">
                 TENANCY Protocol
               </span>
-              <span className="text-xs">Powered by Ethereum & Chainlink</span>
+              <span className="text-[8px] sm:text-xs">Powered by Ethereum & Chainlink</span>
             </div>
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-6">
             <a
               href="https://github.com/Moses-main/Tenancy#readme"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground transition-colors text-sm"
+              className="text-muted-foreground hover:text-foreground transition-colors text-xs sm:text-sm"
             >
               Documentation
             </a>
@@ -572,7 +578,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               href="https://sepolia.basescan.org/address/0x8f77c2BD2132727327B27164cDec4ccaA2083f7C"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground transition-colors text-sm"
+              className="text-muted-foreground hover:text-foreground transition-colors text-xs sm:text-sm"
             >
               Contracts
             </a>
@@ -580,7 +586,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               href="https://github.com/Moses-main/Tenancy"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground transition-colors text-sm"
+              className="text-muted-foreground hover:text-foreground transition-colors text-xs sm:text-sm"
             >
               GitHub
             </a>
@@ -588,7 +594,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               href="https://discord.gg/tenancy-protocol"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground transition-colors text-sm"
+              className="text-muted-foreground hover:text-foreground transition-colors text-xs sm:text-sm"
             >
               Discord
             </a>

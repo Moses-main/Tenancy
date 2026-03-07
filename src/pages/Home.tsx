@@ -138,37 +138,39 @@ export default function Home() {
 
   return (
     <Layout>
-      <div className="space-y-12 md:space-y-16">
-        <section className="py-8 md:py-12">
+      <div className="space-y-8 sm:space-y-12 md:space-y-16">
+        <section className="py-6 sm:py-8 md:py-12">
           <div className="max-w-3xl">
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-4 md:mb-6">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-3 sm:mb-4 md:mb-6">
               Tokenize Rental Income.<br />
               <span className="text-primary">Earn Verified Yields.</span>
             </h1>
-            <p className="text-base md:text-xl text-muted-foreground leading-relaxed mb-6 md:mb-8">
+            <p className="text-sm sm:text-base md:text-xl text-muted-foreground leading-relaxed mb-4 sm:mb-6 md:mb-8">
               TENANCY transforms real estate rental payments into ERC-20 tokens. 
               Off-chain verification via Chainlink CRE ensures payment integrity — 
               on-chain yield distribution powers your passive income.
             </p>
-            <div className="flex flex-wrap gap-3 md:gap-4">
+            <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
               <Link
                 to="/investor"
-                className="inline-flex items-center justify-center rounded-lg text-sm md:text-base font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 md:h-12 px-5 md:px-6 gap-2 transition-all"
+                className="inline-flex items-center justify-center rounded-lg text-xs sm:text-sm md:text-base font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-8 sm:h-10 md:h-12 px-3 sm:px-5 md:px-6 gap-1 sm:gap-2 transition-all"
               >
-                Start Investing
-                <ArrowRight className="h-4 w-4" />
+                <span className="hidden sm:inline">Start Investing</span>
+                <span className="sm:hidden">Invest</span>
+                <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4" />
               </Link>
               <Link
                 to="/issuer"
-                className="inline-flex items-center justify-center rounded-lg text-sm md:text-base font-medium border border-border bg-background hover:bg-muted h-10 md:h-12 px-5 md:px-6 gap-2 transition-all"
+                className="inline-flex items-center justify-center rounded-lg text-xs sm:text-sm md:text-base font-medium border border-border bg-background hover:bg-muted h-8 sm:h-10 md:h-12 px-3 sm:px-5 md:px-6 gap-1 sm:gap-2 transition-all"
               >
-                Tokenize Property
+                <span className="hidden sm:inline">Tokenize Property</span>
+                <span className="sm:hidden">Tokenize</span>
               </Link>
             </div>
           </div>
         </section>
 
-        <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <section className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total Value Tokenized"
             value={properties.length > 0 ? `$${(totalValue / 1000000).toFixed(2)}M` : '$0'}

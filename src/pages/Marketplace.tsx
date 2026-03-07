@@ -443,40 +443,42 @@ export default function Marketplace() {
 
   return (
     <Layout>
-      <div className="space-y-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="space-y-6 sm:space-y-8">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 sm:gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Token Marketplace</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Token Marketplace</h1>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">
               Buy and sell property token positions on the secondary market.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <button
               onClick={async () => {
                 setIsLoading(true);
                 await refreshListings();
                 setIsLoading(false);
               }}
-              className="inline-flex items-center justify-center rounded-lg text-sm font-medium border border-input bg-background hover:bg-muted h-11 px-4 gap-2"
+              className="inline-flex items-center justify-center rounded-lg text-xs sm:text-sm font-medium border border-input bg-background hover:bg-muted h-9 sm:h-11 px-3 sm:px-4 gap-1 sm:gap-2"
             >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
+              <RefreshCw className={`h-3 w-3 sm:h-4 sm:w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+              <span className="sm:hidden">↻</span>
             </button>
             <button
               onClick={() => {
                 setNewListing({ propertyId: availableProperties[0]?.id?.toString() || '', amount: '', pricePerToken: '' });
                 setShowCreateListing(true);
               }}
-              className="inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-6 gap-2"
+              className="inline-flex items-center justify-center rounded-lg text-xs sm:text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-9 sm:h-11 px-3 sm:px-6 gap-1 sm:gap-2"
             >
-              <Building className="h-4 w-4" />
-              Create Listing
+              <Building className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Create Listing</span>
+              <span className="sm:hidden">Create</span>
             </button>
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total Listings"
             value={listings.filter(l => l.status === 'active').length.toString()}

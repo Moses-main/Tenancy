@@ -264,6 +264,48 @@
     @apply bg-primary/10 text-primary;
   }
 
+  /* Mobile-specific nav styles */
+  @media (max-width: 1024px) {
+    .nav-item-modern {
+      @apply px-3 py-2 text-xs;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .nav-item-modern {
+      @apply px-2 py-1.5 text-[10px];
+    }
+  }
+
+  /* Tablet-specific optimizations */
+  @media (min-width: 768px) and (max-width: 1024px) {
+    .tablet-compact {
+      @apply px-4 py-2 text-sm;
+    }
+  }
+
+  /* Mobile-first responsive utilities */
+  @media (max-width: 640px) {
+    .mobile-hidden {
+      @apply hidden;
+    }
+    .mobile-full {
+      @apply w-full;
+    }
+    .mobile-center {
+      @apply text-center;
+    }
+  }
+
+  @media (min-width: 641px) and (max-width: 1024px) {
+    .tablet-hidden {
+      @apply hidden;
+    }
+    .tablet-compact {
+      @apply px-3 py-2;
+    }
+  }
+
   /* Badge modern */
   .badge-modern {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;

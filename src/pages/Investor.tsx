@@ -398,19 +398,19 @@ export default function InvestorDashboard() {
             </div>
             <div className="grid gap-4">
               {userPropertyTokens.map((token, index) => (
-                <div key={index} className="rounded-xl border border-border bg-card p-6">
-                  <div className="flex items-center justify-between">
+                <div key={index} className="rounded-xl border border-border bg-card p-4 sm:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                      <h3 className="font-semibold text-lg">{token.tokenName || `Property #${token.id}`}</h3>
-                      <p className="text-sm text-muted-foreground">{token.tokenSymbol || 'PROP'}</p>
-                      <p className="text-2xl font-bold mt-2">{parseFloat(token.balance).toFixed(2)} Tokens</p>
+                      <h3 className="font-semibold text-base sm:text-lg">{token.tokenName || `Property #${token.id}`}</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground">{token.tokenSymbol || 'PROP'}</p>
+                      <p className="text-lg sm:text-2xl font-bold mt-1 sm:mt-2">{parseFloat(token.balance).toFixed(2)} Tokens</p>
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm text-muted-foreground">Est. Monthly Yield</div>
-                      <div className="text-lg font-semibold text-green-600">
+                    <div className="text-left sm:text-right">
+                      <div className="text-xs sm:text-sm text-muted-foreground">Est. Monthly Yield</div>
+                      <div className="text-base sm:text-lg font-semibold text-green-600">
                         ${(parseFloat(token.balance) * parseFloat(formatUnits(token.rentAmount || '0', 6)) / parseFloat(formatUnits(token.totalSupply || '1', 18)) * 0.833).toFixed(2)}
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">~10% APY</div>
+                      <div className="text-[10px] sm:text-xs text-muted-foreground mt-1">~10% APY</div>
                     </div>
                   </div>
                 </div>
@@ -419,29 +419,29 @@ export default function InvestorDashboard() {
           </section>
         )}
 
-        <section>
-          <div className="flex items-center justify-between mb-6">
+        <section className="space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             <div>
-              <h2 className="text-xl font-semibold tracking-tight">Available Properties</h2>
-              <p className="text-sm text-muted-foreground mt-1">Browse and invest in tokenized rental streams.</p>
+              <h2 className="text-lg sm:text-xl font-semibold tracking-tight">Available Properties</h2>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">Browse and invest in tokenized rental streams.</p>
             </div>
           </div>
           
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="flex items-center justify-center py-8 sm:py-12">
+              <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-primary" />
             </div>
           ) : properties.length === 0 ? (
-            <div className="rounded-xl border border-border bg-card p-8 text-center">
-              <Building className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium mb-2">No Properties Yet</h3>
-              <p className="text-muted-foreground mb-4">Be the first to invest when properties are listed.</p>
-              <Link to="/issuer" className="text-primary hover:underline">
+            <div className="rounded-xl border border-border bg-card p-6 sm:p-8 text-center">
+              <Building className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mx-auto mb-3 sm:mb-4" />
+              <h3 className="text-base sm:text-lg font-medium mb-2">No Properties Yet</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">Be the first to invest when properties are listed.</p>
+              <Link to="/issuer" className="text-primary hover:underline text-xs sm:text-sm">
                 Go to Issuer Portal to create properties
               </Link>
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
               {properties.map((property) => (
                 <div 
                   key={property.id} 
@@ -449,7 +449,7 @@ export default function InvestorDashboard() {
                   onClick={() => setSelectedProperty(property)}
                 >
                   {property.imageUrl ? (
-                    <div className="h-28 md:h-32 relative">
+                    <div className="h-24 sm:h-28 md:h-32 relative">
                       <img 
                         src={property.imageUrl} 
                         alt={property.name}
@@ -460,41 +460,51 @@ export default function InvestorDashboard() {
                         }}
                       />
                       <div className="hidden h-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                        <Building className="h-10 w-10 text-primary/40" />
+                        <Building className="h-8 w-8 sm:h-10 sm:w-10 text-primary/40" />
                       </div>
                     </div>
                   ) : (
-                    <div className="h-28 md:h-32 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center relative">
-                      <Building className="h-10 w-10 text-primary/40" />
+                    <div className="h-24 sm:h-28 md:h-32 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center relative">
+                      <Building className="h-8 w-8 sm:h-10 sm:w-10 text-primary/40" />
                     </div>
                   )}
-                  <div className="absolute top-4 right-4">
-                    <span className="inline-flex items-center rounded-full bg-background/80 backdrop-blur px-3 py-1 text-xs font-medium">
+                  <div className="absolute top-2 sm:top-3 md:top-4 right-2 sm:right-3 md:right-4">
+                    <span className="inline-flex items-center rounded-full bg-background/80 backdrop-blur px-2 sm:px-3 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium">
                       {property.yield} APY
                     </span>
                   </div>
-                  <div className="p-4 md:p-6">
-                    <h3 className="font-semibold text-lg mb-1">{property.name}</h3>
-                    <p className="text-sm text-muted-foreground mb-4">{property.address}</p>
-                    <div className="grid grid-cols-3 gap-2 md:gap-4 mb-4">
+                  <div className="p-3 sm:p-4 md:p-6">
+                    <h3 className="font-semibold text-sm sm:text-base lg:text-lg mb-1">{property.name}</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">{property.address}</p>
+                    <div className="grid grid-cols-3 gap-1 sm:gap-2 md:gap-4 mb-3 sm:mb-4">
                       <div>
-                        <p className="text-xs text-muted-foreground mb-1">Value</p>
-                        <p className="font-semibold text-sm">{property.price}</p>
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mb-1">Value</p>
+                        <p className="font-semibold text-xs sm:text-sm">{property.price}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground mb-1">Rent</p>
-                        <p className="font-semibold text-sm">{property.rent}</p>
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mb-1">Rent</p>
+                        <p className="font-semibold text-xs sm:text-sm">{property.rent}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground mb-1">Available</p>
-                        <p className="font-semibold text-sm">{parseFloat(property.tokensAvailable).toLocaleString()} TEN</p>
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mb-1">Available</p>
+                        <p className="font-semibold text-xs sm:text-sm">{parseFloat(property.tokensAvailable).toLocaleString()} TEN</p>
                       </div>
                     </div>
                     <button
-                      className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 transition-all disabled:opacity-50"
+                      className="w-full inline-flex items-center justify-center rounded-lg text-xs sm:text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-8 sm:h-10 transition-all disabled:opacity-50"
                       disabled={parseFloat(property.tokensAvailable) <= 0}
                     >
-                      {parseFloat(property.tokensAvailable) > 0 ? 'Buy Income Rights' : 'No Active Listings'}
+                      {parseFloat(property.tokensAvailable) > 0 ? (
+                        <>
+                          <span className="hidden sm:inline">Buy Income Rights</span>
+                          <span className="sm:hidden">Buy Rights</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="hidden sm:inline">No Active Listings</span>
+                          <span className="sm:hidden">Sold Out</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>

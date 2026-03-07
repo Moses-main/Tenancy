@@ -32,23 +32,24 @@ const StatCard: React.FC<StatCardProps> = ({
     : 'text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400';
 
   return (
-    <div className="card-modern p-6 group">
-      <div className="flex items-start justify-between mb-4">
-        <div className={`h-12 w-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 ${variantClasses[variant]}`}>
-          <Icon className="h-6 w-6" />
+    <div className="card-modern p-4 sm:p-6 group">
+      <div className="flex items-start justify-between mb-3 sm:mb-4">
+        <div className={`h-10 w-10 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 ${variantClasses[variant]}`}>
+          <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
         </div>
         {trend && (
-          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${trendColors}`}>
-            {trendUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-            {trend}
+          <span className={`inline-flex items-center gap-1 rounded-full px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium ${trendColors}`}>
+            {trendUp ? <TrendingUp className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> : <TrendingDown className="h-2.5 w-2.5 sm:h-3 sm:w-3" />}
+            <span className="hidden sm:inline">{trend}</span>
+            <span className="sm:hidden">{trend?.replace('%', '')}%</span>
           </span>
         )}
       </div>
       <div>
-        <p className="text-sm font-medium text-muted-foreground mb-1">{title}</p>
-        <p className="text-3xl font-bold tracking-tight">{value}</p>
+        <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1">{title}</p>
+        <p className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">{value}</p>
         {description && (
-          <p className="text-xs text-muted-foreground mt-2">{description}</p>
+          <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 sm:mt-2">{description}</p>
         )}
       </div>
     </div>
