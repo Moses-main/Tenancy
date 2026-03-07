@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { Shield, CheckCircle, AlertCircle, Loader2, ExternalLink } from 'lucide-react';
+import { Shield, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { IDKitRequestWidget } from '@worldcoin/idkit';
 import { verifyWorldIdProof } from '../lib/api';
 import { featureStatus, getWorldIdAppId } from '../lib/featureFlags';
 
@@ -17,104 +18,42 @@ export default function WorldIdVerify({
   const [isVerified, setIsVerified] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [widgetOpen, setWidgetOpen] = useState(false);
 
   const appId = getWorldIdAppId();
   const worldIdStatus = featureStatus.worldId();
 
-  const handleVerify = useCallback(async () => {
+  const handleVerify = useCallback(async (proof: any) => {
     setIsVerifying(true);
-    setError(null);
-
     try {
-      if (!worldIdStatus.enabled) {
-        throw new Error(worldIdStatus.reason || 'World ID feature is disabled.');
-      }
-
-      if (typeof window === 'undefined') {
-        throw new Error('Window not available');
-      }
-
-      const widgetId = 'world-id-verification-widget';
-      let widgetContainer = document.getElementById(widgetId);
-      
-      if (!widgetContainer) {
-        widgetContainer = document.createElement('div');
-        widgetContainer.id = widgetId;
-        document.body.appendChild(widgetContainer);
-      }
-
-      const existingScript = document.querySelector('script[src*="worldcoin"]');
-      if (!existingScript) {
-        const script = document.createElement('script');
-        script.src = 'https://worldcoin.github.io/widget/v2.js';
-        script.async = true;
-        
-        await new Promise<void>((resolve, reject) => {
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error('Failed to load World ID script'));
-          document.head.appendChild(script);
-        });
-      }
-
-      const widget = (window as any).worldcoin?.initWidget?.({
-        app_id: appId,
+      await verifyWorldIdProof({
+        merkle_root: proof.merkle_root,
+        nullifier_hash: proof.nullifier_hash,
+        proof: proof.proof,
+        verification_level: proof.verification_level,
         action: actionName,
-        signal: signal,
+        signal,
       });
-
-      if (widget) {
-        widget.on('success', async (result: any) => {
-          try {
-            if (!result?.proof) {
-              throw new Error('Invalid World ID proof payload');
-            }
-
-            await verifyWorldIdProof({
-              merkle_root: result.merkle_root || result.merkleRoot,
-              nullifier_hash: result.nullifier_hash || result.nullifierHash,
-              proof: result.proof,
-              verification_level: result.verification_level || result.verificationLevel,
-              action: actionName,
-              signal,
-            });
-
-            setIsVerified(true);
-            onVerified();
-          } catch (verifyErr: any) {
-            setError(verifyErr?.message || 'World ID proof verification failed');
-          } finally {
-            setIsVerifying(false);
-          }
-        });
-
-        widget.on('cancel', () => {
-          setError('Verification was cancelled');
-          setIsVerifying(false);
-        });
-
-        widget.on('error', (err: any) => {
-          console.error('World ID widget error:', err);
-          setError(err?.message || 'Verification failed');
-          setIsVerifying(false);
-        });
-
-        widget.open();
-      } else {
-        throw new Error('Failed to initialize World ID widget');
-      }
+      return proof; // return the proof to signal success to the widget
     } catch (err: any) {
-      console.error('World ID verification error:', err);
-      
-      if (err.message?.includes('Failed to load') || err.message?.includes('not loaded')) {
-        setError('World ID not available. Please refresh and try again.');
-      } else {
-        setError(err.message || 'Verification failed');
-      }
-      
+      throw new Error(err?.message || 'Backend verification failed');
     } finally {
       setIsVerifying(false);
     }
-  }, [appId, actionName, signal, onVerified]);
+  }, [actionName, signal]);
+
+  const handleSuccess = useCallback((result: any) => {
+    setIsVerified(true);
+    setError(null);
+    setWidgetOpen(false);
+    onVerified();
+  }, [onVerified]);
+
+  const handleError = useCallback((errorCode: any) => {
+    console.error('World ID error:', errorCode);
+    setError(typeof errorCode === 'string' ? errorCode : 'World ID verification failed');
+    setIsVerifying(false);
+  }, []);
 
   if (isVerified) {
     return (
@@ -166,7 +105,7 @@ export default function WorldIdVerify({
           )}
 
           <button
-            onClick={handleVerify}
+            onClick={() => { setError(null); setWidgetOpen(true); }}
             disabled={isVerifying}
             className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-3 gap-2 disabled:opacity-50"
           >
@@ -183,16 +122,26 @@ export default function WorldIdVerify({
             )}
           </button>
 
+          <IDKitRequestWidget
+            app_id={appId as `app_${string}`}
+            action={actionName}
+            signal={signal}
+            open={widgetOpen}
+            onOpenChange={setWidgetOpen}
+            handleVerify={handleVerify}
+            onSuccess={handleSuccess}
+            onError={handleError}
+          />
+
           <p className="text-xs text-muted-foreground mt-2 text-center">
-            Powered by{' '}
+            Scan the QR code with your{' '}
             <a 
-              href="https://worldcoin.org" 
+              href="https://worldcoin.org/download-app" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-primary hover:underline"
+              className="text-primary hover:underline"
             >
-              Worldcoin
-              <ExternalLink className="h-3 w-3" />
+              World App
             </a>
           </p>
         </div>
