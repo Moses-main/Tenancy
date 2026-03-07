@@ -232,12 +232,8 @@ export const useContracts = () => {
       
       console.log('All properties:', props.map(p => ({ id: p.id, owner: p.owner, currentUser: address })));
       
-      const userProps = props.filter((p: any) => p.owner?.toLowerCase() === address?.toLowerCase());
-      
-      console.log('User properties:', userProps.map(p => ({ id: p.id, owner: p.owner })));
-      
       const tokenBalances = await Promise.all(
-        userProps.map(async (p: any) => {
+        props.map(async (p: any) => {
           const balance = await getTokenBalance(p.propertyToken, address);
           return {
             ...p,
@@ -249,10 +245,10 @@ export const useContracts = () => {
         })
       );
       
-      // Return all user-owned properties (don't filter by balance > 0)
-      // This allows users to list properties they created even if they sold all tokens
-      console.log('Token balances:', tokenBalances.map(t => ({ id: t.id, name: t.tokenName, balance: t.balance })));
-      return tokenBalances;
+      const userTokens = tokenBalances.filter((t: any) => parseFloat(t.balance) > 0);
+      
+      console.log('User token balances:', userTokens.map(t => ({ id: t.id, name: t.tokenName, balance: t.balance })));
+      return userTokens;
     } catch (err) {
       console.error('Error getting property tokens:', err);
       return [];
@@ -597,17 +593,18 @@ export const useContracts = () => {
       const marketplace = new Contract(addrs.marketplace, ABIS.marketplace, signer);
       const amountWei = parseUnits(amount, 18);
       const listings = await marketplace.getActiveListings();
-      const matchingListing = listings.find((listing: any) =>
-        listing.propertyToken.toLowerCase() === propertyTokenAddress.toLowerCase() &&
-        listing.seller.toLowerCase() !== buyerAddress.toLowerCase() &&
-        listing.amount.gte(amountWei)
+      const listing = listings.find((l: any) =>
+        l.propertyToken.toLowerCase() === propertyTokenAddress.toLowerCase() &&
+        l.seller.toLowerCase() !== buyerAddress.toLowerCase() &&
+        ethers.BigNumber.from(l.amount.toString()).gte(amountWei)
       );
 
-      if (!matchingListing) {
+      if (!listing) {
         throw new Error('No active listing has enough tokens for this purchase');
       }
 
-      const totalCost = (amountWei * matchingListing.pricePerToken) / parseUnits('1', 18);
+      const pricePerToken = ethers.BigNumber.from(listing.pricePerToken.toString());
+      const totalCost = amountWei.mul(pricePerToken).div(parseUnits('1', 18));
       const usdc = new Contract(usdcAddress, USDC_ABI, signer);
       const buyerUSDCBalance = await usdc.balanceOf(buyerAddress);
       if (buyerUSDCBalance < totalCost) {
@@ -620,7 +617,7 @@ export const useContracts = () => {
         await approveTx.wait();
       }
 
-      const tx = await marketplace.buyListing(matchingListing.id, amountWei);
+      const tx = await marketplace.buyListing(listing.id, amountWei);
       callbacks?.onPendingTx?.(tx.hash);
       const receipt = await tx.wait();
       callbacks?.onConfirmedTx?.(receipt.hash);
@@ -677,7 +674,7 @@ export const useContracts = () => {
       }
       
       const marketplace = new Contract(addrs.marketplace, ABIS.marketplace, provider);
-      const listings = await marketplace.getListings();
+      const listings = await marketplace.getActiveListings();
       
       return listings.map((l: any) => ({
         id: l.id,

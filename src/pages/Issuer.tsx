@@ -64,7 +64,11 @@ export default function IssuerDashboard() {
           getAllProperties(),
           getAllPayments().catch(() => ({ data: [] as Payment[] })),
         ]);
-        const userProps = props.filter((p: any) => p.owner?.toLowerCase() === address?.toLowerCase());
+        
+        const userProps = props.filter((p: any) => 
+          p.owner?.toLowerCase() === address?.toLowerCase() ||
+          (p.propertyToken && p.propertyToken !== '0x0000000000000000000000000000000000000000')
+        );
         const propertyRows = userProps.map((p: any) => ({
           id: Number(p.id),
           uri: p.uri,
