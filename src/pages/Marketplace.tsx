@@ -36,6 +36,8 @@ interface PropertyOption {
   id: number;
   name: string;
   uri: string;
+  tokenSymbol?: string;
+  tokenName?: string;
 }
 
 export default function Marketplace() {
@@ -113,8 +115,10 @@ export default function Marketplace() {
         
         const propertyOptions: PropertyOption[] = (userProps || []).map((prop: any) => ({
           id: Number(prop.id),
-          name: prop.uri || `Property #${Number(prop.id)}`,
+          name: prop.tokenName ? `${prop.tokenName} (${prop.tokenSymbol})` : (prop.uri || `Property #${Number(prop.id)}`),
           uri: prop.uri || '',
+          tokenSymbol: prop.tokenSymbol || '',
+          tokenName: prop.tokenName || '',
         }));
         
         setListings(listingsWithDetails);

@@ -227,7 +227,9 @@ export const useContracts = () => {
         })
       );
       
-      return tokenBalances.filter((token: any) => parseFloat(token.balance) > 0);
+      // Return all user-owned properties (don't filter by balance > 0)
+      // This allows users to list properties they created even if they sold all tokens
+      return tokenBalances;
     } catch (err) {
       console.error('Error getting property tokens:', err);
       return [];
