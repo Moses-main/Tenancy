@@ -48,15 +48,6 @@ export type Verification = {
       txHash: string;
     };
 
-    export type WorldIdProofPayload = {
-      merkle_root: string;
-      nullifier_hash: string;
-      proof: string;
-      verification_level?: string;
-      action?: string;
-      signal?: string;
-    };
-
     export type PaginationQuery = {
       limit?: number;
       offset?: number;
@@ -153,20 +144,6 @@ export type Verification = {
       if (!res.ok) {
         const err = await safeJson(res);
         throw new Error(err?.error || err?.message || 'Failed to fetch verification');
-      }
-      return res.json();
-    }
-
-    export async function verifyWorldIdProof(payload: WorldIdProofPayload): Promise<{ verified: boolean; nullifierHash: string }> {
-      const res = await fetch(`${BACKEND_URL}/world-id/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const err = await safeJson(res);
-        throw new Error(err?.error || err?.message || 'World ID proof verification failed');
       }
       return res.json();
     }

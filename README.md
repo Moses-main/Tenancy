@@ -34,7 +34,6 @@ Built for the **Chainlink Convergence Hackathon** — a fully functional DeFi pr
 - [Deployment Options](#deployment-options)
 - [Thirdweb Integration](#thirdweb-integration)
 - [Tenderly Virtual TestNet](#tenderly-virtual-testnet)
-- [World ID Integration](#world-id-integration)
 - [CRE Workflow](#cre-workflow)
 - [Testing](#testing)
 - [Security](#security)
@@ -208,7 +207,6 @@ STEP 4: ON-CHAIN EXECUTE
 | **Frontend** | React 19, Vite, TypeScript, Tailwind CSS |
 | **UI Components** | Radix UI, Lucide React |
 | **Authentication** | Privy |
-| **Identity** | World ID (Sybil resistance) |
 | **Deployment** | Thirdweb, Tenderly Virtual TestNet |
 | **Backend** | Express.js (Mock) |
 | **Workflow** | TypeScript, Node.js |
@@ -600,15 +598,7 @@ Confidential computation and data masking:
 - AES-256-CBC encryption
 - Address/amount/email masking
 - Off-chain yield calculations
-- Zero-knowledge verification concept
-
-#### World ID Integration
-
-Sybil resistance for yield claims:
-
-| File | Description |
-|------|-------------|
-| [`cre-workflow/src/worldid-service.ts`](cre-workflow/src/worldid-service.ts) | World ID verification for claims |
+- Simplified verification process
 
 ---
 
@@ -934,98 +924,7 @@ See [`scripts/tenderly-deploy.ts`](scripts/tenderly-deploy.ts) for full implemen
 
 ---
 
-## 🛡️ World ID Integration
-
-### Overview
-
-World ID provides sybil resistance for yield claims:
-- **Proof of Personhood** - Ensures one person, one vote/claim
-- **Privacy-preserving** - Zero-knowledge proofs
-- **Decentralized** - Powered by Worldcoin protocol
-
-### How World ID Works in TENANCY
-
-```mermaid
-flowchart TB
-    subgraph Verification["World ID Verification"]
-        User["User"]
-        Widget["World ID Widget"]
-        WLD["Worldcoin Protocol"]
-        Proof["ZK Proof"]
-    end
-    
-    subgraph Contract["Smart Contract"]
-        Verify["verifyProof"]
-        Claim["Claim Yield"]
-    end
-    
-    User -->|1. Click Verify| Widget
-    Widget -->|2. Scan Iris| WLD
-    WLD -->|3. Generate Proof| Proof
-    Proof -->|4. Submit TX| Verify
-    Verify -->|5. On Success| Claim
-```
-
-### Configuration
-
-```env
-# Get from https://developer.worldcoin.org
-VITE_WORLD_ID_APP_ID=rp_xxxxxxxxxxxxxxxx
-```
-
-### Setting Up World ID
-
-1. Go to [Worldcoin Developer Portal](https://developer.worldcoin.org)
-2. Create new app
-3. Configure action name (e.g., `tenancy-verify`)
-4. Copy App ID to `.env`
-
-### Implementation
-
-The WorldIdVerify component provides:
-
-```typescript
-import WorldIdVerify from './components/WorldIdVerify';
-
-// In your component
-<WorldIdVerify 
-  actionName="tenancy-verify"  // Your World ID action
-  signal={userAddress}         // Optional: prevent replay
-  onVerified={() => {
-    // Enable yield claiming
-    setCanClaimYield(true);
-  }}
-/>
-```
-
-### World ID Actions in TENANCY
-
-| Action | Purpose | Trigger |
-|--------|---------|---------|
-| `tenancy-verify` | Initial KYC | Before first yield claim |
-| `yield-claim` | Per-claim verification | Each yield claim |
-| `property-create` | Issuer verification | Creating properties |
-
-### Privacy Features
-
-- **Signal** - Prevents proof replay (use user address)
-- **Nullifier hash** - Ensures one proof per action per person
-- **No data collection** - Worldcoin doesn't share identity data
-
-### Fallback Behavior
-
-If World ID fails (user doesn't have Worldcoin app):
-- Show error message
-- Option to skip (for testing)
-- Record unverified claims separately
-
-### Component Location
-
-See [`src/components/WorldIdVerify.tsx`](src/components/WorldIdVerify.tsx) for full implementation.
-
----
-
-## 🔄 Running the CRE Workflow
+##  Running the CRE Workflow
 
 ### Quick Start
 

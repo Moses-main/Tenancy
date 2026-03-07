@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
-import WorldIdVerify from '../components/WorldIdVerify';
 import KYCVerification from '../components/KYCVerification';
 import { Coins, ArrowDownToLine, ArrowRightLeft, TrendingUp, Building, ExternalLink, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
@@ -65,7 +64,6 @@ export default function InvestorDashboard() {
   const [isProcessingBuy, setIsProcessingBuy] = useState(false);
   const [isProcessingClaim, setIsProcessingClaim] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<PropertyDisplay | null>(null);
-  const [worldIdVerified, setWorldIdVerified] = useState(true); // Auto-verify for better UX
   const [settlementHistory, setSettlementHistory] = useState<SettlementReceipt[]>([]);
 
   useEffect(() => {
@@ -259,11 +257,6 @@ export default function InvestorDashboard() {
   const handleClaimYield = async () => {
     if (properties.length === 0) return;
     
-    if (!worldIdVerified) {
-      toast.error('Please verify with World ID first');
-      return;
-    }
-    
     setIsProcessingClaim(true);
     const toastId = toast.loading("Claiming yield...");
     
@@ -282,7 +275,6 @@ export default function InvestorDashboard() {
         autoClose: 3000 
       });
       
-      setWorldIdVerified(false);
       const [yield_, refreshedIds] = await Promise.all([getPendingYield(), getClaimableDistributionIds()]);
       setPendingYield(yield_);
       setClaimableDistributionIds(refreshedIds || []);
@@ -360,7 +352,7 @@ export default function InvestorDashboard() {
             trend={parseFloat(pendingYield) > 0 ? "+Available" : undefined}
             trendUp={true}
           />
-          {/* World ID verification removed for better mobile experience */}
+          {/* Yield claiming now works without verification requirements */}
           <div className="rounded-2xl border border-border bg-card p-6 flex flex-col justify-center stat-card">
             <button
               onClick={handleClaimYield}
