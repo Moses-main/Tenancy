@@ -164,13 +164,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const getPreferredWallet = useCallback((wallets: any[]) => {
     if (wallets.length === 0) return null;
     
-    console.log('Available wallets:', wallets.map(w => ({
-      address: w.address,
-      connectorType: w.connectorType,
-      walletType: w.walletType,
-      walletClientType: w.walletClientType,
-      name: w.name
-    })));
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Available wallets:', wallets.map(w => ({
+        address: w.address,
+        connectorType: w.connectorType,
+        walletType: w.walletType,
+        walletClientType: w.walletClientType,
+        name: w.name
+      })));
+    }
     
     // More comprehensive external wallet detection
     const externalWallets = wallets.filter(wallet => {
@@ -179,17 +181,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         wallet.connectorType === 'privy' ||
                         wallet.name?.toLowerCase().includes('privy');
       
-      console.log(`Wallet ${wallet.address}: connectorType=${wallet.connectorType}, walletType=${wallet.walletType}, isEmbedded=${isEmbedded}`);
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`Wallet ${wallet.address}: connectorType=${wallet.connectorType}, walletType=${wallet.walletType}, isEmbedded=${isEmbedded}`);
+      }
       
       return !isEmbedded;
     });
     
-    console.log('External wallets found:', externalWallets.length);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('External wallets found:', externalWallets.length);
+    }
     
     // If external wallets exist, prefer the most recently connected one
     if (externalWallets.length > 0) {
       const selectedWallet = externalWallets[externalWallets.length - 1];
-      console.log('Selected external wallet:', selectedWallet.address);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Selected external wallet:', selectedWallet.address);
+      }
       return selectedWallet;
     }
     
@@ -202,19 +210,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
     
     const fallbackWallet = embeddedWallets[embeddedWallets.length - 1] || wallets[0];
-    console.log('Fallback to embedded wallet:', fallbackWallet.address);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Fallback to embedded wallet:', fallbackWallet.address);
+    }
     return fallbackWallet;
   }, []);
 
   useEffect(() => {
     if (wallets.length > 0 && authenticated) {
       const preferredWallet = getPreferredWallet(wallets);
-      console.log('Current connected wallet:', connectedWallet?.address);
-      console.log('Preferred wallet:', preferredWallet?.address);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Current connected wallet:', connectedWallet?.address);
+        console.log('Preferred wallet:', preferredWallet?.address);
+      }
       
       // Always switch to preferred wallet if it's different
       if (preferredWallet && preferredWallet.address !== connectedWallet?.address) {
-        console.log('Switching to preferred wallet:', preferredWallet.address);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Switching to preferred wallet:', preferredWallet.address);
+        }
         setConnectedWallet(preferredWallet);
         fetchBalanceAndChain(preferredWallet);
       }
