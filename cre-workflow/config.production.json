@@ -1,18 +1,17 @@
 {
   "schedule": "0 0 * * * *",
   "networks": {
-    "baseSepolia": {
+    "sepolia": {
       "chainSelector": "11344663589393246078",
-      "propertyRegistryAddress": "0x4f3739e14d936e0dbe31ae075bda532685f50973",
-      "yieldDistributorAddress": "0x52ffde85ed08aad28fb50ee1329d440ddc334d21",
-      "priceFeedAddress": "0x4164845423ef21fd4777550753dfe87b0b930d4b",
-      "marketplaceAddress": "0x722f814853c6fc089ec09b5144edbe959780bafe",
-      "paymentTokenAddress": "0x4200000000000000000000000000000000000006"
+      "propertyRegistryAddress": "0x6d51cE756C9622A3399CBb7355321d4A326Ec09d",
+      "yieldDistributorAddress": "0xBd9003d875267E7694B500091590C6eC2ddb5510",
+      "priceFeedAddress": "0xdcd90ADe757a020B7bA917F0f943a01e3b042091",
+      "marketplaceAddress": "0x1A7d33B33AeCFc22590ae3150D40C5A0F8e63048"
     }
   },
   "secrets": {
     "paymentApiUrl": "https://api.tenancy.internal",
-    "paymentApiKey": "tenancy_dev_key_2024",
+    "paymentApiKey": "${PAYMENT_API_KEY}",
     "llmProvider": "openai",
     "openaiApiKey": "${OPENAI_API_KEY}",
     "groqApiKey": "",

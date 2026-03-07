@@ -62,8 +62,8 @@ interface PropertyInfo {
 }
 
 const PROPERTY_REGISTRY_ABI = parseAbi([
-  "function getProperty(uint256 propertyId) external view returns (address owner, uint256 totalShares, uint256 pricePerShare, bool isActive, uint256[] memory)",
-  "function propertyCount() external view returns (uint256)",
+  "function getAllProperties() external view returns (tuple(uint256 id, string uri, uint256 rentAmount, uint256 rentFrequency, uint256 totalSupply, address propertyToken, bool isActive, bool isPaused, address owner, uint256 valuationUsd, uint256 lastValuationTimestamp, uint256 paymentStatus, uint256 daysOverdue)[])",
+  "function getProperty(uint256 propertyId) external view returns (tuple(uint256 id, string uri, uint256 rentAmount, uint256 rentFrequency, uint256 totalSupply, address propertyToken, bool isActive, bool isPaused, address owner, uint256 valuationUsd, uint256 lastValuationTimestamp, uint256 paymentStatus, uint256 daysOverdue))",
 ]);
 
 const PRICE_FEED_ABI = parseAbi([
@@ -71,8 +71,10 @@ const PRICE_FEED_ABI = parseAbi([
 ]);
 
 const YIELD_DISTRIBUTOR_ABI = parseAbi([
-  "function createDistribution(uint256 propertyId, uint256 amount, address recipient) external returns (uint256 distributionId)",
+  "function createDistribution(uint256 propertyId, uint256 totalYield, uint256[] holderBalances, address[] holders) external returns (uint256 distributionId)",
   "function startDistribution(uint256 distributionId) external",
+  "function totalYieldPool() external view returns (uint256)",
+  "function totalDistributedYield() external view returns (uint256)",
 ]);
 
 async function fetchPaymentStatus(
@@ -163,21 +165,18 @@ async function getPropertyInfo(
       }),
     });
 
-    const [owner, totalShares, , , units] = decodeFunctionResult({
+    const [property] = decodeFunctionResult({
       abi: PROPERTY_REGISTRY_ABI,
       functionName: "getProperty",
       data: result,
-    });
-
-    const occupiedUnits = Number(units?.[0]) || 1;
-    const totalUnits = Number(units?.[1]) || 1;
+    }) as [{ owner: string; totalSupply: bigint; isActive: boolean }];
 
     return {
       propertyId,
-      owner: (owner as string) || "0x0000000000000000000000000000000000000000",
-      totalShares: (totalShares as bigint) || 1000n,
-      occupiedUnits,
-      totalUnits,
+      owner: property?.owner || "0x0000000000000000000000000000000000000000",
+      totalShares: property?.totalSupply || 1000n,
+      occupiedUnits: 1,
+      totalUnits: 1,
     };
   } catch (e) {
     runtime.log(`Property info error for ID ${propertyId}: ${e}`);
@@ -199,7 +198,7 @@ async function getPropertyCount(
   try {
     const callData = encodeFunctionData({
       abi: PROPERTY_REGISTRY_ABI,
-      functionName: "propertyCount",
+      functionName: "getAllProperties",
     });
 
     const result = evmClient.callContract(runtime, {
@@ -209,13 +208,13 @@ async function getPropertyCount(
       }),
     });
 
-    const [count] = decodeFunctionResult({
+    const [properties] = decodeFunctionResult({
       abi: PROPERTY_REGISTRY_ABI,
-      functionName: "propertyCount",
+      functionName: "getAllProperties",
       data: result,
     });
 
-    return Number(count as bigint);
+    return (properties as unknown[]).length;
   } catch (e) {
     runtime.log(`Property count error: ${e}`);
     return 0;
@@ -228,8 +227,9 @@ async function runWorkflow(runtime: Runtime<Config>): Promise<string> {
   const config = runtime.config;
   const networkConfig = config.networks.sepolia;
 
-  const SEPOLIA_CHAIN_SELECTOR = 16015286601757825753n;
-  const evmClient = new EVMClient(SEPOLIA_CHAIN_SELECTOR);
+  // Use chain selector from config (Base Sepolia: 11344663589393246078)
+  const chainSelector = BigInt(networkConfig.chainSelector);
+  const evmClient = new EVMClient(chainSelector);
 
   runtime.log(`Network: sepolia`);
   runtime.log(`Property Registry: ${networkConfig.propertyRegistryAddress}`);
