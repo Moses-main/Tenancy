@@ -116,7 +116,6 @@ contract PropertyMarketplace is Ownable, ReentrancyGuard {
 
     function buyListing(uint256 listingId, uint256 amountToBuy) external nonReentrant onlyValidListing(listingId) {
         Listing storage listing = listings[listingId];
-        require(listing.seller != msg.sender, "Cannot buy own listing");
         require(amountToBuy > 0, "Amount must be greater than 0");
         require(amountToBuy <= listing.amount, "Insufficient listed amount");
 
