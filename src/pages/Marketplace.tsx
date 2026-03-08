@@ -105,8 +105,8 @@ export default function Marketplace() {
               propertyToken: l.propertyToken,
               seller: l.seller,
               amount: parseFloat(formatUnits(l.amount, 18)),
-              pricePerToken: parseFloat(formatUnits(l.pricePerToken, 6)),
-              totalPrice: parseFloat(formatUnits(l.totalPrice, 6)),
+              pricePerToken: parseFloat(formatUnits(l.pricePerToken, 18)),
+              totalPrice: parseFloat(formatUnits(l.totalPrice, 18)),
               status: l.isActive ? ('active' as const) : ('sold' as const),
               createdAt: Number(l.createdAt) * 1000,
             };
@@ -198,8 +198,8 @@ export default function Marketplace() {
           propertyToken: l.propertyToken,
           seller: l.seller,
           amount: parseFloat(formatUnits(l.amount, 18)),
-          pricePerToken: parseFloat(formatUnits(l.pricePerToken, 6)),
-          totalPrice: parseFloat(formatUnits(l.totalPrice, 6)),
+          pricePerToken: parseFloat(formatUnits(l.pricePerToken, 18)),
+          totalPrice: parseFloat(formatUnits(l.totalPrice, 18)),
           status: l.isActive ? 'active' : 'sold',
           createdAt: Number(l.createdAt) * 1000,
         };

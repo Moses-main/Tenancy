@@ -115,7 +115,7 @@ export default function InvestorDashboard() {
         const activeListings = (listings || []).filter((listing: any) => Boolean(listing?.isActive));
         const pricesByToken = activeListings.reduce((acc: Record<string, number>, listing: any) => {
           const token = String(listing.propertyToken).toLowerCase();
-          const price = parseFloat(formatUnits(listing.pricePerToken, 6));
+          const price = parseFloat(formatUnits(listing.pricePerToken, 18));
           if (!acc[token] || price < acc[token]) {
             acc[token] = price;
           }

@@ -716,7 +716,7 @@ export const useContracts = () => {
       
       const propertyTokenContract = new Contract(propertyToken, ABIS.erc20, await provider.getSigner());
       const amountWei = parseUnits(amount, 18);
-      const priceWei = parseUnits(pricePerToken, 6);
+      const priceWei = parseUnits(pricePerToken, 18);
       
       const marketplaceAddress = contracts.marketplace.address || contracts.marketplace.target;
       const allowance = await propertyTokenContract.allowance(address, marketplaceAddress);
