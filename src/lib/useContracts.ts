@@ -556,7 +556,7 @@ export const useContracts = () => {
   }, [getContracts, getClaimableDistributionIds]);
 
   const USDC_ADDRESSES = {
-    baseSepolia: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+    baseSepolia: '0x4200000000000000000000000000000000000006', // WETH on Base
     sepolia: '0x0000000000000000000000000000000000000000', // No official USDC on Sepolia
   };
   const USDC_ABI = [
