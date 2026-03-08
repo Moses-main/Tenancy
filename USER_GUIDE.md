@@ -206,7 +206,7 @@ Click **"Refresh Agent Data"** to fetch the latest on-chain data immediately.
 |----------|---------|
 | PropertyRegistry | `0x6d51cE756C9622A3399CBb7355321d4A326Ec09d` |
 | TENToken | `0x214E4a7f581c3f09F6eAE495C5B32836996a41c6` |
-| PropertyMarketplace | `0x1A7d33B33AeCFc22590ae3150D40C5A0F8e63048` |
+| PropertyMarketplace | `0x69ABF4DD7152ba636B9542AA3922C121877E0eAC` |
 | YieldDistributor | `0xBd9003d875267E7694B500091590C6eC2ddb5510` |
 | USDC (Base Sepolia) | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
 

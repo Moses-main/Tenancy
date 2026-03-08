@@ -17,7 +17,7 @@
 |----------|----------|-------------|
 | **PropertyRegistry** | `0x6d51cE756C9622A3399CBb7355321d4A326Ec09d` | Property creation & management |
 | **TENToken** | `0x214E4a7f581c3f09F6eAE495C5B32836996a41c6` | Governance & utility token |
-| **PropertyMarketplace** | `0x1A7d33B33AeCFc22590ae3150D40C5A0F8e63048` | Token trading platform |
+| **PropertyMarketplace** | `0x69ABF4DD7152ba636B9542AA3922C121877E0eAC` | Token trading platform |
 | **YieldDistributor** | `0xBd9003d875267E7694B500091590C6eC2ddb5510` | Yield distribution system |
 | **MockPriceFeed** | `0xdcd90ADe757a020B7bA917F0f943a01e3b042091` | Price oracle integration |
 | **RentalToken** | `0xa5703d8408874f49d64398E1b355b8381894e277` | Rental payment tokens |
