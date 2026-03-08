@@ -91,7 +91,7 @@ contract PropertyMarketplace is Ownable, ReentrancyGuard {
         listing.propertyToken = propertyToken;
         listing.amount = amount;
         listing.pricePerToken = pricePerToken;
-        listing.totalPrice = amount * pricePerToken / 1e18;
+        listing.totalPrice = amount * pricePerToken;
         listing.isActive = true;
         listing.createdAt = block.timestamp;
 
@@ -119,7 +119,7 @@ contract PropertyMarketplace is Ownable, ReentrancyGuard {
         require(amountToBuy > 0, "Amount must be greater than 0");
         require(amountToBuy <= listing.amount, "Insufficient listed amount");
 
-        uint256 totalCost = (amountToBuy * listing.pricePerToken) / 1e18;
+        uint256 totalCost = amountToBuy * listing.pricePerToken;
 
         uint256 platformFee = (totalCost * platformFeePercent) / 1000;
         uint256 sellerProceeds = totalCost - platformFee;
@@ -138,7 +138,7 @@ contract PropertyMarketplace is Ownable, ReentrancyGuard {
             listing.isActive = false;
             listing.totalPrice = 0;
         } else {
-            listing.totalPrice = (listing.amount * listing.pricePerToken) / 1e18;
+            listing.totalPrice = listing.amount * listing.pricePerToken;
         }
 
         emit ListingFilled(listingId, msg.sender, listing.seller, amountToBuy, totalCost);
