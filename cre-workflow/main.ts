@@ -16,7 +16,7 @@ import { z } from "zod";
 const ConfigSchema = z.object({
   schedule: z.string(),
   networks: z.object({
-    sepolia: z.object({
+    baseSepolia: z.object({
       chainSelector: z.string(),
       propertyRegistryAddress: z.string(),
       yieldDistributorAddress: z.string(),
@@ -225,13 +225,13 @@ async function runWorkflow(runtime: Runtime<Config>): Promise<string> {
   runtime.log("TENANCY CRE Workflow Started");
 
   const config = runtime.config;
-  const networkConfig = config.networks.sepolia;
+  const networkConfig = config.networks.baseSepolia;
 
   // Use chain selector from config (Base Sepolia: 11344663589393246078)
   const chainSelector = BigInt(networkConfig.chainSelector);
   const evmClient = new EVMClient(chainSelector);
 
-  runtime.log(`Network: sepolia`);
+  runtime.log(`Network: baseSepolia`);
   runtime.log(`Property Registry: ${networkConfig.propertyRegistryAddress}`);
   runtime.log(`Yield Distributor: ${networkConfig.yieldDistributorAddress}`);
 

@@ -1,7 +1,7 @@
 {
   "schedule": "0 */30 * * * *",
   "networks": {
-    "sepolia": {
+    "baseSepolia": {
       "chainSelector": "11344663589393246078",
       "propertyRegistryAddress": "0x6d51cE756C9622A3399CBb7355321d4A326Ec09d",
       "yieldDistributorAddress": "0xBd9003d875267E7694B500091590C6eC2ddb5510",

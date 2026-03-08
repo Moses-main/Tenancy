@@ -41,11 +41,11 @@ const WORLD_ID_API_KEY = process.env.WORLD_ID_API_KEY || '';
 const worldIdNullifiers = new Set();
 const requestNonces = new Set();
 
-// Contract addresses (Base Sepolia)
+// Contract addresses (Base Sepolia) - Updated with latest deployment
 const CONTRACTS = {
-  propertyRegistry: process.env.PROPERTY_REGISTRY_ADDRESS || '0x8f77c2BD2132727327B27164cDec4ccaA2083f7C',
-  yieldDistributor: process.env.YIELD_DISTRIBUTOR_ADDRESS || '0xd7c3c5e900Bd95653FA65b660a94625E1ddbBDA1',
-  tenToken: process.env.TEN_TOKEN_ADDRESS || '0x539bd9076cB447Da9c88e722052293dD3394b536'
+  propertyRegistry: process.env.PROPERTY_REGISTRY_ADDRESS || '0x6d51cE756C9622A3399CBb7355321d4A326Ec09d',
+  yieldDistributor: process.env.YIELD_DISTRIBUTOR_ADDRESS || '0xBd9003d875267E7694B500091590C6eC2ddb5510',
+  tenToken: process.env.TEN_TOKEN_ADDRESS || '0x214E4a7f581c3f09F6eAE495C5B32836996a41c6'
 };
 
 const SAMPLE_PROPERTIES = [

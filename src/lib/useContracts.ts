@@ -28,7 +28,7 @@ const decodeDistributionInfo = (raw: any): DecodedDistributionInfo | null => {
   if (!raw) return null;
   const holders = Array.isArray(raw.holders) ? raw.holders : [];
   const holderBalances = Array.isArray(raw.holderBalances) ? raw.holderBalances : [];
-  if (holders.length !== holderBalances.length) return null;
+  // Make decoding more lenient - handle edge cases where arrays might be empty or different lengths
   if (
     raw.propertyId === undefined ||
     raw.totalYield === undefined ||
