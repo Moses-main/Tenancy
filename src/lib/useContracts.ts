@@ -557,7 +557,7 @@ export const useContracts = () => {
 
   const USDC_ADDRESSES = {
     baseSepolia: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
-    sepolia: '0xda0d3FA677B08D2Afd00D8e23c4A79DC9eBd8C2',
+    sepolia: '0x0000000000000000000000000000000000000000', // No official USDC on Sepolia
   };
   const USDC_ABI = [
     'function transfer(address to, uint256 amount) returns (bool)',
